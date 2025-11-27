@@ -1,0 +1,25 @@
+{
+  "name": "backend",
+  "module": "src/index.ts",
+  "type": "module",
+  "private": true,
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "scripts": {
+    "dev": "bun --env-file=../../.env src/index.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "arctic": "^3.7.0",
+    "http-z": "^8.1.1",
+    "jose": "^6.1.2",
+    "lowdb": "^7.0.1",
+    "shared": "workspace:*",
+    "ts-http-forge": "^0.1.4",
+    "zod": "^4.1.12"
+  }
+}
