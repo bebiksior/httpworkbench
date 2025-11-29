@@ -1,7 +1,11 @@
+import { join } from "node:path";
 import { initServer } from "./server";
 import { initDb } from "./storage";
 
-const version = "1.0.0";
+const rootPackageJson = await Bun.file(
+  join(import.meta.dir, "../../../package.json"),
+).json();
+export const version: string = rootPackageJson.version;
 
 async function init() {
   console.log("init", version);

@@ -13,6 +13,7 @@ import { useAuthStore } from "@/stores";
 import { WebhookList } from "./WebhookList";
 import { WebhookForm } from "./WebhookForm";
 import { OpenrouterKey } from "./OpenrouterKey";
+import { UpdateCheck } from "./UpdateCheck";
 
 const router = useRouter();
 const authStore = useAuthStore();
@@ -90,6 +91,7 @@ const handleEdit = (webhook: Webhook) => {
     <Divider class="mb-6" />
 
     <div class="mx-auto max-w-7xl px-6 pt-2 pb-8">
+      <UpdateCheck />
       <OpenrouterKey />
 
       <div class="bg-surface-900/70 border border-surface-800 rounded-2xl p-6">

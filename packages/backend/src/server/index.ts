@@ -119,6 +119,12 @@ export const initServer = () => {
             headers: { "Content-Type": "application/json" },
           }),
       },
+      "/api/version": {
+        GET: async () => {
+          const { version } = await import("../index");
+          return Response.json({ version });
+        },
+      },
     },
   });
   console.log(`API server running on port ${Bun.env.API_PORT}`);
