@@ -120,6 +120,7 @@ export const useBuilderPage = (instanceIdRef: Ref<string>) => {
         },
       });
       builderStore.isDirty = false;
+      builderStore.refreshPreview();
       notify.success("PoC saved");
     } catch (err) {
       notify.error("Save failed", err);
