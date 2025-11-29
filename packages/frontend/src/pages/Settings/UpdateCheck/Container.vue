@@ -30,7 +30,7 @@ const { state, checkForUpdates } = useUpdateCheck();
             <code
               class="bg-surface-800 px-2 py-0.5 rounded text-surface-200 ml-1"
             >
-              docker compose pull && docker compose up -d
+              docker compose down && git pull && docker compose up -d --build
             </code>
           </template>
           <template v-else-if="state.status === 'error'">

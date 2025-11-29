@@ -9,6 +9,8 @@ COPY packages/shared/package.json packages/shared/
 RUN bun install --frozen-lockfile
 
 FROM base AS build
+ARG VITE_DOMAIN=localhost
+ENV VITE_DOMAIN=${VITE_DOMAIN}
 COPY --from=deps /app/node_modules node_modules
 COPY . .
 WORKDIR /app/packages/frontend

@@ -140,6 +140,7 @@ GOOGLE_CLIENT_SECRET=$GOOGLE_CLIENT_SECRET
 
 CLOUDFLARE_API_TOKEN=$CLOUDFLARE_API_TOKEN
 
+ALLOW_GUEST=false
 DATA_DIR=/app/data
 EOF
 
@@ -160,12 +161,14 @@ echo ""
 echo "  2. Configure Google OAuth redirect URI:"
 echo "     https://$DOMAIN/api/auth/google/callback"
 echo ""
-echo "  3. Start the application:"
-echo "     docker compose up -d"
+echo "  3. Build and start the application:"
+echo "     docker compose up -d --build"
 echo ""
-echo "  Note: First startup may take a minute to provision the wildcard SSL certificate."
+echo "  Note: First startup may take a few minutes to build images and provision SSL."
 echo ""
 echo "  To update to the latest version:"
-echo "     docker compose pull && docker compose up -d"
+echo "     docker compose down"
+echo "     git pull"
+echo "     docker compose up -d --build"
 echo ""
 log_success "Happy hacking! 🚀"
