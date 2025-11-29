@@ -165,12 +165,17 @@ export const initServer = () => {
             return;
           }
 
+          const realIpHeader = request.headers.find(
+            (header) => header.name.toLowerCase() === "x-real-ip",
+          )?.value;
+          const clientAddress = realIpHeader ?? socket.remoteAddress;
+
           const log = {
             id: crypto.randomUUID(),
             instanceId: instance.id,
             type: "http",
             timestamp: Date.now(),
-            address: socket.remoteAddress,
+            address: clientAddress,
             raw: dataString,
           } satisfies Log;
 
