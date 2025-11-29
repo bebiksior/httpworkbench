@@ -10,7 +10,9 @@ if (jwtSecret === undefined || jwtSecret === "") {
 }
 
 if (jwtSecret === "your-jwt-secret-here") {
-  throw new Error("JWT_SECRET must be changed, you are using the default secret");
+  throw new Error(
+    "JWT_SECRET must be changed, you are using the default secret",
+  );
 }
 
 const secret = new TextEncoder().encode(jwtSecret);
