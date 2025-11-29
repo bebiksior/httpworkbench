@@ -7,6 +7,7 @@ import { EditorView } from "@codemirror/view";
 import { computed, toRefs } from "vue";
 import { Codemirror } from "vue-codemirror";
 import { httpEditorExtensions } from "./extensions";
+import { createSaveKeymap } from "./extensions/saveKeymap";
 
 const props = defineProps<{
   modelValue: string;
@@ -17,14 +18,20 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (e: "update:modelValue", value: string): void;
+  (e: "save"): void;
 }>();
 
 const { modelValue, readonly, autoHeight, maxHeight } = toRefs(props);
+
+const handleSave = () => {
+  emit("save");
+};
 
 const extensions = computed(() => {
   const exts = [StreamLanguage.define(http), oneDark, EditorView.lineWrapping];
   if (!readonly.value) {
     exts.push(...httpEditorExtensions);
+    exts.push(createSaveKeymap(handleSave));
   }
   if (readonly.value) {
     exts.push(EditorState.readOnly.of(true));

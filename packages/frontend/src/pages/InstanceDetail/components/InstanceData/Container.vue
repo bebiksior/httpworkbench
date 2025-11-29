@@ -244,6 +244,7 @@ const formattedDate = computed(() => {
           :model-value="rawContent"
           max-height="500px"
           @update:modelValue="handleEditorChange"
+          @save="handleSave"
         />
       </div>
     </div>
