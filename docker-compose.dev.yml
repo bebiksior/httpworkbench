@@ -1,6 +1,8 @@
 services:
   backend:
-    image: ghcr.io/bebiksior/httpworkbench-backend:latest
+    build:
+      context: .
+      dockerfile: packages/backend/Dockerfile
     user: root
     restart: unless-stopped
     ports:
@@ -21,7 +23,9 @@ services:
       - backend_data:/app/data
 
   frontend:
-    image: ghcr.io/bebiksior/httpworkbench-frontend:latest
+    build:
+      context: .
+      dockerfile: packages/frontend/Dockerfile
     restart: unless-stopped
     ports:
       - "80:80"

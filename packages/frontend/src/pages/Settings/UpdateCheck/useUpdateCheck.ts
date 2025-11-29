@@ -49,7 +49,10 @@ export const useUpdateCheck = () => {
     } catch (error) {
       state.value = {
         status: "error",
-        message: error instanceof Error ? error.message : "Failed to check for updates",
+        message:
+          error instanceof Error
+            ? error.message
+            : "Failed to check for updates",
       };
     }
   };

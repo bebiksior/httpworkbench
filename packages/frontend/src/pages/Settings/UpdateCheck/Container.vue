@@ -26,7 +26,12 @@ const { state, checkForUpdates } = useUpdateCheck();
             You're running the latest version
           </template>
           <template v-else-if="state.status === 'update-available'">
-            A new version ({{ state.release.tag_name }}) is available
+            A new version ({{ state.release.tag_name }}) is available. Run:
+            <code
+              class="bg-surface-800 px-2 py-0.5 rounded text-surface-200 ml-1"
+            >
+              docker compose pull && docker compose up -d
+            </code>
           </template>
           <template v-else-if="state.status === 'error'">
             {{ state.message }}
