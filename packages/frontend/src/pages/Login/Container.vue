@@ -1,9 +1,16 @@
 <script setup lang="ts">
 import Button from "primevue/button";
 import Message from "primevue/message";
+import { onMounted } from "vue";
 import { useAuthStore } from "../../stores/auth";
+import { useConfigStore } from "../../stores/config";
 
 const authStore = useAuthStore();
+const configStore = useConfigStore();
+
+onMounted(() => {
+  configStore.fetchConfig();
+});
 
 const handleGuestLogin = () => {
   authStore.signInAsGuest();
@@ -54,6 +61,7 @@ const handleGuestLogin = () => {
         <span>Sign in with Google</span>
       </Button>
       <Button
+        v-if="configStore.config?.allowGuest !== false"
         @mousedown="handleGuestLogin"
         size="large"
         severity="secondary"

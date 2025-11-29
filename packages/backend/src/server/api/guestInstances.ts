@@ -6,6 +6,7 @@ import {
   InstanceDetailResponseSchema,
   UpdateInstanceSchema,
 } from "shared";
+import { instancePolicies } from "../../config";
 import {
   addInstance,
   clearLogsForInstance,
@@ -19,6 +20,9 @@ import {
   generateInstanceID,
   parseJsonRequest,
 } from "../utils";
+
+const guestDisabledResponse = () =>
+  Response.json({ error: "Guest access is disabled" }, { status: 403 });
 
 const loadGuestInstance = async (id: string) => {
   if (id === "") {
@@ -42,6 +46,10 @@ const loadGuestInstance = async (id: string) => {
 export const GUEST_INSTANCES_ROUTES = {
   "/api/guest/instances": {
     POST: async (req: BunRequest<"/api/guest/instances">) => {
+      if (!instancePolicies.allowGuest) {
+        return guestDisabledResponse();
+      }
+
       const parsed = await parseJsonRequest(req, CreateInstanceSchema);
       if (parsed.kind === "error") {
         return parsed.response;
@@ -85,6 +93,10 @@ export const GUEST_INSTANCES_ROUTES = {
   },
   "/api/guest/instances/:id": {
     GET: async (req: BunRequest<"/api/guest/instances/:id">) => {
+      if (!instancePolicies.allowGuest) {
+        return guestDisabledResponse();
+      }
+
       const loaded = await loadGuestInstance(req.params.id);
       if (loaded.kind === "error") {
         return loaded.response;
@@ -97,6 +109,10 @@ export const GUEST_INSTANCES_ROUTES = {
       return Response.json(response, { status: 200 });
     },
     PUT: async (req: BunRequest<"/api/guest/instances/:id">) => {
+      if (!instancePolicies.allowGuest) {
+        return guestDisabledResponse();
+      }
+
       const loaded = await loadGuestInstance(req.params.id);
       if (loaded.kind === "error") {
         return loaded.response;
@@ -143,6 +159,10 @@ export const GUEST_INSTANCES_ROUTES = {
       return Response.json(updated, { status: 200 });
     },
     DELETE: async (req: BunRequest<"/api/guest/instances/:id">) => {
+      if (!instancePolicies.allowGuest) {
+        return guestDisabledResponse();
+      }
+
       const loaded = await loadGuestInstance(req.params.id);
       if (loaded.kind === "error") {
         return loaded.response;
@@ -153,6 +173,10 @@ export const GUEST_INSTANCES_ROUTES = {
   },
   "/api/guest/instances/:id/logs": {
     DELETE: async (req: BunRequest<"/api/guest/instances/:id/logs">) => {
+      if (!instancePolicies.allowGuest) {
+        return guestDisabledResponse();
+      }
+
       const loaded = await loadGuestInstance(req.params.id);
       if (loaded.kind === "error") {
         return loaded.response;

@@ -9,6 +9,10 @@ if (jwtSecret === undefined || jwtSecret === "") {
   throw new Error("JWT_SECRET must be set");
 }
 
+if (jwtSecret === "your-jwt-secret-here") {
+  throw new Error("JWT_SECRET must be changed, you are using the default secret");
+}
+
 const secret = new TextEncoder().encode(jwtSecret);
 
 export const issueAuthToken = async (userId: string) => {

@@ -68,6 +68,7 @@ export type Webhook = z.infer<typeof WebhookSchema>;
 
 export const ConfigSchema = z.object({
   isHosted: z.boolean(),
+  allowGuest: z.boolean(),
   ttlMs: z.number().optional(),
   maxInstancesPerOwner: z.number().optional(),
   rawLimitBytes: z.number(),

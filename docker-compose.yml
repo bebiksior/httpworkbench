@@ -17,6 +17,7 @@ services:
       - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
       - FRONTEND_URL=${FRONTEND_URL}
       - IS_HOSTED=${IS_HOSTED:-false}
+      - ALLOW_GUEST=${ALLOW_GUEST:-false}
     volumes:
       - backend_data:/app/data
 
