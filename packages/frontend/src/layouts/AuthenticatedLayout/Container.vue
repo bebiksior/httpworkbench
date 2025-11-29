@@ -4,6 +4,7 @@ import Menu from "primevue/menu";
 import { ref } from "vue";
 import { useRouter } from "vue-router";
 import { useAuthStore } from "../../stores/auth";
+import { CommandPalette } from "@/components/CommandPalette";
 
 const authStore = useAuthStore();
 const router = useRouter();
@@ -29,6 +30,7 @@ const goHome = () => {
 </script>
 
 <template>
+  <CommandPalette />
   <div class="h-screen flex flex-col bg-surface-800">
     <nav class="bg-surface-800 shrink-0">
       <div class="mx-auto px-6">
