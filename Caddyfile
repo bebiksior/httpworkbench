@@ -35,7 +35,7 @@ http://*.instances.{$DOMAIN}, https://*.instances.{$DOMAIN} {
 	}
 
 	reverse_proxy backend:8082 {
-		header_up X-Real-IP {header.CF-Connecting-IP}
+		header_up X-Internal-Real-IP {remote_host}
 		header_up -X-Forwarded-For
 		header_up -X-Forwarded-Host
 		header_up -X-Forwarded-Proto

@@ -166,9 +166,16 @@ export const initServer = () => {
           }
 
           const realIpHeader = request.headers.find(
-            (header) => header.name.toLowerCase() === "x-real-ip",
+            (header) => header.name.toLowerCase() === "x-internal-real-ip",
           )?.value;
           const clientAddress = realIpHeader ?? socket.remoteAddress;
+
+          const rawWithoutInternalHeaders = dataString
+            .split("\r\n")
+            .filter(
+              (line) => !line.toLowerCase().startsWith("x-internal-real-ip:"),
+            )
+            .join("\r\n");
 
           const log = {
             id: crypto.randomUUID(),
@@ -176,7 +183,7 @@ export const initServer = () => {
             type: "http",
             timestamp: Date.now(),
             address: clientAddress,
-            raw: dataString,
+            raw: rawWithoutInternalHeaders,
           } satisfies Log;
 
           await addLog(log);
