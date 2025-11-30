@@ -14,6 +14,9 @@ You can use HTTP Workbench by either self-hosting it on your own server or using
 
 This is a v2 version of `ssrf.cvssadvisor.com` which was originally meant for testing HTTP/DNS interactions for SSRF testing, but I ended up using it more for hosting quick PoC testing pages. This project is still a work in progress - once we finish all milestones in the roadmap, it will fully replace ssrf.cvssadvisor.com.
 
+One thing stays the same: it will be as easy as before to create new instances. That's why there's a guest mode where you don't even need to create an account to get started. The main goal is to keep this tool very simple and quick to use.
+
+
 <p align="center">
   <img src="./assets/demo-home.png" alt="HTTP Workbench Home Page" height=650>
 </p>
