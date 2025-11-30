@@ -24,6 +24,7 @@ This is a v2 version of `ssrf.cvssadvisor.com` which was originally meant for te
 - [ ] DNS support
 - [ ] better documentation
 - [ ] better self host setup process
+- [ ] multi-domain setup
 
 ## Features
 
