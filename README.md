@@ -26,6 +26,10 @@ This is a v2 version of `ssrf.cvssadvisor.com` which was originally meant for te
 - [ ] better self host setup process
 - [ ] multi-domain setup
 
+## Roadmap after v1
+
+- [ ] Caido plugin integration
+
 ## Features
 
 ### Tab autocompletion
