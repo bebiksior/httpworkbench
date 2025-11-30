@@ -5,6 +5,7 @@ import { ref } from "vue";
 import { useRouter } from "vue-router";
 import { useAuthStore } from "../../stores/auth";
 import { CommandPalette } from "@/components/CommandPalette";
+import { config } from "@/config";
 
 const authStore = useAuthStore();
 const router = useRouter();
@@ -54,6 +55,11 @@ const goHome = () => {
                 <line x1="12" x2="20" y1="19" y2="19" />
               </svg>
               httpworkbench
+              <span
+                class="ml-2 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide bg-primary/20 text-primary rounded"
+              >
+                beta v{{ config.version }}
+              </span>
             </button>
           </div>
 
