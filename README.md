@@ -10,7 +10,9 @@
 
 HTTP Workbench is a platform for testing HTTP requests and temporarily hosting your PoC pages.
 
-This is a v2 version of `ssrf.cvssadvisor.com` which was originally meant for testing HTTP/DNS interactions for SSRF testing, but I ended up using it more for hosting quick PoC testing pages.
+You can use HTTP Workbench by either self-hosting it on your own server or using the hosted version at [httpworkbench.com](https://httpworkbench.com/).
+
+This is a v2 version of `ssrf.cvssadvisor.com` which was originally meant for testing HTTP/DNS interactions for SSRF testing, but I ended up using it more for hosting quick PoC testing pages. This project is still a work in progress - once we finish all milestones in the roadmap, it will fully replace ssrf.cvssadvisor.com.
 
 <p align="center">
   <img src="./assets/demo-home.png" alt="HTTP Workbench Home Page" height=650>
@@ -20,6 +22,8 @@ This is a v2 version of `ssrf.cvssadvisor.com` which was originally meant for te
 
 - [ ] Username/password authentication for self-hosted deployments
 - [ ] DNS support
+- [ ] better documentation
+- [ ] better self host setup process
 
 ## Features
 
@@ -75,6 +79,12 @@ docker compose up -d --build
 ```
 
 The first startup may take a few minutes to build images and provision SSL certificates.
+
+## Your Data
+
+HTTP Workbench stores just the basics in a simple JSON file: your Google ID for login (not the email), when you created your account, your PoC pages and webhooks, and the HTTP request logs (including IPs, headers, and request details). This is all needed for the app to work properly.
+
+Full transparency: I never tried to access any data of users on ssrf.cvssadvisor.com, the old version didn't even have a proper database, it was all stored in the memory :D. However, it technically is possible that I can access this data. I'm happy to hear some suggestions to make this more secure for you guys, to be 100% sure that I can't access your data you can self-host this tool - that's why it's open-source.
 
 ## Contributing
 
