@@ -58,6 +58,15 @@ const goHome = () => {
           </div>
 
           <div class="flex items-center gap-2">
+            <a
+              href="https://github.com/bebiksior/httpworkbench"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="flex items-center text-surface-400 hover:text-surface-200 transition-colors"
+              aria-label="GitHub"
+            >
+              <i class="pi pi-github text-xl" />
+            </a>
             <span
               v-if="authStore.user"
               class="text-sm text-surface-400 hidden sm:inline"
