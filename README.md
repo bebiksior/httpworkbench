@@ -16,6 +16,9 @@ This is a v2 version of `ssrf.cvssadvisor.com` which was originally meant for te
 
 One thing stays the same: it will be as easy as before to create new instances. That's why there's a guest mode where you don't even need to create an account to get started. The main goal is to keep this tool very simple and quick to use.
 
+> [!WARNING]
+> This project is still in beta. The self-hosting setup process is not great yet and will be improved over time. Expect some rough edges and manual configuration steps.
+
 
 <p align="center">
   <img src="./assets/demo-home.png" alt="HTTP Workbench Home Page" height=650>
