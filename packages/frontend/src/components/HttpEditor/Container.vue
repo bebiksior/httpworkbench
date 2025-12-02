@@ -14,6 +14,7 @@ const props = defineProps<{
   readonly?: boolean;
   autoHeight?: boolean;
   maxHeight?: string;
+  isDirty?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -21,7 +22,7 @@ const emit = defineEmits<{
   (e: "save"): void;
 }>();
 
-const { modelValue, readonly, autoHeight, maxHeight } = toRefs(props);
+const { modelValue, readonly, autoHeight, maxHeight, isDirty } = toRefs(props);
 
 const handleSave = () => {
   emit("save");
@@ -31,7 +32,12 @@ const extensions = computed(() => {
   const exts = [StreamLanguage.define(http), oneDark, EditorView.lineWrapping];
   if (!readonly.value) {
     exts.push(...httpEditorExtensions);
-    exts.push(createSaveKeymap(handleSave));
+    exts.push(
+      createSaveKeymap({
+        onSave: handleSave,
+        canSave: () => isDirty.value ?? true,
+      }),
+    );
   }
   if (readonly.value) {
     exts.push(EditorState.readOnly.of(true));

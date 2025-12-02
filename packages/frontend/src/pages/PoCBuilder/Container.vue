@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { computed, ref, onMounted, onUnmounted } from "vue";
+import { computed, ref, watch, onMounted, onUnmounted } from "vue";
 import { useRoute, onBeforeRouteLeave } from "vue-router";
 import { useRouter } from "vue-router";
+import { useMagicKeys } from "@vueuse/core";
 import { useConfirm } from "primevue/useconfirm";
 import ConfirmDialog from "primevue/confirmdialog";
 import { storeToRefs } from "pinia";
@@ -28,22 +29,30 @@ const updateScreenSize = () => {
   isLargeScreen.value = mediaQuery.matches;
 };
 
-const handleKeydown = (event: KeyboardEvent) => {
-  if ((event.metaKey || event.ctrlKey) && event.key === "s") {
-    event.preventDefault();
+const keys = useMagicKeys({
+  passive: false,
+  onEventFired: (e) => {
+    if ((e.metaKey || e.ctrlKey) && e.key === "s" && e.type === "keydown") {
+      e.preventDefault();
+    }
+  },
+});
+const cmdS = keys["Meta+s"];
+const ctrlS = keys["Control+s"];
+
+watch([cmdS, ctrlS], ([meta, ctrl]) => {
+  if ((meta || ctrl) && builderStore.isDirty) {
     handleSave();
   }
-};
+});
 
 onMounted(() => {
   updateScreenSize();
   mediaQuery.addEventListener("change", updateScreenSize);
-  window.addEventListener("keydown", handleKeydown);
 });
 
 onUnmounted(() => {
   mediaQuery.removeEventListener("change", updateScreenSize);
-  window.removeEventListener("keydown", handleKeydown);
   builderStore.reset();
 });
 

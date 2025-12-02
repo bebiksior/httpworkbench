@@ -242,6 +242,7 @@ const formattedDate = computed(() => {
       <div class="flex-1 h-[400px] max-h-[400px] rounded-md overflow-hidden">
         <HttpEditor
           :model-value="rawContent"
+          :is-dirty="isDirty"
           max-height="500px"
           @update:modelValue="handleEditorChange"
           @save="handleSave"
