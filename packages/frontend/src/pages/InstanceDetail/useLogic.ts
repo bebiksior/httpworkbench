@@ -24,9 +24,9 @@ export const useInstanceDetailLogic = (
   const { data, isLoading, error } = useInstanceDetail(instanceId);
 
   watch(
-    () => data.value?.logs,
-    (fetchedLogs) => {
-      streamLogs.value = fetchedLogs ?? [];
+    data,
+    (newData) => {
+      streamLogs.value = newData?.logs ?? [];
     },
     { immediate: true },
   );
