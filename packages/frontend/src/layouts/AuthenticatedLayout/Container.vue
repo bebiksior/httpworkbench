@@ -25,8 +25,13 @@ const toggle = (event: Event) => {
   menu.value.toggle(event);
 };
 
-const goHome = () => {
-  router.push({ name: "home" });
+const goHome = (event: MouseEvent) => {
+  if (event.button === 1 || event.ctrlKey || event.metaKey) {
+    const route = router.resolve({ name: "home" });
+    window.open(route.href, "_blank");
+  } else {
+    router.push({ name: "home" });
+  }
 };
 </script>
 
@@ -38,7 +43,8 @@ const goHome = () => {
         <div class="flex justify-between h-16">
           <div class="flex items-center">
             <button
-              @mousedown="goHome"
+              @click="goHome"
+              @auxclick="goHome"
               class="flex items-center gap-2 text-xl text-surface-0 hover:text-primary transition-colors font-mono cursor-pointer"
             >
               <svg
