@@ -8,13 +8,29 @@ import { PoCEditor } from "@/components/PoCEditor";
 import { Assistant } from "@/components/Assistant";
 import { useBuilderStore } from "@/stores";
 import { useBuilderPageContext } from "@/pages/PoCBuilder/useBuilderPage";
+import { useNotify } from "@/composables";
 
 const builderStore = useBuilderStore();
 const { showPreview, isDirty, editorContent } = storeToRefs(builderStore);
-const { isSaving, handleSave, handleBack } = useBuilderPageContext();
+const { previewUrl, isSaving, handleSave, handleBack } =
+  useBuilderPageContext();
+const notify = useNotify();
 
 const handleEditorChange = (value: string) => {
   builderStore.setEditorContent(value, "user");
+};
+
+const copyUrl = async () => {
+  if (previewUrl.value !== undefined) {
+    await navigator.clipboard.writeText(previewUrl.value);
+    notify.success("URL copied to clipboard");
+  }
+};
+
+const openPreviewInNewTab = () => {
+  if (previewUrl.value !== undefined) {
+    window.open(previewUrl.value, "_blank");
+  }
 };
 </script>
 
@@ -34,13 +50,29 @@ const handleEditorChange = (value: string) => {
         class="h-full flex flex-col bg-white dark:bg-surface-900 overflow-hidden rounded-lg"
       >
         <div
-          class="h-10 px-3 flex items-center shrink-0 border-b border-surface-200 dark:border-surface-800"
+          class="h-10 px-3 flex items-center justify-between shrink-0 border-b border-surface-200 dark:border-surface-800"
         >
           <span
             class="text-sm font-medium text-surface-600 dark:text-surface-400"
           >
             Code
           </span>
+          <div class="flex items-center gap-2" v-if="previewUrl">
+            <span
+              class="text-xs text-surface-500 font-mono max-w-[350px] truncate"
+              :title="previewUrl"
+              >{{ previewUrl }}</span
+            >
+            <Button
+              icon="pi pi-copy"
+              text
+              severity="secondary"
+              size="small"
+              class="shrink-0 p-0! w-6! h-6!"
+              @click="copyUrl"
+              v-tooltip.top="'Copy URL'"
+            />
+          </div>
         </div>
         <div class="flex-1 min-h-0">
           <PoCEditor
@@ -78,12 +110,13 @@ const handleEditorChange = (value: string) => {
               </label>
             </div>
             <Button
-              icon="pi pi-times"
+              icon="pi pi-external-link"
               severity="secondary"
               text
               size="small"
-              @click="handleBack()"
-              v-tooltip.top="'Close'"
+              :disabled="previewUrl === undefined"
+              @click="openPreviewInNewTab"
+              v-tooltip.top="'Open in new tab'"
             />
             <Button
               label="Save"
@@ -93,6 +126,14 @@ const handleEditorChange = (value: string) => {
               @click="handleSave()"
               v-tooltip.top="'Save'"
               style="padding: 0em 0.75em"
+            />
+            <Button
+              icon="pi pi-times"
+              severity="secondary"
+              text
+              size="small"
+              @click="handleBack()"
+              v-tooltip.top="'Close'"
             />
           </div>
         </div>
