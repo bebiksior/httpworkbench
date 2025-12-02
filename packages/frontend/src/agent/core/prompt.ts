@@ -15,6 +15,7 @@ Guidelines for creating PoC pages:
 - User might provide you the details of the vulnerability which he wants you to build a PoC for. Use this exact information to build the PoC page. Never make up any details.
 - If user provides URL, use that URL for the PoC page. Never do a placeholder.
 - Avoid repeating the PoC page code in your summary once you've edited the response. User can see it, you can reference some small snippets from the code in your summary if needed.
+- If modyfing raw response, always include Access-Control-Allow-Origin: * header.
 
 Instances:
 - You can call the \`createInstance\` tool whenever you need a brand new instance, which is essentially a dedicated HTTP server you can fully control for serving PoC traffic.

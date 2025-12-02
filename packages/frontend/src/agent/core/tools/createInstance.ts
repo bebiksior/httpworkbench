@@ -10,6 +10,7 @@ const createHtmlResponse = (html: string) => {
   return [
     "HTTP/1.1 200 OK",
     "Content-Type: text/html; charset=utf-8",
+    "Access-Control-Allow-Origin: *",
     "",
     html,
   ].join("\r\n");
