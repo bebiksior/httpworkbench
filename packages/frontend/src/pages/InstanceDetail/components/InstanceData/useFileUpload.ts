@@ -26,7 +26,11 @@ const detectContentType = (fileName: string): string => {
 
 const formatHttpResponse = (contentType: string, body: string): string => {
   const statusLine = "HTTP/1.1 200 OK";
-  const headers = [`Content-Type: ${contentType}`];
+  const headers = [
+    `Content-Type: ${contentType}`,
+    "Access-Control-Allow-Origin: *",
+    "Access-Control-Allow-Headers: *",
+  ];
 
   return [statusLine, ...headers, "", body].join("\n");
 };

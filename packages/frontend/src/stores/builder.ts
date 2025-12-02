@@ -33,7 +33,14 @@ const extractBody = (raw: string | undefined) => {
 };
 
 export const formatResponse = (body: string) => {
-  return ["HTTP/1.1 200 OK", "Content-Type: text/html", "", body].join("\n");
+  return [
+    "HTTP/1.1 200 OK",
+    "Content-Type: text/html",
+    "Access-Control-Allow-Origin: *",
+    "Access-Control-Allow-Headers: *",
+    "",
+    body,
+  ].join("\n");
 };
 
 export const useBuilderStore = defineStore("builder", () => {
