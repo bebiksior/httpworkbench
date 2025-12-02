@@ -9,7 +9,7 @@ import {
 } from "../../storage";
 import { withAuth } from "../auth";
 import { parseJsonRequest } from "../utils";
-import { validateDiscordWebhookUrl } from "../webhookService";
+import { validateDiscordWebhookUrl } from "../webhooks";
 
 export const WEBHOOKS_ROUTES = {
   "/api/webhooks": {

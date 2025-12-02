@@ -1,7 +1,7 @@
 import type { Log } from "shared";
 import { LogSchema } from "shared";
 import { db } from "../db";
-import { sendDiscordNotification } from "../../server/webhookService";
+import { sendDiscordNotification } from "../../server/webhooks";
 import { getInstanceById } from "./instances";
 import { getWebhooksByIds } from "./webhooks";
 

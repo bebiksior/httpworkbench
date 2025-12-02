@@ -1,8 +1,6 @@
 import type { BunRequest, Server, ServerWebSocket } from "bun";
-import { listen, serve } from "bun";
-import { parse } from "http-z";
-import { GUEST_OWNER_ID, type Log } from "shared";
-import { addLog } from "../storage";
+import { serve } from "bun";
+import { GUEST_OWNER_ID } from "shared";
 import { getInstanceById } from "../storage/repositories/instances";
 import { instancePolicies } from "../config";
 import { cleanupExpiredInstances } from "../storage/maintenance";
@@ -16,22 +14,12 @@ import {
 } from "./api";
 import { authenticateRequest } from "./auth";
 import {
-  broadcastLog,
+  createInstancesServer,
   type LogStreamSocketData,
   subscribeToLogStream,
   unsubscribeFromLogStream,
-} from "./logStream";
-import {
-  adjustContentLength,
-  createResponse,
-  getInstanceIDFromHost,
-  respond,
-} from "./utils";
+} from "./instances";
 
-/**
- * API server is responsible for the API routes
- * INSTANCES server listens on $instanceID.instances.$domain and logs the interactions
- */
 export const initServer = () => {
   const apiServer = serve({
     hostname: "0.0.0.0",
@@ -129,87 +117,9 @@ export const initServer = () => {
   });
   console.log(`API server running on port ${Bun.env.API_PORT}`);
 
-  const instancesServer = listen({
-    hostname: "0.0.0.0",
-    port: parseInt(Bun.env.INSTANCES_PORT ?? "8082", 10),
-    socket: {
-      async data(socket, data) {
-        try {
-          const dataString = new TextDecoder().decode(data);
-          const request = parse(dataString);
-
-          const host = request.headers.find(
-            (header) => header.name === "Host",
-          )?.value;
-
-          if (host === undefined || host === "") {
-            respond(
-              socket,
-              createResponse("400 Bad Request", "Missing Host header"),
-            );
-            return;
-          }
-
-          const result = getInstanceIDFromHost(host);
-          if (result.kind === "error") {
-            respond(socket, createResponse("400 Bad Request", result.error));
-            return;
-          }
-
-          const instance = await getInstanceById(result.instanceId);
-          if (!instance) {
-            respond(
-              socket,
-              createResponse("400 Bad Request", "Instance not found"),
-            );
-            return;
-          }
-
-          const realIpHeader = request.headers.find(
-            (header) => header.name.toLowerCase() === "x-internal-real-ip",
-          )?.value;
-          const clientAddress = realIpHeader ?? socket.remoteAddress;
-
-          const rawWithoutInternalHeaders = dataString
-            .split("\r\n")
-            .filter(
-              (line) => !line.toLowerCase().startsWith("x-internal-real-ip:"),
-            )
-            .join("\r\n");
-
-          const log = {
-            id: crypto.randomUUID(),
-            instanceId: instance.id,
-            type: "http",
-            timestamp: Date.now(),
-            address: clientAddress,
-            raw: rawWithoutInternalHeaders,
-          } satisfies Log;
-
-          await addLog(log);
-          broadcastLog(log);
-
-          switch (instance.kind) {
-            case "static": {
-              const adjustedResponse = adjustContentLength(instance.raw);
-              respond(socket, new TextEncoder().encode(adjustedResponse));
-              break;
-            }
-            case "dynamic":
-              throw new Error("Dynamic instances are not supported yet");
-          }
-        } catch (error) {
-          console.error(error);
-          respond(
-            socket,
-            createResponse("500 Internal Server Error", "Something went wrong"),
-          );
-          return;
-        }
-      },
-    },
-  });
-  console.log(`Instances server running on port ${Bun.env.INSTANCES_PORT}`);
+  const instancesServer = createInstancesServer(
+    parseInt(Bun.env.INSTANCES_PORT ?? "8082", 10),
+  );
 
   let cleanupInterval: ReturnType<typeof setInterval> | undefined;
   const ttlMs = instancePolicies.ttlMs;
