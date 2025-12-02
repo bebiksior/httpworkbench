@@ -2,6 +2,7 @@ import type { EditorState } from "@codemirror/state";
 import { responseHeaderNames } from "../constants/responseHeaders";
 import { createInlineHint } from "./inlineHint";
 import type { InlineHintSuggestion } from "./inlineHint";
+import { isInHeaderSection } from "./utils";
 
 const getSuggestion = (
   state: EditorState,
@@ -13,6 +14,10 @@ const getSuggestion = (
   const cursor = state.selection.main.head;
   const line = state.doc.lineAt(cursor);
   if (line.number === 1) {
+    return undefined;
+  }
+
+  if (!isInHeaderSection(state, line.number)) {
     return undefined;
   }
 

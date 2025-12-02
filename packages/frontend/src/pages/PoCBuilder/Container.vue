@@ -19,7 +19,7 @@ const { showPreview } = storeToRefs(builderStore);
 
 const builderPage = useBuilderPage(instanceId);
 provideBuilderPage(builderPage);
-const { instance, isLoading } = builderPage;
+const { instance, isLoading, handleSave } = builderPage;
 
 const isLargeScreen = ref(false);
 const mediaQuery = window.matchMedia("(min-width: 1024px)");
@@ -28,13 +28,22 @@ const updateScreenSize = () => {
   isLargeScreen.value = mediaQuery.matches;
 };
 
+const handleKeydown = (event: KeyboardEvent) => {
+  if ((event.metaKey || event.ctrlKey) && event.key === "s") {
+    event.preventDefault();
+    handleSave();
+  }
+};
+
 onMounted(() => {
   updateScreenSize();
   mediaQuery.addEventListener("change", updateScreenSize);
+  window.addEventListener("keydown", handleKeydown);
 });
 
 onUnmounted(() => {
   mediaQuery.removeEventListener("change", updateScreenSize);
+  window.removeEventListener("keydown", handleKeydown);
   builderStore.reset();
 });
 
