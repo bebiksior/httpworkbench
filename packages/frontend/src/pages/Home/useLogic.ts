@@ -1,5 +1,6 @@
 import type { Instance } from "shared";
 import { computed, ref } from "vue";
+import { useRouter } from "vue-router";
 import { useNotify } from "@/composables";
 import { config } from "@/config";
 import {
@@ -9,6 +10,7 @@ import {
 import { isAbsent } from "@/utils/types";
 
 export const useHomeLogic = () => {
+  const router = useRouter();
   const notify = useNotify();
   const searchQuery = ref("");
 
@@ -46,11 +48,12 @@ export const useHomeLogic = () => {
         raw: 'HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nAccess-Control-Allow-Origin: *\r\nAccess-Control-Allow-Headers: *\r\n\r\n{"message":"Hello from HTTP Workbench!","status":"success"}',
       },
       {
-        onSuccess: () => {
+        onSuccess: (instance) => {
           notify.success(
             "Instance created",
             "Your instance has been created successfully",
           );
+          void router.push(`/instances/${instance.id}`);
         },
         onError: (err: Error) => {
           notify.error("Failed to create instance", err);
