@@ -3,6 +3,7 @@ import type {
   Instance,
   InstanceDetailResponse,
   RenameInstanceInput,
+  SetInstanceLockedInput,
   UpdateInstanceInput,
 } from "shared";
 import {
@@ -11,6 +12,7 @@ import {
   InstanceSchema,
   InstancesResponseSchema,
   RenameInstanceSchema,
+  SetInstanceLockedSchema,
   UpdateInstanceSchema,
 } from "shared";
 import { apiClient } from "../client";
@@ -112,6 +114,26 @@ export const instancesApi = {
     if (!result.success) {
       throw new ValidationError(
         `Invalid rename instance response: ${result.error.message}`,
+      );
+    }
+
+    return result.data;
+  },
+
+  setLocked: async (
+    id: string,
+    input: SetInstanceLockedInput,
+  ): Promise<Instance> => {
+    const validatedInput = SetInstanceLockedSchema.parse(input);
+    const data = await apiClient.patch<unknown>(
+      `/api/instances/${id}/lock`,
+      validatedInput,
+    );
+    const result = InstanceSchema.safeParse(data);
+
+    if (!result.success) {
+      throw new ValidationError(
+        `Invalid set locked response: ${result.error.message}`,
       );
     }
 

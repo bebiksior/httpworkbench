@@ -12,6 +12,7 @@ import {
   useDeleteInstance,
   useExtendInstance,
   useRenameInstance,
+  useSetInstanceLocked,
   useUpdateInstance,
 } from "@/queries/domains/useInstances";
 import { useAuthStore } from "@/stores";
@@ -32,6 +33,8 @@ export const useInstanceDataLogic = (instance: Ref<Instance>) => {
   const { mutateAsync: extendInstanceMutation, isPending: isExtending } =
     useExtendInstance();
   const { mutateAsync: renameInstanceMutation } = useRenameInstance();
+  const { mutateAsync: setInstanceLockedMutation, isPending: isSettingLocked } =
+    useSetInstanceLocked();
 
   const authStore = useAuthStore();
   const { isGuest } = storeToRefs(authStore);
@@ -39,6 +42,7 @@ export const useInstanceDataLogic = (instance: Ref<Instance>) => {
   const instanceHost = computed(() =>
     config.getInstanceHost(instance.value.id),
   );
+  const isLocked = computed(() => instance.value.locked);
 
   const rawContent = ref("");
   const isDirty = ref(false);
@@ -165,6 +169,10 @@ export const useInstanceDataLogic = (instance: Ref<Instance>) => {
   };
 
   const handleDelete = async () => {
+    if (isLocked.value) {
+      notify.error("Instance is locked");
+      return;
+    }
     confirm.require({
       message: "Are you sure you want to delete this instance?",
       header: "Delete Confirmation",
@@ -188,6 +196,19 @@ export const useInstanceDataLogic = (instance: Ref<Instance>) => {
         }
       },
     });
+  };
+
+  const handleToggleLock = async () => {
+    const nextLocked = !isLocked.value;
+    try {
+      await setInstanceLockedMutation({
+        id: instance.value.id,
+        locked: nextLocked,
+      });
+      notify.success(nextLocked ? "Instance locked" : "Instance unlocked");
+    } catch (e) {
+      notify.error("Failed to update lock", e);
+    }
   };
 
   const handleClearLogs = async () => {
@@ -324,6 +345,8 @@ export const useInstanceDataLogic = (instance: Ref<Instance>) => {
     isDeleting,
     isClearingLogs,
     isExtending,
+    isLocked,
+    isSettingLocked,
     fileInputRef,
     selectedWebhookIds,
     showExpirationNotice,
@@ -339,6 +362,7 @@ export const useInstanceDataLogic = (instance: Ref<Instance>) => {
     handleEditorChange,
     handleDelete,
     handleClearLogs,
+    handleToggleLock,
     triggerFileUpload,
     handleFileUpload,
     handleExtend,

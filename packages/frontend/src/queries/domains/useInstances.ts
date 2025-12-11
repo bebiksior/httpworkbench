@@ -5,6 +5,7 @@ import type {
   CreateInstanceInput,
   Instance,
   RenameInstanceInput,
+  SetInstanceLockedInput,
   UpdateInstanceInput,
 } from "shared";
 import { guestInstancesApi } from "@/api/domains/guestInstances";
@@ -192,6 +193,28 @@ export const useRenameInstance = () => {
         throw new ForbiddenError("Guest instances cannot be renamed");
       }
       return instancesApi.rename(id, input);
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.instances.all });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.instances.detail(data.id),
+      });
+    },
+  });
+};
+
+export const useSetInstanceLocked = () => {
+  const queryClient = useQueryClient();
+  const authStore = useAuthStore();
+  const { isGuest } = storeToRefs(authStore);
+
+  return useMutation({
+    mutationFn: async ({ id, locked }: { id: string; locked: boolean }) => {
+      const input: SetInstanceLockedInput = { locked };
+      if (isGuest.value) {
+        return guestInstancesApi.setLocked(id, input);
+      }
+      return instancesApi.setLocked(id, input);
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.instances.all });

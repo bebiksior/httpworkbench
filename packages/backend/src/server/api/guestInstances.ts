@@ -4,6 +4,7 @@ import {
   GUEST_INSTANCE_TTL_MS,
   GUEST_OWNER_ID,
   InstanceDetailResponseSchema,
+  SetInstanceLockedSchema,
   UpdateInstanceSchema,
 } from "shared";
 import { instancePolicies } from "../../config";
@@ -69,6 +70,7 @@ export const GUEST_INSTANCES_ROUTES = {
         createdAt: now,
         expiresAt: now + GUEST_INSTANCE_TTL_MS,
         webhookIds: [] as string[],
+        locked: false,
       };
 
       switch (parsed.data.kind) {
@@ -167,8 +169,39 @@ export const GUEST_INSTANCES_ROUTES = {
       if (loaded.kind === "error") {
         return loaded.response;
       }
+      if (loaded.instance.locked) {
+        return Response.json({ error: "Instance is locked" }, { status: 409 });
+      }
       await deleteInstance(loaded.instance.id);
       return Response.json({ message: "Deleted" }, { status: 200 });
+    },
+  },
+  "/api/guest/instances/:id/lock": {
+    PATCH: async (req: BunRequest<"/api/guest/instances/:id/lock">) => {
+      if (!instancePolicies.allowGuest) {
+        return guestDisabledResponse();
+      }
+
+      const loaded = await loadGuestInstance(req.params.id);
+      if (loaded.kind === "error") {
+        return loaded.response;
+      }
+
+      const parsed = await parseJsonRequest(req, SetInstanceLockedSchema);
+      if (parsed.kind === "error") {
+        return parsed.response;
+      }
+
+      const updated = await updateInstance(loaded.instance.id, (inst) => ({
+        ...inst,
+        locked: parsed.data.locked,
+      }));
+
+      if (updated === undefined) {
+        return Response.json({ error: "Not found" }, { status: 404 });
+      }
+
+      return Response.json(updated, { status: 200 });
     },
   },
   "/api/guest/instances/:id/logs": {

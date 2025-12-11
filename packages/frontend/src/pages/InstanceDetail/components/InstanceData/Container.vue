@@ -5,7 +5,13 @@ import ConfirmDialog from "primevue/confirmdialog";
 import MultiSelect from "primevue/multiselect";
 import { HttpEditor } from "@/components/HttpEditor";
 import type { Instance } from "shared";
-import { toRefs, computed, watch, nextTick } from "vue";
+import {
+  toRefs,
+  computed,
+  watch,
+  nextTick,
+  type ComponentPublicInstance,
+} from "vue";
 import { useInstanceDataLogic } from "./useLogic";
 import { useWebhooks } from "@/queries/domains/useWebhooks";
 
@@ -22,10 +28,13 @@ const {
   isUpdating,
   isDeleting,
   isClearingLogs,
+  isLocked,
+  isSettingLocked,
   handleSave,
   handleEditorChange,
   handleDelete,
   handleClearLogs,
+  handleToggleLock,
   handleFileUpload,
   fileInputRef,
   triggerFileUpload,
@@ -57,6 +66,17 @@ const webhookOptions = computed(() => {
     value: webhook.id,
   }));
 });
+
+const lockTooltip = computed(() => {
+  if (isLocked.value) {
+    return "Unlocking allows this instance to be deleted.";
+  }
+  return "Locking prevents accidental deletion. You can still edit and use the instance.";
+});
+
+const setFileInputRef = (el: Element | ComponentPublicInstance | null) => {
+  fileInputRef.value = el instanceof HTMLInputElement ? el : null;
+};
 
 watch(isEditingLabel, (editing) => {
   if (editing) {
@@ -100,6 +120,7 @@ const formattedDate = computed(() => {
             <h2 class="text-2xl font-bold text-surface-900 dark:text-surface-0">
               {{ displayName }}
             </h2>
+            <i v-if="isLocked" class="pi pi-lock text-surface-500" />
             <Button
               v-if="!isGuest"
               icon="pi pi-pencil"
@@ -204,7 +225,7 @@ const formattedDate = computed(() => {
 
       <div class="flex gap-2 mb-2">
         <input
-          ref="fileInputRef"
+          :ref="setFileInputRef"
           type="file"
           class="hidden"
           accept=".txt,.json,.xml,.html"
@@ -267,12 +288,23 @@ const formattedDate = computed(() => {
           @click="handleClearLogs"
         />
         <Button
+          :label="isLocked ? 'Unlock Instance' : 'Lock Instance'"
+          :icon="isLocked ? 'pi pi-lock-open' : 'pi pi-lock'"
+          severity="secondary"
+          outlined
+          class="w-full justify-center"
+          :loading="isSettingLocked"
+          @click="handleToggleLock"
+          v-tooltip.top="lockTooltip"
+        />
+        <Button
           label="Delete Instance"
           icon="pi pi-trash"
           severity="danger"
           outlined
           class="w-full justify-center"
           :loading="isDeleting"
+          :disabled="isLocked"
           @click="handleDelete"
         />
       </div>

@@ -4,6 +4,7 @@ import {
   GUEST_OWNER_ID,
   InstanceDetailResponseSchema,
   RenameInstanceSchema,
+  SetInstanceLockedSchema,
   UpdateInstanceSchema,
 } from "shared";
 import {
@@ -100,6 +101,7 @@ export const INSTANCES_ROUTES = {
         id: generateInstanceID(),
         ownerId: user.id,
         createdAt: now,
+        locked: false,
         expiresAt:
           instancePolicies.ttlMs === undefined
             ? undefined
@@ -226,6 +228,9 @@ export const INSTANCES_ROUTES = {
       if (current.ownerId !== user.id) {
         return Response.json({ error: "Forbidden" }, { status: 403 });
       }
+      if (current.locked) {
+        return Response.json({ error: "Instance is locked" }, { status: 409 });
+      }
 
       await deleteInstance(id);
       return Response.json({ message: "Deleted" }, { status: 200 });
@@ -319,6 +324,40 @@ export const INSTANCES_ROUTES = {
         const updated = await updateInstance(id, (inst) => ({
           ...inst,
           label: parsed.data.label,
+        }));
+
+        if (updated === undefined) {
+          return Response.json({ error: "Not found" }, { status: 404 });
+        }
+
+        return Response.json(updated, { status: 200 });
+      },
+    ),
+  },
+  "/api/instances/:id/lock": {
+    PATCH: withAuth(
+      async (req: BunRequest<"/api/instances/:id/lock">, user) => {
+        const id = req.params.id;
+        if (id === "") {
+          return Response.json({ error: "Invalid id" }, { status: 400 });
+        }
+
+        const current = await getInstanceById(id);
+        if (current === undefined) {
+          return Response.json({ error: "Not found" }, { status: 404 });
+        }
+        if (current.ownerId !== user.id) {
+          return Response.json({ error: "Forbidden" }, { status: 403 });
+        }
+
+        const parsed = await parseJsonRequest(req, SetInstanceLockedSchema);
+        if (parsed.kind === "error") {
+          return parsed.response;
+        }
+
+        const updated = await updateInstance(id, (inst) => ({
+          ...inst,
+          locked: parsed.data.locked,
         }));
 
         if (updated === undefined) {

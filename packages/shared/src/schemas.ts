@@ -30,6 +30,7 @@ const InstanceBaseSchema = z.object({
   expiresAt: z.number().optional(),
   webhookIds: z.array(z.string()),
   label: z.string().optional(),
+  locked: z.boolean().optional().default(false),
 });
 
 export const InstanceSchema = z.union([

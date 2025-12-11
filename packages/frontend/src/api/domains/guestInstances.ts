@@ -2,12 +2,14 @@ import type {
   CreateInstanceInput,
   Instance,
   InstanceDetailResponse,
+  SetInstanceLockedInput,
   UpdateInstanceInput,
 } from "shared";
 import {
   CreateInstanceSchema,
   InstanceDetailResponseSchema,
   InstanceSchema,
+  SetInstanceLockedSchema,
   UpdateInstanceSchema,
 } from "shared";
 import { apiClient } from "../client";
@@ -62,5 +64,24 @@ export const guestInstancesApi = {
   },
   clearLogs: async (id: string): Promise<void> => {
     await apiClient.delete<void>(`${basePath}/${id}/logs`);
+  },
+  setLocked: async (
+    id: string,
+    input: SetInstanceLockedInput,
+  ): Promise<Instance> => {
+    const validatedInput = SetInstanceLockedSchema.parse(input);
+    const data = await apiClient.patch<unknown>(
+      `${basePath}/${id}/lock`,
+      validatedInput,
+    );
+    const result = InstanceSchema.safeParse(data);
+
+    if (!result.success) {
+      throw new ValidationError(
+        `Invalid guest set locked response: ${result.error.message}`,
+      );
+    }
+
+    return result.data;
   },
 };

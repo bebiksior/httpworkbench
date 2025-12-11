@@ -55,3 +55,9 @@ export const RenameInstanceSchema = z.object({
 });
 
 export type RenameInstanceInput = z.infer<typeof RenameInstanceSchema>;
+
+export const SetInstanceLockedSchema = z.object({
+  locked: z.boolean(),
+});
+
+export type SetInstanceLockedInput = z.infer<typeof SetInstanceLockedSchema>;

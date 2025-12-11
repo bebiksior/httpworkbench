@@ -51,6 +51,10 @@ const handleCopyClick = async (event: Event) => {
 
 const handleDeleteClick = (event: Event) => {
   event.stopPropagation();
+  if (instance.value.locked) {
+    notify.error("Instance is locked");
+    return;
+  }
   deleteMutation.mutate(instance.value.id, {
     onSuccess: () => {
       notify.success(
@@ -78,6 +82,7 @@ const handleDeleteClick = (event: Event) => {
           <h3 class="text-base sm:text-lg font-semibold text-surface-0">
             {{ displayName }}
           </h3>
+          <i v-if="instance.locked" class="pi pi-lock text-surface-400" />
         </div>
         <div class="text-xs sm:text-sm text-surface-400">
           Created {{ formattedDate }}
@@ -105,6 +110,7 @@ const handleDeleteClick = (event: Event) => {
           outlined
           size="small"
           class="shrink-0"
+          :disabled="instance.locked"
           @mousedown.stop
           @click="handleDeleteClick"
         />

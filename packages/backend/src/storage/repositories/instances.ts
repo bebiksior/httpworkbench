@@ -7,10 +7,10 @@ const isInstanceExpired = (instance: Instance, now: number) => {
 };
 
 export async function addInstance(instance: Instance): Promise<Instance> {
-  InstanceSchema.parse(instance);
-  db.data.instances.push(instance);
+  const parsed = InstanceSchema.parse(instance);
+  db.data.instances.push(parsed);
   await db.write();
-  return instance;
+  return parsed;
 }
 
 export async function getInstancesByOwner(
@@ -49,10 +49,10 @@ export async function updateInstance(
   }
 
   const updated = updater(current);
-  InstanceSchema.parse(updated);
-  db.data.instances[index] = updated;
+  const parsed = InstanceSchema.parse(updated);
+  db.data.instances[index] = parsed;
   await db.write();
-  return updated;
+  return parsed;
 }
 
 export async function deleteInstance(id: string): Promise<void> {

@@ -115,7 +115,7 @@ export default [
     rules: {
       "vue/multi-word-component-names": "off",
       "vue/require-default-prop": "off",
-      "vue/no-unused-vars": "warn",
+      "vue/no-unused-vars": "error",
       "vue/max-attributes-per-line": "off",
       "vue/singleline-html-element-content-newline": "off",
       "vue/html-indent": "off",
@@ -123,6 +123,13 @@ export default [
       "vue/html-self-closing": "off",
       "vue/v-on-event-hyphenation": "off",
       "vue/html-closing-bracket-newline": "off",
+      "@typescript-eslint/no-unused-vars": [
+        "error",
+        {
+          argsIgnorePattern: "^_",
+          varsIgnorePattern: "^_",
+        },
+      ],
       "@typescript-eslint/no-explicit-any": "error",
       "@typescript-eslint/prefer-optional-chain": "error",
       "@typescript-eslint/no-non-null-assertion": "error",
