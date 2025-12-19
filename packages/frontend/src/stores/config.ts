@@ -8,7 +8,7 @@ export const useConfigStore = defineStore("config", () => {
   const isLoading = ref(false);
   const isInitialized = ref(false);
 
-  const agentsModel = ref("openai/gpt-4.1");
+  const agentsModel = ref("google/gemini-3-flash-preview");
 
   const fetchConfig = async () => {
     if (isInitialized.value) {
