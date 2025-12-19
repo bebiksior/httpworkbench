@@ -34,9 +34,11 @@ export const useHomeLogic = () => {
     return instances.value.filter((instance: Instance) => {
       const instanceId = instance.id.toLowerCase();
       const host = config.getInstanceHost(instance.id).toLowerCase();
+      const label = instance.label?.toLowerCase() ?? "";
       return (
         instanceId.includes(normalizedQuery.value) ||
-        host.includes(normalizedQuery.value)
+        host.includes(normalizedQuery.value) ||
+        label.includes(normalizedQuery.value)
       );
     });
   });
