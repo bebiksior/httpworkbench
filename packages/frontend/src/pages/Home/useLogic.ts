@@ -27,11 +27,20 @@ export const useHomeLogic = () => {
       return [];
     }
 
+    const sortInstances = (list: Instance[]) =>
+      [...list].sort((a, b) => {
+        const lockedDiff = Number(a.locked) - Number(b.locked);
+        if (lockedDiff !== 0) return lockedDiff;
+        return (
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        );
+      });
+
     if (normalizedQuery.value === "") {
-      return instances.value;
+      return sortInstances(instances.value);
     }
 
-    return instances.value.filter((instance: Instance) => {
+    const filtered = instances.value.filter((instance: Instance) => {
       const instanceId = instance.id.toLowerCase();
       const host = config.getInstanceHost(instance.id).toLowerCase();
       const label = instance.label?.toLowerCase() ?? "";
@@ -41,6 +50,8 @@ export const useHomeLogic = () => {
         label.includes(normalizedQuery.value)
       );
     });
+
+    return sortInstances(filtered);
   });
 
   const handleCreateInstance = () => {

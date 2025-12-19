@@ -71,7 +71,12 @@ const handleDeleteClick = (event: Event) => {
 
 <template>
   <div
-    class="bg-surface-800 border border-surface-700 rounded-lg p-4 sm:p-5 hover:border-primary transition-colors cursor-pointer"
+    :class="[
+      'bg-surface-800 border rounded-lg p-4 sm:p-5 transition-colors cursor-pointer',
+      instance.locked
+        ? 'border-surface-700/50 opacity-60'
+        : 'border-surface-700 hover:border-primary',
+    ]"
     @mousedown="handleInstanceClick"
   >
     <div
