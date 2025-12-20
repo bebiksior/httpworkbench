@@ -18,7 +18,7 @@ const { visible, instances, handleSelect, getInstanceLabel } =
           <Command.Item
             v-for="instance in instances"
             :key="instance.id"
-            :data-value="instance.id"
+            :data-value="`${instance.id} ${instance.label ?? ''}`"
             @select="handleSelect"
           >
             <div class="flex items-center gap-3">
