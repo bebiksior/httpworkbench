@@ -112,7 +112,11 @@ const handleDeleteClick = (event: Event) => {
           @mousedown="handleCopyClick"
         />
         <Button
-          :icon="deleteMutation.isPending.value ? 'pi pi-spin pi-spinner' : 'pi pi-trash'"
+          :icon="
+            deleteMutation.isPending.value
+              ? 'pi pi-spin pi-spinner'
+              : 'pi pi-trash'
+          "
           severity="danger"
           outlined
           size="small"

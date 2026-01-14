@@ -14,7 +14,7 @@ const { isGenerating, handleMessageClick } = useUserMessage();
 
 <template>
   <div
-    class="p-3 rounded-lg bg-surface-900 ml-auto shadow-md shadow-surface-900/50 w-full select-text group relative border border-surface-700 hover:border-secondary-400 transition-colors max-h-[300px] min-h-[45px] overflow-y-scroll"
+    class="p-3 rounded-lg bg-surface-100 dark:bg-surface-900 ml-auto shadow-md shadow-surface-300/50 dark:shadow-surface-900/50 w-full select-text group relative border border-surface-300 dark:border-surface-700 hover:border-secondary-400 transition-colors max-h-[300px] min-h-[45px] overflow-y-scroll"
     style="scrollbar-width: none; -ms-overflow-style: none"
   >
     <div

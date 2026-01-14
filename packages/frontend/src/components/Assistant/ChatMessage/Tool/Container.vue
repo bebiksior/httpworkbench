@@ -41,7 +41,7 @@ const { isProcessing, toolIcon, toolDetails, showDetails, toggleDetails } =
       <div class="flex flex-col flex-1 min-w-0">
         <div class="flex items-center justify-between gap-2">
           <span
-            class="text-sm font-medium text-surface-200 truncate font-mono"
+            class="text-sm font-medium text-surface-800 dark:text-surface-200 truncate font-mono"
             >{{ toolName }}</span
           >
           <span
@@ -69,10 +69,10 @@ const { isProcessing, toolIcon, toolDetails, showDetails, toggleDetails } =
     <!-- Details (Expanded) -->
     <div
       v-if="showDetails && toolDetails"
-      class="border-t border-surface-800 bg-surface-950/30 p-3 overflow-hidden"
+      class="border-t border-surface-200 dark:border-surface-800 bg-surface-50 dark:bg-surface-950/30 p-3 overflow-hidden"
     >
       <pre
-        class="text-xs text-surface-300 font-mono whitespace-pre-wrap break-all overflow-x-auto max-h-[300px] scrollbar-thin"
+        class="text-xs text-surface-700 dark:text-surface-300 font-mono whitespace-pre-wrap break-all overflow-x-auto max-h-[300px] scrollbar-thin"
         >{{ toolDetails }}</pre
       >
     </div>
