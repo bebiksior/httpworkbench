@@ -1,7 +1,7 @@
 import { defineStore } from "pinia";
 import { ref, watch } from "vue";
 
-export type ThemeMode = "light" | "dark";
+type ThemeMode = "light" | "dark";
 
 const STORAGE_KEY = "httpworkbench-theme";
 
