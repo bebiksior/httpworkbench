@@ -3,9 +3,12 @@ import { storeToRefs } from "pinia";
 import Button from "primevue/button";
 import { PoCEditor } from "@/components/PoCEditor";
 import { Assistant } from "@/components/Assistant";
-import { useBuilderStore } from "@/stores";
+import { useAuthStore, useBuilderStore } from "@/stores";
 import { useBuilderPageContext } from "@/pages/PoCBuilder/useBuilderPage";
 import { useNotify } from "@/composables";
+
+const authStore = useAuthStore();
+const { isGuest } = storeToRefs(authStore);
 
 const builderStore = useBuilderStore();
 const { isDirty, editorContent } = storeToRefs(builderStore);
@@ -111,7 +114,13 @@ const openPreviewInNewTab = () => {
       </div>
 
       <div class="flex-1 min-h-0 py-2">
-        <Assistant />
+        <div
+          v-if="isGuest"
+          class="h-full flex items-center justify-center text-surface-500 text-sm px-4 text-center"
+        >
+          Assistant is not available in guest mode.
+        </div>
+        <Assistant v-else />
       </div>
     </div>
   </div>

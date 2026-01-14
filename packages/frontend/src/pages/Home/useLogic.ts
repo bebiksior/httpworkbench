@@ -58,7 +58,7 @@ export const useHomeLogic = () => {
     createMutation.mutate(
       {
         kind: "static",
-        raw: 'HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nAccess-Control-Allow-Origin: *\r\nAccess-Control-Allow-Headers: *\r\n\r\n{"message":"Hello from HTTP Workbench!","status":"success"}',
+        raw: "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nAccess-Control-Allow-Origin: *\r\nAccess-Control-Allow-Headers: *\r\n\r\n<h1>Hello World</h1>",
       },
       {
         onSuccess: (instance) => {

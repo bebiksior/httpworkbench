@@ -241,7 +241,6 @@ const formattedDate = computed(() => {
           @click="triggerFileUpload"
         />
         <Button
-          v-if="!isGuest"
           label="Builder"
           icon="pi pi-wrench"
           size="small"

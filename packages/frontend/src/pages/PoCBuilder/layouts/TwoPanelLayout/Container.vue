@@ -7,9 +7,12 @@ import SplitterPanel from "primevue/splitterpanel";
 import Checkbox from "primevue/checkbox";
 import { PoCEditor } from "@/components/PoCEditor";
 import { Assistant } from "@/components/Assistant";
-import { useBuilderStore, useThemeStore } from "@/stores";
+import { useAuthStore, useBuilderStore, useThemeStore } from "@/stores";
 import { useBuilderPageContext } from "@/pages/PoCBuilder/useBuilderPage";
 import { useNotify } from "@/composables";
+
+const authStore = useAuthStore();
+const { isGuest } = storeToRefs(authStore);
 
 const themeStore = useThemeStore();
 const splitterPt = computed(() => ({
@@ -147,7 +150,13 @@ const openPreviewInNewTab = () => {
         </div>
 
         <div class="flex-1 min-h-0 py-2">
-          <Assistant />
+          <div
+            v-if="isGuest"
+            class="h-full flex items-center justify-center text-surface-500 text-sm px-4 text-center"
+          >
+            Assistant is not available in guest mode.
+          </div>
+          <Assistant v-else />
         </div>
       </div>
     </SplitterPanel>

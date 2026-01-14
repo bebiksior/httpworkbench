@@ -2,24 +2,7 @@ import { defineStore, storeToRefs } from "pinia";
 import { ref } from "vue";
 import { useResponseEditorStore } from "./responseEditor";
 
-export const DEFAULT_TEMPLATE = `<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <title>PoC Demo</title>
-  </head>
-  <body>
-    <main>
-      <h1>Payload Preview</h1>
-      <button id="poc-button">Click Me</button>
-    </main>
-    <script>
-      document.getElementById("poc-button")?.addEventListener("click", () => {
-        alert("PoC executed");
-      });
-    </script>
-  </body>
-</html>`;
+export const DEFAULT_TEMPLATE = `<h1>Hello World</h1>`;
 
 const extractBody = (raw: string | undefined) => {
   if (raw === undefined || raw === "") {
