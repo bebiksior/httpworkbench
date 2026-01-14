@@ -15,12 +15,14 @@ const restart = () => {
     class="flex flex-col items-center justify-center h-full text-center px-4 gap-4"
   >
     <i class="pi pi-exclamation-triangle text-red-500 text-2xl"></i>
-    <h3 class="text-lg font-semibold text-surface-200">Error Occurred</h3>
+    <h3 class="text-lg font-semibold text-surface-700 dark:text-surface-200">
+      Error Occurred
+    </h3>
     <span class="text-surface-400 text-sm whitespace-pre-wrap select-text">
       {{ error }}
     </span>
     <button
-      class="px-4 py-2 bg-surface-700 hover:bg-surface-600 text-surface-200 rounded-lg text-sm"
+      class="px-4 py-2 bg-surface-200 dark:bg-surface-700 hover:bg-surface-300 dark:hover:bg-surface-600 text-surface-700 dark:text-surface-200 rounded-lg text-sm"
       @click="restart"
     >
       Clear Error

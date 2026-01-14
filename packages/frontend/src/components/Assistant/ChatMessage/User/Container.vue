@@ -20,7 +20,7 @@ const { isGenerating, handleMessageClick } = useUserMessage();
     <div
       v-for="(part, index) in message.parts"
       :key="index"
-      class="text-surface-200 whitespace-pre-wrap wrap-break-word font-mono text-sm cursor-pointer rounded p-1 -m-1"
+      class="text-surface-700 dark:text-surface-200 whitespace-pre-wrap wrap-break-word font-mono text-sm cursor-pointer rounded p-1 -m-1"
       :class="{ 'opacity-80': isGenerating }"
       @click="handleMessageClick(message)"
     >

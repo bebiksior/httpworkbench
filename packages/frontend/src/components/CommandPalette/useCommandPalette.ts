@@ -42,7 +42,8 @@ export const useCommandPalette = () => {
 
   const handleSelect = (item: { value: string }) => {
     const list = instances.value ?? [];
-    const instance = list.find((i) => i.id === item.value);
+    const instanceId = item.value.split(" ")[0];
+    const instance = list.find((i) => i.id === instanceId);
     if (instance !== undefined) {
       router.push({ name: "instanceDetail", params: { id: instance.id } });
       visible.value = false;

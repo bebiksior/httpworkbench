@@ -42,7 +42,7 @@ const { visible, instances, handleSelect, getInstanceLabel } =
 [command-dialog-mask] {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.6);
+  background: rgba(0, 0, 0, 0.5);
   z-index: 1000;
 }
 
@@ -59,6 +59,12 @@ const { visible, instances, handleSelect, getInstanceLabel } =
 
 [command-dialog-header],
 [command-dialog-body] {
+  background: var(--p-surface-0);
+  border: 1px solid var(--p-surface-200);
+}
+
+.darkmode [command-dialog-header],
+.darkmode [command-dialog-body] {
   background: var(--p-surface-900);
   border: 1px solid var(--p-surface-700);
 }
@@ -70,6 +76,10 @@ const { visible, instances, handleSelect, getInstanceLabel } =
 
 [command-dialog-body] {
   border-radius: 0 0 8px 8px;
+  border-top: 1px solid var(--p-surface-200);
+}
+
+.darkmode [command-dialog-body] {
   border-top: 1px solid var(--p-surface-700);
 }
 
@@ -80,6 +90,10 @@ const { visible, instances, handleSelect, getInstanceLabel } =
   background: transparent;
   border: none;
   outline: none;
+  color: var(--p-surface-900);
+}
+
+.darkmode [command-input] {
   color: var(--p-surface-0);
 }
 
@@ -106,10 +120,19 @@ const { visible, instances, handleSelect, getInstanceLabel } =
   padding: 10px 12px;
   border-radius: 6px;
   cursor: pointer;
+  color: var(--p-surface-700);
+}
+
+.darkmode [command-item] {
   color: var(--p-surface-200);
 }
 
 [command-item][aria-selected="true"] {
+  background: var(--p-surface-100);
+  color: var(--p-surface-900);
+}
+
+.darkmode [command-item][aria-selected="true"] {
   background: var(--p-surface-700);
   color: var(--p-surface-0);
 }

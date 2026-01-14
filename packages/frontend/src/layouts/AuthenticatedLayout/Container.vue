@@ -4,10 +4,12 @@ import Menu from "primevue/menu";
 import { ref } from "vue";
 import { useRouter } from "vue-router";
 import { useAuthStore } from "../../stores/auth";
+import { useThemeStore } from "../../stores/theme";
 import { CommandPalette } from "@/components/CommandPalette";
 import { config } from "@/config";
 
 const authStore = useAuthStore();
+const themeStore = useThemeStore();
 const router = useRouter();
 const menu = ref();
 
@@ -37,15 +39,15 @@ const goHome = (event: MouseEvent) => {
 
 <template>
   <CommandPalette />
-  <div class="h-screen flex flex-col bg-surface-800">
-    <nav class="bg-surface-800 shrink-0">
+  <div class="h-screen flex flex-col bg-surface-0 dark:bg-surface-800">
+    <nav class="bg-surface-0 dark:bg-surface-800 shrink-0">
       <div class="mx-auto px-6">
         <div class="flex justify-between h-16">
           <div class="flex items-center">
             <button
               @click="goHome"
               @auxclick="goHome"
-              class="flex items-center gap-2 text-xl text-surface-0 hover:text-primary transition-colors font-mono cursor-pointer"
+              class="flex items-center gap-2 text-xl text-surface-900 dark:text-surface-0 hover:text-primary transition-colors font-mono cursor-pointer"
             >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -70,11 +72,19 @@ const goHome = (event: MouseEvent) => {
           </div>
 
           <div class="flex items-center gap-2">
+            <Button
+              type="button"
+              :icon="themeStore.mode === 'dark' ? 'pi pi-sun' : 'pi pi-moon'"
+              rounded
+              text
+              aria-label="Toggle theme"
+              @click="themeStore.toggle"
+            />
             <a
               href="https://github.com/bebiksior/httpworkbench"
               target="_blank"
               rel="noopener noreferrer"
-              class="flex items-center text-surface-400 hover:text-surface-200 transition-colors"
+              class="flex items-center text-surface-600 dark:text-surface-400 hover:text-surface-800 dark:hover:text-surface-200 transition-colors"
               aria-label="GitHub"
             >
               <i class="pi pi-github text-xl" />

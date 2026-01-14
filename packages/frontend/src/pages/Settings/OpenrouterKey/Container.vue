@@ -16,10 +16,12 @@ const {
 </script>
 
 <template>
-  <div class="bg-surface-900/70 border border-surface-800 rounded-2xl p-6 mb-8">
+  <div
+    class="bg-white dark:bg-surface-900/70 border border-surface-200 dark:border-surface-800 rounded-2xl p-6 mb-8"
+  >
     <div class="flex flex-wrap items-center justify-between gap-4 mb-4">
       <div>
-        <h2 class="text-2xl font-semibold text-surface-0">
+        <h2 class="text-2xl font-semibold text-surface-900 dark:text-surface-0">
           OpenRouter API Key
         </h2>
         <p class="text-sm text-surface-400 mt-1 max-w-2xl">
@@ -32,7 +34,7 @@ const {
         :class="
           hasConfiguredKey
             ? 'bg-emerald-500/10 text-emerald-300'
-            : 'bg-surface-700 text-surface-200'
+            : 'bg-surface-200 dark:bg-surface-700 text-surface-700 dark:text-surface-200'
         "
       >
         <i
@@ -55,7 +57,7 @@ const {
     <div class="flex flex-col gap-2">
       <label
         for="openrouter-key-input"
-        class="text-sm font-medium text-surface-200"
+        class="text-sm font-medium text-surface-700 dark:text-surface-200"
       >
         New API key
       </label>

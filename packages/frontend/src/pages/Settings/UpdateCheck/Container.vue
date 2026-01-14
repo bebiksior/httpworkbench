@@ -8,11 +8,17 @@ const { state, checkForUpdates } = useUpdateCheck();
 </script>
 
 <template>
-  <div class="bg-surface-900/70 border border-surface-800 rounded-2xl p-6 mb-6">
+  <div
+    class="bg-white dark:bg-surface-900/70 border border-surface-200 dark:border-surface-800 rounded-2xl p-6 mb-6"
+  >
     <div class="flex flex-wrap items-center justify-between gap-4">
       <div>
         <div class="flex items-center gap-3">
-          <h2 class="text-2xl font-semibold text-surface-0">Version</h2>
+          <h2
+            class="text-2xl font-semibold text-surface-900 dark:text-surface-0"
+          >
+            Version
+          </h2>
           <Tag :value="`v${config.version}`" severity="secondary" />
         </div>
         <p class="text-sm text-surface-400 mt-1">
@@ -28,7 +34,7 @@ const { state, checkForUpdates } = useUpdateCheck();
           <template v-else-if="state.status === 'update-available'">
             A new version ({{ state.release.tag_name }}) is available. Run:
             <code
-              class="bg-surface-800 px-2 py-0.5 rounded text-surface-200 ml-1"
+              class="bg-surface-200 dark:bg-surface-800 px-2 py-0.5 rounded text-surface-700 dark:text-surface-200 ml-1"
             >
               docker compose down && git pull && docker compose up -d --build
             </code>

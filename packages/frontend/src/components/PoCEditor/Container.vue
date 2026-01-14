@@ -2,7 +2,12 @@
 import { html } from "@codemirror/lang-html";
 import { oneDark } from "@codemirror/theme-one-dark";
 import { EditorView } from "@codemirror/view";
+import { computed } from "vue";
 import { Codemirror } from "vue-codemirror";
+import { useThemeStore } from "@/stores/theme";
+import { oneLight } from "@/components/HttpEditor/extensions/lightTheme";
+
+const themeStore = useThemeStore();
 
 const props = defineProps<{
   modelValue: string;
@@ -12,7 +17,10 @@ const emit = defineEmits<{
   (e: "update:modelValue", value: string): void;
 }>();
 
-const extensions = [html(), oneDark, EditorView.lineWrapping];
+const extensions = computed(() => {
+  const editorTheme = themeStore.mode === "dark" ? oneDark : oneLight;
+  return [html(), editorTheme, EditorView.lineWrapping];
+});
 
 const handleChange = (value: string) => {
   emit("update:modelValue", value);

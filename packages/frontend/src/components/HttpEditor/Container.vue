@@ -6,8 +6,12 @@ import { oneDark } from "@codemirror/theme-one-dark";
 import { EditorView } from "@codemirror/view";
 import { computed, toRefs } from "vue";
 import { Codemirror } from "vue-codemirror";
+import { useThemeStore } from "@/stores/theme";
 import { httpEditorExtensions } from "./extensions";
 import { createSaveKeymap } from "./extensions/saveKeymap";
+import { oneLight } from "./extensions/lightTheme";
+
+const themeStore = useThemeStore();
 
 const props = defineProps<{
   modelValue: string;
@@ -29,7 +33,12 @@ const handleSave = () => {
 };
 
 const extensions = computed(() => {
-  const exts = [StreamLanguage.define(http), oneDark, EditorView.lineWrapping];
+  const editorTheme = themeStore.mode === "dark" ? oneDark : oneLight;
+  const exts = [
+    StreamLanguage.define(http),
+    editorTheme,
+    EditorView.lineWrapping,
+  ];
   if (!readonly.value) {
     exts.push(...httpEditorExtensions);
     exts.push(

@@ -22,16 +22,16 @@ const { isProcessing, toolIcon, toolDetails, showDetails, toggleDetails } =
 
 <template>
   <div
-    class="my-2 border border-surface-800 rounded-lg overflow-hidden bg-surface-900/30 w-full max-w-full"
+    class="my-2 border border-surface-200 dark:border-surface-800 rounded-lg overflow-hidden bg-surface-100 dark:bg-surface-900/30 w-full max-w-full"
   >
     <!-- Header -->
     <div
-      class="flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-surface-800/50 transition-colors select-none"
+      class="flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-surface-100 dark:hover:bg-surface-800/50 transition-colors select-none"
       @click="toggleDetails"
     >
       <!-- Icon -->
       <div
-        class="flex items-center justify-center w-6 h-6 rounded bg-surface-800 text-surface-300 shrink-0"
+        class="flex items-center justify-center w-6 h-6 rounded bg-surface-200 dark:bg-surface-800 text-surface-600 dark:text-surface-300 shrink-0"
         :class="{ 'animate-pulse': isProcessing }"
       >
         <i :class="toolIcon" class="text-xs" />

@@ -58,7 +58,7 @@ const hasPendingStep = computed(() => {
     <template v-if="!noContentYet">
       <template v-for="(part, index) in message.parts" :key="index">
         <template v-if="part && part.type === 'text'">
-          <div class="text-surface-200 text-sm">
+          <div class="text-surface-700 dark:text-surface-200 text-sm">
             <Markdown :content="part?.text ?? ''" />
           </div>
         </template>
@@ -80,18 +80,25 @@ const hasPendingStep = computed(() => {
       </template>
       <div
         v-if="hasPendingStep"
-        class="flex items-center text-surface-300 text-sm font-mono py-1"
+        class="flex items-center text-surface-500 dark:text-surface-300 text-sm font-mono py-1"
       >
         <span :class="{ shimmer: true }">Planning...</span>
       </div>
     </template>
     <div v-else-if="isGenerating" class="px-2 py-2">
-      <div class="flex items-center gap-1 text-surface-400">
+      <div
+        class="flex items-center gap-1 text-surface-500 dark:text-surface-400"
+      >
         <div class="animate-pulse">•</div>
         <div class="animate-pulse" style="animation-delay: 0.2s">•</div>
         <div class="animate-pulse" style="animation-delay: 0.4s">•</div>
       </div>
     </div>
-    <div v-if="isAborted" class="py-2 text-surface-400 opacity-50">Aborted</div>
+    <div
+      v-if="isAborted"
+      class="py-2 text-surface-500 dark:text-surface-400 opacity-50"
+    >
+      Aborted
+    </div>
   </div>
 </template>

@@ -38,14 +38,16 @@ const { isGuest } = storeToRefs(authStore);
 </script>
 
 <template>
-  <div class="h-full overflow-y-auto bg-surface-900">
+  <div class="h-full overflow-y-auto bg-surface-50 dark:bg-surface-900">
     <div class="mx-auto max-w-7xl px-4 sm:px-6 pt-6 sm:pt-8 pb-2">
       <div
         class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-0 mb-2"
       >
         <div>
           <div class="flex items-center gap-3">
-            <h1 class="text-2xl sm:text-4xl font-bold text-surface-0">
+            <h1
+              class="text-2xl sm:text-4xl font-bold text-surface-900 dark:text-surface-0"
+            >
               Instances
             </h1>
             <span

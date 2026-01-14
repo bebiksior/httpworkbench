@@ -74,7 +74,7 @@ const handleGuestLogin = () => {
         href="https://github.com/bebiksior/httpworkbench"
         target="_blank"
         rel="noopener noreferrer"
-        class="flex items-center gap-2 text-surface-400 hover:text-surface-200 transition-colors mt-4"
+        class="flex items-center gap-2 text-surface-400 hover:text-surface-700 dark:hover:text-surface-200 transition-colors mt-4"
       >
         <i class="pi pi-github text-xl" />
       </a>

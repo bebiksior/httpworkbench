@@ -33,7 +33,7 @@ watch(
 
 <template>
   <div
-    class="bg-surface-900 h-35 sm:h-52 flex flex-col gap-4 border-t border-surface-700 p-4"
+    class="bg-surface-100 dark:bg-surface-900 h-35 sm:h-52 flex flex-col gap-4 border-t border-surface-300 dark:border-surface-700 p-4"
   >
     <textarea
       ref="textareaRef"
@@ -41,8 +41,8 @@ watch(
       placeholder="Message the Assistant"
       :class="{
         'opacity-60': !isAgentIdle,
-        'text-surface-200': isAgentIdle,
-        'text-surface-400': !isAgentIdle,
+        'text-surface-700 dark:text-surface-200': isAgentIdle,
+        'text-surface-500 dark:text-surface-400': !isAgentIdle,
       }"
       class="border-0 outline-none font-mono resize-none bg-transparent flex-1 text-base focus:outline-none focus:ring-0 overflow-y-auto scrollbar-hide"
       style="scrollbar-width: none; -ms-overflow-style: none"

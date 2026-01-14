@@ -72,10 +72,10 @@ const handleDeleteClick = (event: Event) => {
 <template>
   <div
     :class="[
-      'bg-surface-800 border rounded-lg p-4 sm:p-5 transition-colors cursor-pointer',
+      'bg-white dark:bg-surface-800 border rounded-lg p-4 sm:p-5 transition-colors cursor-pointer',
       instance.locked
-        ? 'border-surface-700/50 opacity-60'
-        : 'border-surface-700 hover:border-primary',
+        ? 'border-surface-300 dark:border-surface-700/50 opacity-60'
+        : 'border-surface-200 dark:border-surface-700 hover:border-primary',
     ]"
     @mousedown="handleInstanceClick"
   >
@@ -84,7 +84,9 @@ const handleDeleteClick = (event: Event) => {
     >
       <div class="shrink-0">
         <div class="flex items-center gap-2 mb-1">
-          <h3 class="text-base sm:text-lg font-semibold text-surface-0">
+          <h3
+            class="text-base sm:text-lg font-semibold text-surface-900 dark:text-surface-0"
+          >
             {{ displayName }}
           </h3>
           <i v-if="instance.locked" class="pi pi-lock text-surface-400" />

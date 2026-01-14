@@ -1,14 +1,22 @@
 <script setup lang="ts">
 import { storeToRefs } from "pinia";
+import { computed } from "vue";
 import Button from "primevue/button";
 import Splitter from "primevue/splitter";
 import SplitterPanel from "primevue/splitterpanel";
 import Checkbox from "primevue/checkbox";
 import { PoCEditor } from "@/components/PoCEditor";
 import { Assistant } from "@/components/Assistant";
-import { useBuilderStore } from "@/stores";
+import { useBuilderStore, useThemeStore } from "@/stores";
 import { useBuilderPageContext } from "@/pages/PoCBuilder/useBuilderPage";
 import { useNotify } from "@/composables";
+
+const themeStore = useThemeStore();
+const splitterPt = computed(() => ({
+  gutter: {
+    style: `background-color: var(--p-surface-${themeStore.mode === "dark" ? "800" : "200"})`,
+  },
+}));
 
 const builderStore = useBuilderStore();
 const { showPreview, isDirty, editorContent } = storeToRefs(builderStore);
@@ -38,7 +46,7 @@ const openPreviewInNewTab = () => {
   <Splitter
     class="h-full rounded-lg"
     style="border: none; background: none"
-    :pt="{ gutter: { style: 'background-color: var(--p-surface-800)' } }"
+    :pt="splitterPt"
   >
     <SplitterPanel
       :size="65"
