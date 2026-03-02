@@ -22,6 +22,8 @@ export default defineConfig(({ mode }) => {
         "@codemirror/state",
         "@codemirror/view",
         "@codemirror/language",
+        "@lezer/highlight",
+        "@lezer/common",
       ],
     },
     server: {
