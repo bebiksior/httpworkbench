@@ -1,6 +1,6 @@
 {
 	admin off
-	auto_https disable_redirects prefer_wildcard
+	auto_https disable_redirects
 	log {
 		level ERROR
 	}
