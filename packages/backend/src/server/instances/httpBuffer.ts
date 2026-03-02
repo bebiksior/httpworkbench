@@ -13,11 +13,6 @@ export class HttpRequestBuffer {
 
     const newLength = this.buffer.length + data.length;
 
-    if (this.headersEndIndex === undefined && newLength > MAX_HEADER_SIZE) {
-      this.error = "Headers too large";
-      return;
-    }
-
     if (newLength > MAX_HEADER_SIZE + MAX_BODY_SIZE) {
       this.error = "Request too large";
       return;
@@ -30,25 +25,35 @@ export class HttpRequestBuffer {
 
     if (this.headersEndIndex === undefined) {
       const headersEnd = this.findHeadersEnd();
-      if (headersEnd !== -1) {
-        this.headersEndIndex = headersEnd;
-        const headerString = new TextDecoder().decode(
-          this.buffer.slice(0, headersEnd),
-        );
-        const contentLength = this.parseContentLength(headerString);
-
-        if (contentLength !== undefined && contentLength < 0) {
-          this.error = "Invalid Content-Length";
-          return;
+      if (headersEnd === -1) {
+        if (this.buffer.length > MAX_HEADER_SIZE) {
+          this.error = "Headers too large";
         }
-
-        if (contentLength !== undefined && contentLength > MAX_BODY_SIZE) {
-          this.error = "Body too large";
-          return;
-        }
-
-        this.expectedLength = headersEnd + (contentLength ?? 0);
+        return;
       }
+
+      if (headersEnd > MAX_HEADER_SIZE) {
+        this.error = "Headers too large";
+        return;
+      }
+
+      this.headersEndIndex = headersEnd;
+      const headerString = new TextDecoder().decode(
+        this.buffer.slice(0, headersEnd),
+      );
+      const contentLength = this.parseContentLength(headerString);
+
+      if (contentLength !== undefined && contentLength < 0) {
+        this.error = "Invalid Content-Length";
+        return;
+      }
+
+      if (contentLength !== undefined && contentLength > MAX_BODY_SIZE) {
+        this.error = "Body too large";
+        return;
+      }
+
+      this.expectedLength = headersEnd + (contentLength ?? 0);
     }
   }
 
