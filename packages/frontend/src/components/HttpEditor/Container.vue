@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { StreamLanguage } from "@codemirror/language";
+import type { StreamParser } from "@codemirror/language";
 import { http } from "@codemirror/legacy-modes/mode/http";
 import { EditorState } from "@codemirror/state";
 import { oneDark } from "@codemirror/theme-one-dark";
@@ -32,10 +33,14 @@ const handleSave = () => {
   emit("save");
 };
 
+// Bun may install legacy modes with a nested @codemirror/language copy, so we
+// bridge the parser type to the app-level StreamLanguage type for TS.
+const httpParser = http as unknown as StreamParser<unknown>;
+
 const extensions = computed(() => {
   const editorTheme = themeStore.mode === "dark" ? oneDark : oneLight;
   const exts = [
-    StreamLanguage.define(http),
+    StreamLanguage.define(httpParser),
     editorTheme,
     EditorView.lineWrapping,
   ];
