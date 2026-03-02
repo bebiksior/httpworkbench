@@ -1,4 +1,4 @@
-import { expect, test } from "bun:test";
+import { expect, test } from "vitest";
 import { HttpRequestBuffer } from "./httpBuffer";
 
 const encode = (value: string) => new TextEncoder().encode(value);

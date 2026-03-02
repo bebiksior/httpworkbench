@@ -11,7 +11,11 @@
     "build": "bun run --filter '*' build",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
+    "format": "prettier --check .",
+    "format:fix": "prettier --write .",
     "typecheck": "bun run --filter '*' typecheck",
+    "test": "vitest run",
+    "validate": "bun run knip && bun run lint && bun run format && bun run typecheck && bun run test",
     "dev:frontend": "bun run --filter frontend dev",
     "dev:backend": "bun run --filter backend dev",
     "knip": "knip"
@@ -29,9 +33,16 @@
     "knip": "^5.85.0",
     "prettier": "^3.8.1",
     "typescript": "~5.9.3",
+    "vitest": "^4.0.18",
     "vue-eslint-parser": "^10.4.0"
   },
   "dependencies": {
     "eslint-plugin-prettier": "^5.5.5"
+  },
+  "overrides": {
+    "vite": "npm:rolldown-vite@7.1.12",
+    "@codemirror/language": "6.12.2",
+    "@codemirror/state": "6.5.4",
+    "@codemirror/view": "6.39.16"
   }
 }

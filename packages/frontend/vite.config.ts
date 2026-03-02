@@ -17,6 +17,12 @@ export default defineConfig(({ mode }) => {
       alias: {
         "@": path.resolve(__dirname, "src"),
       },
+      dedupe: [
+        "vue",
+        "@codemirror/state",
+        "@codemirror/view",
+        "@codemirror/language",
+      ],
     },
     server: {
       proxy: {

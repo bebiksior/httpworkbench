@@ -51,10 +51,7 @@ export const initServer = () => {
           server: Server<LogStreamSocketData>,
         ) => {
           const upgradeHeader = req.headers.get("upgrade");
-          if (
-            upgradeHeader === null ||
-            upgradeHeader.toLowerCase() !== "websocket"
-          ) {
+          if (upgradeHeader?.toLowerCase() !== "websocket") {
             return new Response("Upgrade Required", { status: 426 });
           }
 

@@ -10,6 +10,7 @@ import {
   createResponse,
   getInstanceIDFromHost,
   respond,
+  stripInternalHeaders,
 } from "./utils";
 
 type SocketData = {
@@ -78,12 +79,9 @@ export const createInstancesServer = (port: number) => {
           )?.value;
           const clientAddress = realIpHeader ?? socket.remoteAddress;
 
-          const rawWithoutInternalHeaders = rawRequest
-            .split("\r\n")
-            .filter(
-              (line) => !line.toLowerCase().startsWith("x-internal-real-ip:"),
-            )
-            .join("\r\n");
+          const rawWithoutInternalHeaders = stripInternalHeaders(rawRequest, [
+            "x-internal-real-ip",
+          ]);
 
           const log = {
             id: crypto.randomUUID(),

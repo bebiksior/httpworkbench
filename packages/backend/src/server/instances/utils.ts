@@ -9,9 +9,7 @@ export const createResponse = (status: string, message: string) => {
   );
 };
 
-export const getInstanceIDFromHost = (
-  host: string,
-):
+type InstanceHostResult =
   | {
       kind: "ok";
       instanceId: string;
@@ -19,23 +17,30 @@ export const getInstanceIDFromHost = (
   | {
       kind: "error";
       error: string;
-    } => {
-  const DOMAIN = Bun.env.DOMAIN;
+    };
 
-  if (DOMAIN === undefined || DOMAIN === "") {
-    throw new Error("DOMAIN environment variable is not set");
+export const parseInstanceIdFromHost = (
+  host: string,
+  domain: string,
+): InstanceHostResult => {
+  const instancesSubdomain = `instances.${domain}`;
+  if (host === instancesSubdomain) {
+    return {
+      kind: "error",
+      error: "Host is empty",
+    };
   }
 
-  const instancesSubdomain = `instances.${DOMAIN}`;
+  const instancesSubdomainSuffix = `.${instancesSubdomain}`;
 
-  if (!host.endsWith(instancesSubdomain)) {
+  if (!host.endsWith(instancesSubdomainSuffix)) {
     return {
       kind: "error",
       error: "Host does not end with instances subdomain",
     };
   }
 
-  const prefix = host.slice(0, host.length - instancesSubdomain.length - 1);
+  const prefix = host.slice(0, -instancesSubdomainSuffix.length);
 
   if (prefix === "") {
     return {
@@ -60,9 +65,34 @@ export const getInstanceIDFromHost = (
   };
 };
 
+export const getInstanceIDFromHost = (host: string): InstanceHostResult => {
+  const domain = Bun.env.DOMAIN;
+
+  if (domain === undefined || domain === "") {
+    throw new Error("DOMAIN environment variable is not set");
+  }
+
+  return parseInstanceIdFromHost(host, domain);
+};
+
 export const respond = <T>(socket: Socket<T>, raw: Uint8Array) => {
   socket.write(raw);
   socket.end();
+};
+
+export const stripInternalHeaders = (
+  rawRequest: string,
+  headerNames: string[],
+): string => {
+  const lowerHeaders = headerNames.map((header) => `${header.toLowerCase()}:`);
+
+  return rawRequest
+    .split("\r\n")
+    .filter((line) => {
+      const lowerLine = line.toLowerCase();
+      return !lowerHeaders.some((header) => lowerLine.startsWith(header));
+    })
+    .join("\r\n");
 };
 
 export const adjustContentLength = (raw: string): string => {

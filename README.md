@@ -19,7 +19,6 @@ One thing stays the same: it will be as easy as before to create new instances. 
 > [!WARNING]
 > This project is still in beta. The self-hosting setup process is not great yet and will be improved over time. Expect some rough edges and manual configuration steps.
 
-
 <p align="center">
   <img src="./assets/demo-home.png" alt="HTTP Workbench Home Page" height=650>
 </p>
@@ -50,10 +49,10 @@ One thing stays the same: it will be as easy as before to create new instances. 
 
 ### Prerequisites
 
-* Docker and Docker Compose
-* Domain with Cloudflare DNS
-* Google OAuth credentials ([setup guide](https://developers.google.com/identity/protocols/oauth2))
-* Cloudflare API token with DNS permissions
+- Docker and Docker Compose
+- Domain with Cloudflare DNS
+- Google OAuth credentials ([setup guide](https://developers.google.com/identity/protocols/oauth2))
+- Cloudflare API token with DNS permissions
 
 ### Quick Start
 
@@ -71,15 +70,18 @@ cd httpworkbench
 ```
 
 The script will guide you through:
+
 - Domain configuration
 - Google OAuth setup
 - Cloudflare API token setup
 
 3. Configure DNS in Cloudflare:
+
 - Add A record: `yourdomain.com` → Your server IP
 - Add A record: `*.instances.yourdomain.com` → Your server IP
 
 4. Add Google OAuth redirect URI:
+
 - Go to Google Cloud Console
 - Add `https://yourdomain.com/api/auth/google/callback` to authorized redirect URIs
 
