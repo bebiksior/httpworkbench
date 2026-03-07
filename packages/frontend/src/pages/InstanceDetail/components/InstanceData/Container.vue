@@ -117,7 +117,7 @@ const formattedDate = computed(() => {
                 type="text"
                 maxlength="100"
                 placeholder="Instance name..."
-                class="text-2xl font-bold text-surface-900 dark:text-surface-0 bg-surface-100 dark:bg-surface-800 border border-surface-300 dark:border-surface-600 rounded px-2 py-0.5 w-full max-w-64 focus:outline-none focus:border-primary"
+                class="min-w-0 w-full text-2xl font-bold text-surface-900 dark:text-surface-0 bg-surface-100 dark:bg-surface-800 border border-surface-300 dark:border-surface-600 rounded px-2 py-0.5 focus:outline-none focus:border-primary"
                 @keydown="handleLabelKeydown"
                 @blur="saveLabel"
               />
@@ -148,6 +148,7 @@ const formattedDate = computed(() => {
             size="small"
             class="shrink-0"
             aria-label="Hide details panel"
+            title="Hide details"
             @click="emit('hidePanel')"
           >
             <svg

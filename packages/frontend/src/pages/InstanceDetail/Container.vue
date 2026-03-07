@@ -1,43 +1,21 @@
 <script setup lang="ts">
 import Button from "primevue/button";
-import { computed, onBeforeUnmount, ref } from "vue";
+import { computed } from "vue";
 import { useRoute } from "vue-router";
 import { DynamicScroller, DynamicScrollerItem } from "vue-virtual-scroller";
 import { useInstanceDetailLogic } from "./useLogic";
+import { useSidePanel } from "./useSidePanel";
 import { InstanceData } from "./components/InstanceData";
 import { InstanceLog } from "./components/InstanceLog";
 
 const route = useRoute();
 const instanceId = computed(() => route.params.id as string);
-const isSidePanelHidden = ref(false);
-const isSidePanelTransitioning = ref(false);
-let sidePanelTransitionTimeout: ReturnType<typeof window.setTimeout> | null =
-  null;
-
 const { instance, logs, isLoading } = useInstanceDetailLogic(instanceId);
-
-const queueSidePanelTransitionCleanup = () => {
-  if (sidePanelTransitionTimeout !== null) {
-    window.clearTimeout(sidePanelTransitionTimeout);
-  }
-
-  sidePanelTransitionTimeout = window.setTimeout(() => {
-    isSidePanelTransitioning.value = false;
-    sidePanelTransitionTimeout = null;
-  }, 260);
-};
-
-const setSidePanelHidden = (hidden: boolean) => {
-  isSidePanelTransitioning.value = true;
-  isSidePanelHidden.value = hidden;
-  queueSidePanelTransitionCleanup();
-};
-
-onBeforeUnmount(() => {
-  if (sidePanelTransitionTimeout !== null) {
-    window.clearTimeout(sidePanelTransitionTimeout);
-  }
-});
+const {
+  isHidden: isSidePanelHidden,
+  isTransitioning: isSidePanelTransitioning,
+  setHidden: setSidePanelHidden,
+} = useSidePanel();
 </script>
 
 <template>
@@ -83,17 +61,23 @@ onBeforeUnmount(() => {
     >
       <div class="flex flex-1 min-h-0 flex-col p-4">
         <div class="flex items-center justify-between gap-3 shrink-0">
-          <h2 class="font-semibold text-surface-900 dark:text-surface-0">
-            Logs
-          </h2>
           <div class="flex items-center gap-2">
+            <i
+              class="pi pi-list text-sm text-surface-500 dark:text-surface-400"
+              aria-hidden="true"
+            />
+            <h2 class="font-semibold text-surface-900 dark:text-surface-0">
+              Logs
+            </h2>
             <Button
               v-if="isSidePanelHidden"
-              label="Show details"
               severity="secondary"
-              outlined
+              text
+              rounded
               size="small"
+              class="shrink-0"
               aria-label="Show details panel"
+              title="Show details"
               @click="setSidePanelHidden(false)"
             >
               <svg
@@ -132,6 +116,8 @@ onBeforeUnmount(() => {
                 />
               </svg>
             </Button>
+          </div>
+          <div class="flex items-center gap-2">
             <span class="text-sm text-surface-500"
               >{{ logs.length }} events</span
             >

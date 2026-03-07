@@ -297,7 +297,7 @@ export const useInstanceDataLogic = (instance: Ref<Instance>) => {
   };
 
   const saveLabel = async () => {
-    if (isSavingViaEnter.value) {
+    if (isSavingViaEnter.value || !isEditingLabel.value) {
       return;
     }
 
