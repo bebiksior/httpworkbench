@@ -55,7 +55,9 @@ describe("convertAgentMessagesToModelMessages", () => {
       },
     ];
 
-    await expect(convertAgentMessagesToModelMessages(messages)).resolves.toEqual([
+    await expect(
+      convertAgentMessagesToModelMessages(messages),
+    ).resolves.toEqual([
       {
         role: "user",
         content: [{ type: "text", text: "Build a landing page" }],

@@ -18,7 +18,9 @@ const openSettings = () => {
         <i class="pi pi-key text-xl" />
       </div>
       <div class="space-y-2">
-        <h3 class="text-lg font-semibold text-surface-700 dark:text-surface-200">
+        <h3
+          class="text-lg font-semibold text-surface-700 dark:text-surface-200"
+        >
           OpenRouter key required
         </h3>
         <p class="text-sm text-surface-500 dark:text-surface-400">

@@ -3,7 +3,9 @@ export type GuestInstanceRecord = {
   createdAt: number;
 };
 
-const isGuestInstanceRecord = (value: unknown): value is GuestInstanceRecord => {
+const isGuestInstanceRecord = (
+  value: unknown,
+): value is GuestInstanceRecord => {
   if (typeof value !== "object" || value === null) {
     return false;
   }

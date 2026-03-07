@@ -4,12 +4,6 @@ import {
   validateDiscordWebhookUrl,
 } from "./discord";
 
-export {
-  buildDiscordNotificationPayload,
-  truncateDiscordField,
-  validateDiscordWebhookUrl,
-} from "./discord";
-
 export async function sendDiscordNotification(
   webhook: Webhook,
   log: Log,

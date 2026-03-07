@@ -108,7 +108,7 @@ const getToolCopy = (
 };
 
 const hasToolError = (output: unknown) => {
-  if (!output || typeof output !== "object") {
+  if (output == null || typeof output !== "object") {
     return false;
   }
 

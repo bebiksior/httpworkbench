@@ -23,7 +23,11 @@ const agentTools = {
   createInstance: createInstanceTool,
 };
 
-type AgentUIMessage = UIMessage<MessageMetadata, never, InferUITools<typeof agentTools>>;
+type AgentUIMessage = UIMessage<
+  MessageMetadata,
+  never,
+  InferUITools<typeof agentTools>
+>;
 
 const buildAgentInstructions = (editorContent: string) => {
   return [

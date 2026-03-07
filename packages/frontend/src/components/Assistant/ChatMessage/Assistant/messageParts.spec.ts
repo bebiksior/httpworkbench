@@ -28,12 +28,10 @@ describe("getDisplayParts", () => {
     const textPart = { type: "text", text: "Hello", state: "done" };
 
     expect(
-      getDisplayParts(
-        [
-          { type: "reasoning", text: "[REDACTED]", state: "done" },
-          textPart,
-        ] as never,
-      ),
+      getDisplayParts([
+        { type: "reasoning", text: "[REDACTED]", state: "done" },
+        textPart,
+      ] as never),
     ).toEqual([textPart]);
   });
 
@@ -41,13 +39,11 @@ describe("getDisplayParts", () => {
     const textPart = { type: "text", text: "Hello", state: "done" };
 
     expect(
-      getDisplayParts(
-        [
-          { type: "step-start" },
-          { type: "reasoning", text: "   ", state: "done" },
-          textPart,
-        ] as never,
-      ),
+      getDisplayParts([
+        { type: "step-start" },
+        { type: "reasoning", text: "   ", state: "done" },
+        textPart,
+      ] as never),
     ).toEqual([textPart]);
   });
 });

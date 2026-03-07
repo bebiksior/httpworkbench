@@ -54,7 +54,9 @@ const hasPendingStep = computed(() => {
   return parts.length > 0 && parts[parts.length - 1]?.type === "step-start";
 });
 
-const displayParts = computed(() => getDisplayParts(message.value.parts as never));
+const displayParts = computed(() =>
+  getDisplayParts(message.value.parts as never),
+);
 </script>
 
 <template>

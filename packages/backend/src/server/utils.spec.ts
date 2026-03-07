@@ -10,7 +10,9 @@ describe("ensureStaticResponseWithinLimit", () => {
   });
 
   test("returns a 413 response when the response exceeds the limit", async () => {
-    const result = ensureStaticResponseWithinLimit("a".repeat(11 * 1024 * 1024));
+    const result = ensureStaticResponseWithinLimit(
+      "a".repeat(11 * 1024 * 1024),
+    );
 
     expect(result.kind).toBe("error");
     if (result.kind === "error") {

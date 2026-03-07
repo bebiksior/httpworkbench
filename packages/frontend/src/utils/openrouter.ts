@@ -41,9 +41,6 @@ export const clearOpenrouterKey = (): boolean => {
   }
 };
 
-export const hasOpenrouterKey = (): boolean =>
-  isConfiguredKey(readOpenrouterKey());
-
 syncOpenrouterKeyConfigured();
 
 export const useHasOpenrouterKey = () => {

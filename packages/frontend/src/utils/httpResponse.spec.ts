@@ -51,9 +51,12 @@ describe("formatStaticHttpResponse", () => {
 
 describe("extractHttpBody", () => {
   test("extracts the body from LF-delimited raw HTTP", () => {
-    const raw = ["HTTP/1.1 200 OK", "Content-Type: text/plain", "", "hello"].join(
-      "\n",
-    );
+    const raw = [
+      "HTTP/1.1 200 OK",
+      "Content-Type: text/plain",
+      "",
+      "hello",
+    ].join("\n");
 
     expect(extractHttpBody(raw)).toBe("hello");
   });

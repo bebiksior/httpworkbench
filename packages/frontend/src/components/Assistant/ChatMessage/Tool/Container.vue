@@ -30,7 +30,9 @@ const { isProcessing, formatToolCall } = useToolMessage({
 
 <template>
   <div class="py-1">
-    <div class="flex items-center text-surface-500 dark:text-surface-400 text-sm font-mono">
+    <div
+      class="flex items-center text-surface-500 dark:text-surface-400 text-sm font-mono"
+    >
       <TextShimmer v-if="isProcessing">{{ formatToolCall }}</TextShimmer>
       <span v-else>{{ formatToolCall }}</span>
     </div>

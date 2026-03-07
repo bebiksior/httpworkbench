@@ -1,6 +1,2 @@
-export {
-  buildDiscordNotificationPayload,
-  sendDiscordNotification,
-  truncateDiscordField,
-  validateDiscordWebhookUrl,
-} from "./service";
+export { validateDiscordWebhookUrl } from "./discord";
+export { sendDiscordNotification } from "./service";

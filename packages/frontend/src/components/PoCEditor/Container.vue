@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { html } from "@codemirror/lang-html";
-import { javascriptLanguage, scopeCompletionSource } from "@codemirror/lang-javascript";
+import {
+  javascriptLanguage,
+  scopeCompletionSource,
+} from "@codemirror/lang-javascript";
 import { oneDark } from "@codemirror/theme-one-dark";
 import { EditorView } from "@codemirror/view";
 import { computed } from "vue";

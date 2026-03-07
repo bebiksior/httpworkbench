@@ -11,12 +11,7 @@ export const parseBooleanEnv = (
     return true;
   }
 
-  if (
-    lower === "false" ||
-    lower === "0" ||
-    lower === "no" ||
-    lower === "n"
-  ) {
+  if (lower === "false" || lower === "0" || lower === "no" || lower === "n") {
     return false;
   }
 
