@@ -1,12 +1,10 @@
 import { computed, ref, type Ref } from "vue";
 import type { MessageState } from "@/agent/types";
 import { useAgentsStore } from "@/stores";
-
-type ToolState =
-  | "input-streaming"
-  | "input-available"
-  | "output-available"
-  | "output-error";
+import {
+  getToolMessagePresentation,
+  type ToolState,
+} from "./toolMessage.utils";
 
 export const useToolMessage = (params: {
   toolName: Ref<string>;
@@ -18,57 +16,18 @@ export const useToolMessage = (params: {
   const agentsStore = useAgentsStore();
   const showDetails = ref(false);
 
-  const isProcessing = computed(() => {
-    const isActiveState =
-      state.value === "input-streaming" || state.value === "input-available";
-    if (messageState.value === "abort") return false;
-    return isActiveState && agentsStore.agent?.status === "streaming";
+  const presentation = computed(() => {
+    return getToolMessagePresentation({
+      toolName: toolName.value,
+      state: state.value,
+      messageState: messageState.value,
+      isAgentStreaming: agentsStore.agent?.status === "streaming",
+    });
   });
 
-  const toolIcon = computed(() => {
-    if (
-      messageState.value === "abort" &&
-      (state.value === "input-streaming" || state.value === "input-available")
-    ) {
-      return "pi pi-exclamation-triangle";
-    }
-
-    switch (state.value) {
-      case "input-streaming":
-        return "pi pi-spinner pi-spin";
-      case "input-available":
-        return "pi pi-spinner pi-spin";
-      case "output-available":
-        return "pi pi-check";
-      case "output-error":
-        return "pi pi-exclamation-triangle";
-      default:
-        return "pi pi-cog";
-    }
-  });
-
-  const formatToolCall = computed(() => {
-    if (
-      messageState.value === "abort" &&
-      (state.value === "input-streaming" || state.value === "input-available")
-    ) {
-      return `Aborted ${toolName.value}`;
-    }
-
-    if (state.value === "input-streaming") {
-      return `Preparing ${toolName.value}...`;
-    }
-
-    if (state.value === "input-available") {
-      return `Processing ${toolName.value}...`;
-    }
-
-    if (state.value === "output-error") {
-      return `Failed ${toolName.value}`;
-    }
-
-    return `Called tool ${toolName.value}`;
-  });
+  const isProcessing = computed(() => presentation.value.isProcessing);
+  const toolIcon = computed(() => presentation.value.icon);
+  const formatToolCall = computed(() => presentation.value.label);
 
   const toolDetails = computed(() => {
     if (output.value === undefined) return undefined;

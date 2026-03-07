@@ -1,29 +1,18 @@
 import { defineStore, storeToRefs } from "pinia";
 import { ref } from "vue";
+import {
+  extractHttpBody,
+  formatStaticHttpResponse,
+} from "@/utils/httpResponse";
 import { useResponseEditorStore } from "./responseEditor";
 
 export const DEFAULT_TEMPLATE = `<h1>Hello World</h1>`;
 
-const extractBody = (raw: string | undefined) => {
-  if (raw === undefined || raw === "") {
-    return "";
-  }
-  const match = /\r?\n\r?\n/.exec(raw);
-  if (match?.index === undefined) {
-    return raw;
-  }
-  return raw.slice(match.index + match[0].length);
-};
-
 export const formatResponse = (body: string) => {
-  return [
-    "HTTP/1.1 200 OK",
-    "Content-Type: text/html",
-    "Access-Control-Allow-Origin: *",
-    "Access-Control-Allow-Headers: *",
-    "",
+  return formatStaticHttpResponse({
     body,
-  ].join("\n");
+    contentType: "text/html",
+  });
 };
 
 export const useBuilderStore = defineStore("builder", () => {
@@ -43,7 +32,7 @@ export const useBuilderStore = defineStore("builder", () => {
   };
 
   const hydrateEditor = (raw: string) => {
-    const body = extractBody(raw);
+    const body = extractHttpBody(raw);
     responseEditorStore.setContent(
       body.trim() === "" ? DEFAULT_TEMPLATE : body,
       "hydrate",

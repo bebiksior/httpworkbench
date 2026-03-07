@@ -1,28 +1,18 @@
 import { defineStore } from "pinia";
 import { GUEST_INSTANCE_TTL_MS } from "shared";
 import { computed, ref } from "vue";
-
-type GuestInstanceRecord = {
-  id: string;
-  createdAt: number;
-};
+import {
+  parseGuestInstanceRecords,
+  pruneExpiredGuestInstanceRecords,
+  type GuestInstanceRecord,
+  upsertGuestInstanceRecord,
+} from "./guestInstances.utils";
 
 const STORAGE_KEY = "httpworkbench_guest_instances";
 
 const readRecords = (): GuestInstanceRecord[] => {
   try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (raw === null || raw === "") {
-      return [];
-    }
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) {
-      return [];
-    }
-    return parsed.filter(
-      (entry: GuestInstanceRecord) =>
-        typeof entry?.id === "string" && typeof entry?.createdAt === "number",
-    );
+    return parseGuestInstanceRecords(window.localStorage.getItem(STORAGE_KEY));
   } catch {
     return [];
   }
@@ -39,9 +29,10 @@ const persistRecords = (records: GuestInstanceRecord[]) => {
 };
 
 const pruneExpired = (records: GuestInstanceRecord[]) => {
-  const now = Date.now();
-  return records.filter(
-    (record) => record.createdAt + GUEST_INSTANCE_TTL_MS > now,
+  return pruneExpiredGuestInstanceRecords(
+    records,
+    Date.now(),
+    GUEST_INSTANCE_TTL_MS,
   );
 };
 
@@ -59,10 +50,7 @@ export const useGuestInstancesStore = defineStore("guestInstances", () => {
   };
 
   const trackInstance = (id: string) => {
-    const existing = records.value.find((record) => record.id === id);
-    const others = records.value.filter((record) => record.id !== id);
-    const createdAt = existing?.createdAt ?? Date.now();
-    setRecords([{ id, createdAt }, ...others]);
+    setRecords(upsertGuestInstanceRecord(records.value, id, Date.now()));
   };
 
   const forgetInstance = (id: string) => {
