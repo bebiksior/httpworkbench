@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import Button from "primevue/button";
-import { onMounted, ref, watch } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { ModelSelector } from "./ModelSelector";
 import { useChat } from "./useChat";
 
@@ -15,6 +15,84 @@ const {
 } = useChat();
 
 const textareaRef = ref<HTMLTextAreaElement>();
+const composerRef = ref<HTMLElement>();
+const composerHeight = ref<number | null>(null);
+
+const MOBILE_COMPOSER_HEIGHT = 140;
+const DESKTOP_COMPOSER_HEIGHT = 208;
+const MAX_COMPOSER_VIEWPORT_RATIO = 0.6;
+
+let resizeState:
+  | {
+      startY: number;
+      startHeight: number;
+    }
+  | undefined;
+
+const getMinComposerHeight = () => {
+  return window.matchMedia("(min-width: 640px)").matches
+    ? DESKTOP_COMPOSER_HEIGHT
+    : MOBILE_COMPOSER_HEIGHT;
+};
+
+const clampComposerHeight = (height: number) => {
+  const minHeight = getMinComposerHeight();
+  const maxHeight = Math.max(
+    minHeight,
+    Math.floor(window.innerHeight * MAX_COMPOSER_VIEWPORT_RATIO),
+  );
+  return Math.min(maxHeight, Math.max(minHeight, Math.round(height)));
+};
+
+const syncComposerHeight = () => {
+  const fallbackHeight = composerRef.value?.offsetHeight ?? getMinComposerHeight();
+  const nextHeight = composerHeight.value ?? fallbackHeight;
+  composerHeight.value = clampComposerHeight(nextHeight);
+};
+
+const stopResize = () => {
+  resizeState = undefined;
+  document.body.style.removeProperty("cursor");
+  document.body.style.removeProperty("user-select");
+  window.removeEventListener("pointermove", handleResizePointerMove);
+  window.removeEventListener("pointerup", stopResize);
+  window.removeEventListener("pointercancel", stopResize);
+};
+
+const handleResizePointerMove = (event: PointerEvent) => {
+  if (resizeState === undefined) {
+    return;
+  }
+
+  composerHeight.value = clampComposerHeight(
+    resizeState.startHeight + (resizeState.startY - event.clientY),
+  );
+};
+
+const handleResizePointerDown = (event: PointerEvent) => {
+  const currentHeight =
+    composerHeight.value ?? composerRef.value?.offsetHeight ?? getMinComposerHeight();
+
+  resizeState = {
+    startY: event.clientY,
+    startHeight: currentHeight,
+  };
+
+  document.body.style.cursor = "row-resize";
+  document.body.style.userSelect = "none";
+  window.addEventListener("pointermove", handleResizePointerMove);
+  window.addEventListener("pointerup", stopResize);
+  window.addEventListener("pointercancel", stopResize);
+  event.preventDefault();
+};
+
+const composerStyle = computed(() => {
+  if (composerHeight.value === null) {
+    return undefined;
+  }
+
+  return { height: `${composerHeight.value}px` };
+});
 
 const focusTextarea = () => {
   textareaRef.value?.focus();
@@ -22,6 +100,13 @@ const focusTextarea = () => {
 
 onMounted(() => {
   focusTextarea();
+  syncComposerHeight();
+  window.addEventListener("resize", syncComposerHeight);
+});
+
+onBeforeUnmount(() => {
+  stopResize();
+  window.removeEventListener("resize", syncComposerHeight);
 });
 
 watch(
@@ -37,8 +122,14 @@ watch(
 
 <template>
   <div
-    class="bg-surface-100 dark:bg-surface-900 h-35 sm:h-52 flex flex-col gap-4 border-t border-surface-300 dark:border-surface-700 p-4"
+    ref="composerRef"
+    :style="composerStyle"
+    class="bg-surface-100 dark:bg-surface-900 relative h-35 sm:h-52 flex flex-col gap-4 border-t border-surface-300 dark:border-surface-700 p-4"
   >
+    <div
+      class="absolute inset-x-0 top-0 h-3 -translate-y-1/2 cursor-row-resize touch-none"
+      @pointerdown="handleResizePointerDown"
+    />
     <textarea
       ref="textareaRef"
       v-model="inputMessage"

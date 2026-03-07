@@ -18,6 +18,9 @@ import { useWebhooks } from "@/queries/domains/useWebhooks";
 const props = defineProps<{
   instance: Instance;
 }>();
+const emit = defineEmits<{
+  hidePanel: [];
+}>();
 
 const { instance } = toRefs(props);
 
@@ -102,37 +105,87 @@ const formattedDate = computed(() => {
 
 <template>
   <ConfirmDialog />
-  <div class="flex flex-col gap-8 h-full">
+  <div class="flex flex-col gap-8 h-full px-6 py-6 pt-2">
     <div class="flex flex-col gap-6">
       <div>
-        <div class="flex items-center gap-2 mb-1">
-          <template v-if="isEditingLabel">
-            <input
-              ref="labelInputRef"
-              v-model="editLabel"
-              type="text"
-              maxlength="100"
-              placeholder="Instance name..."
-              class="text-2xl font-bold text-surface-900 dark:text-surface-0 bg-surface-100 dark:bg-surface-800 border border-surface-300 dark:border-surface-600 rounded px-2 py-0.5 w-64 focus:outline-none focus:border-primary"
-              @keydown="handleLabelKeydown"
-              @blur="saveLabel"
-            />
-          </template>
-          <template v-else>
-            <h2 class="text-2xl font-bold text-surface-900 dark:text-surface-0">
-              {{ displayName }}
-            </h2>
-            <i v-if="isLocked" class="pi pi-lock text-surface-500" />
-            <Button
-              v-if="!isGuest"
-              icon="pi pi-pencil"
-              severity="secondary"
-              text
-              size="small"
-              class="shrink-0 p-1!"
-              @click="startEditingLabel"
-            />
-          </template>
+        <div class="flex items-start justify-between gap-3 mb-1">
+          <div class="flex items-center gap-2 min-w-0 flex-1">
+            <template v-if="isEditingLabel">
+              <input
+                ref="labelInputRef"
+                v-model="editLabel"
+                type="text"
+                maxlength="100"
+                placeholder="Instance name..."
+                class="text-2xl font-bold text-surface-900 dark:text-surface-0 bg-surface-100 dark:bg-surface-800 border border-surface-300 dark:border-surface-600 rounded px-2 py-0.5 w-full max-w-64 focus:outline-none focus:border-primary"
+                @keydown="handleLabelKeydown"
+                @blur="saveLabel"
+              />
+            </template>
+            <template v-else>
+              <h2
+                class="text-2xl font-bold text-surface-900 dark:text-surface-0 truncate"
+              >
+                {{ displayName }}
+              </h2>
+              <i v-if="isLocked" class="pi pi-lock text-surface-500 shrink-0" />
+              <Button
+                v-if="!isGuest"
+                icon="pi pi-pencil"
+                severity="secondary"
+                text
+                size="small"
+                class="shrink-0 p-1!"
+                @click="startEditingLabel"
+              />
+            </template>
+          </div>
+
+          <Button
+            severity="secondary"
+            text
+            rounded
+            size="small"
+            class="shrink-0"
+            aria-label="Hide details panel"
+            @click="emit('hidePanel')"
+          >
+            <svg
+              class="h-4 w-4"
+              viewBox="0 0 20 20"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+              aria-hidden="true"
+            >
+              <rect
+                x="2.25"
+                y="3.25"
+                width="15.5"
+                height="13.5"
+                rx="2"
+                stroke="currentColor"
+                stroke-width="1.5"
+              />
+              <path
+                d="M7 3.25V16.75"
+                stroke="currentColor"
+                stroke-width="1.5"
+              />
+              <path
+                d="M12.75 10H9.75"
+                stroke="currentColor"
+                stroke-width="1.5"
+                stroke-linecap="round"
+              />
+              <path
+                d="M11.25 8.5L9.75 10L11.25 11.5"
+                stroke="currentColor"
+                stroke-width="1.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+            </svg>
+          </Button>
         </div>
         <span class="text-sm text-surface-500">{{ formattedDate }}</span>
       </div>
@@ -272,7 +325,7 @@ const formattedDate = computed(() => {
       </div>
     </div>
 
-    <div class="flex flex-col gap-3 mt-auto pb-4">
+    <div class="flex flex-col gap-3 mt-auto">
       <h3
         class="font-semibold text-surface-900 dark:text-surface-0 border-b border-surface-200 dark:border-surface-700 pb-2"
       >
