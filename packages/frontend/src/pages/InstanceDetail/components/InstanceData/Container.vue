@@ -105,10 +105,10 @@ const formattedDate = computed(() => {
 
 <template>
   <ConfirmDialog />
-  <div class="flex flex-col gap-8 h-full px-6 py-6 pt-2">
+  <div class="flex flex-col gap-8 h-full p-4">
     <div class="flex flex-col gap-6">
       <div>
-        <div class="flex items-start justify-between gap-3 mb-1">
+        <div class="flex items-start justify-between gap-3">
           <div class="flex items-center gap-2 min-w-0 flex-1">
             <template v-if="isEditingLabel">
               <input

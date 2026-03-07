@@ -53,7 +53,9 @@ onBeforeUnmount(() => {
       }"
       :aria-hidden="isSidePanelHidden"
     >
-      <div class="instance-detail-side-panel-content flex h-full min-h-0 flex-col">
+      <div
+        class="instance-detail-side-panel-content flex h-full min-h-0 flex-col"
+      >
         <div
           v-if="isLoading"
           class="flex flex-1 items-center justify-center px-6 py-10"
@@ -79,87 +81,93 @@ onBeforeUnmount(() => {
     <div
       class="w-full lg:w-[50%] xl:w-[65%] flex flex-col bg-surface-50 dark:bg-surface-900 flex-1 min-h-0 rounded-lg"
     >
-      <div class="h-14 px-6 flex items-center justify-between shrink-0">
-        <h2 class="font-semibold text-surface-900 dark:text-surface-0">Logs</h2>
-        <div class="flex items-center gap-2">
-          <Button
-            v-if="isSidePanelHidden"
-            label="Show details"
-            severity="secondary"
-            outlined
-            size="small"
-            aria-label="Show details panel"
-            @click="setSidePanelHidden(false)"
+      <div class="flex flex-1 min-h-0 flex-col p-4">
+        <div class="flex items-center justify-between gap-3 shrink-0">
+          <h2 class="font-semibold text-surface-900 dark:text-surface-0">
+            Logs
+          </h2>
+          <div class="flex items-center gap-2">
+            <Button
+              v-if="isSidePanelHidden"
+              label="Show details"
+              severity="secondary"
+              outlined
+              size="small"
+              aria-label="Show details panel"
+              @click="setSidePanelHidden(false)"
+            >
+              <svg
+                class="h-4 w-4"
+                viewBox="0 0 20 20"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+                aria-hidden="true"
+              >
+                <rect
+                  x="2.25"
+                  y="3.25"
+                  width="15.5"
+                  height="13.5"
+                  rx="2"
+                  stroke="currentColor"
+                  stroke-width="1.5"
+                />
+                <path
+                  d="M7 3.25V16.75"
+                  stroke="currentColor"
+                  stroke-width="1.5"
+                />
+                <path
+                  d="M9.75 10H12.75"
+                  stroke="currentColor"
+                  stroke-width="1.5"
+                  stroke-linecap="round"
+                />
+                <path
+                  d="M11.25 8.5L12.75 10L11.25 11.5"
+                  stroke="currentColor"
+                  stroke-width="1.5"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+              </svg>
+            </Button>
+            <span class="text-sm text-surface-500"
+              >{{ logs.length }} events</span
+            >
+          </div>
+        </div>
+
+        <div class="relative mt-4 flex-1 min-h-0 overflow-hidden">
+          <div
+            v-if="logs.length === 0"
+            class="flex h-full flex-col items-center justify-center text-center text-surface-500"
           >
-            <svg
-              class="h-4 w-4"
-              viewBox="0 0 20 20"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
-              aria-hidden="true"
-            >
-              <rect
-                x="2.25"
-                y="3.25"
-                width="15.5"
-                height="13.5"
-                rx="2"
-                stroke="currentColor"
-                stroke-width="1.5"
-              />
-              <path
-                d="M7 3.25V16.75"
-                stroke="currentColor"
-                stroke-width="1.5"
-              />
-              <path
-                d="M9.75 10H12.75"
-                stroke="currentColor"
-                stroke-width="1.5"
-                stroke-linecap="round"
-              />
-              <path
-                d="M11.25 8.5L12.75 10L11.25 11.5"
-                stroke="currentColor"
-                stroke-width="1.5"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              />
-            </svg>
-          </Button>
-          <span class="text-sm text-surface-500">{{ logs.length }} events</span>
-        </div>
-      </div>
+            <i class="pi pi-inbox text-4xl mb-2 block"></i>
+            Waiting for requests...
+          </div>
 
-      <div class="flex-1 min-h-0 relative overflow-hidden">
-        <div
-          v-if="logs.length === 0"
-          class="text-center text-surface-500 py-12"
-        >
-          <i class="pi pi-inbox text-4xl mb-2 block"></i>
-          Waiting for requests...
+          <DynamicScroller
+            v-else
+            :items="logs"
+            :min-item-size="200"
+            :buffer="400"
+            key-field="id"
+            class="h-full"
+          >
+            <template #default="{ item, index, active }">
+              <DynamicScrollerItem
+                :item="item"
+                :active="active"
+                :data-index="index"
+                :size-dependencies="[item.id]"
+                class="pb-4"
+              >
+                <InstanceLog :log="item" />
+              </DynamicScrollerItem>
+            </template>
+          </DynamicScroller>
         </div>
-
-        <DynamicScroller
-          v-else
-          :items="logs"
-          :min-item-size="200"
-          :buffer="400"
-          key-field="id"
-          class="h-full px-6 py-6 pt-2"
-        >
-          <template #default="{ item, index, active }">
-            <DynamicScrollerItem
-              :item="item"
-              :active="active"
-              :data-index="index"
-              :size-dependencies="[item.id]"
-              class="pb-4"
-            >
-              <InstanceLog :log="item" />
-            </DynamicScrollerItem>
-          </template>
-        </DynamicScroller>
       </div>
     </div>
   </div>
