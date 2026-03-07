@@ -6,7 +6,10 @@ import { computed, toRefs } from "vue";
 import { useRouter } from "vue-router";
 import { useNotify } from "@/composables";
 import { config } from "@/config";
-import { useDeleteInstance } from "@/queries/domains/useInstances";
+import {
+  useCloneInstance,
+  useDeleteInstance,
+} from "@/queries/domains/useInstances";
 import { isPresent } from "@/utils/types";
 
 const props = defineProps<{
@@ -18,6 +21,7 @@ const { instance } = toRefs(props);
 const router = useRouter();
 const notify = useNotify();
 const deleteMutation = useDeleteInstance();
+const cloneMutation = useCloneInstance();
 
 const instanceHost = computed(() => config.getInstanceHost(instance.value.id));
 
@@ -67,6 +71,22 @@ const handleDeleteClick = (event: Event) => {
     },
   });
 };
+
+const handleCloneClick = (event: Event) => {
+  event.stopPropagation();
+  cloneMutation.mutate(instance.value, {
+    onSuccess: (clonedInstance) => {
+      notify.success(
+        "Instance cloned",
+        "A copy of your instance has been created successfully",
+      );
+      void router.push(`/instances/${clonedInstance.id}`);
+    },
+    onError: (err: Error) => {
+      notify.error("Failed to clone instance", err);
+    },
+  });
+};
 </script>
 
 <template>
@@ -110,6 +130,21 @@ const handleDeleteClick = (event: Event) => {
           size="small"
           class="shrink-0"
           @mousedown="handleCopyClick"
+        />
+        <Button
+          :icon="
+            cloneMutation.isPending.value
+              ? 'pi pi-spin pi-spinner'
+              : 'pi pi-clone'
+          "
+          severity="secondary"
+          outlined
+          size="small"
+          class="shrink-0"
+          :disabled="cloneMutation.isPending.value"
+          :loading="cloneMutation.isPending.value"
+          @mousedown.stop
+          @click="handleCloneClick"
         />
         <Button
           :icon="

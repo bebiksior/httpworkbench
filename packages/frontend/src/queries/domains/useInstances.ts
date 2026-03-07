@@ -92,6 +92,74 @@ export const useCreateInstance = () => {
   });
 };
 
+const getCloneLabel = (label: string) => {
+  const suffix = " (copy)";
+  const trimmed = label.trim();
+  if (trimmed === "") {
+    return undefined;
+  }
+
+  const maxBaseLength = 100 - suffix.length;
+  if (trimmed.length <= maxBaseLength) {
+    return `${trimmed}${suffix}`;
+  }
+
+  return `${trimmed.slice(0, maxBaseLength)}${suffix}`;
+};
+
+export const useCloneInstance = () => {
+  const queryClient = useQueryClient();
+  const authStore = useAuthStore();
+  const guestInstancesStore = useGuestInstancesStore();
+  const { isGuest } = storeToRefs(authStore);
+
+  return useMutation({
+    mutationFn: async (instance: Instance) => {
+      let input: CreateInstanceInput;
+      if (instance.kind === "static") {
+        input = {
+          kind: "static",
+          raw: instance.raw,
+          webhookIds: isGuest.value ? undefined : instance.webhookIds,
+        };
+      } else {
+        input = {
+          kind: "dynamic",
+          processors: instance.processors,
+          webhookIds: isGuest.value ? undefined : instance.webhookIds,
+        };
+      }
+
+      const created = isGuest.value
+        ? await guestInstancesApi.create(input)
+        : await instancesApi.create(input);
+
+      if (isGuest.value) {
+        return created;
+      }
+
+      const clonedLabel =
+        instance.label === undefined
+          ? undefined
+          : getCloneLabel(instance.label);
+      if (clonedLabel === undefined) {
+        return created;
+      }
+
+      return instancesApi.rename(created.id, { label: clonedLabel });
+    },
+    onSuccess: (instance) => {
+      if (isGuest.value) {
+        guestInstancesStore.trackInstance(instance.id);
+      }
+      queryClient.invalidateQueries({ queryKey: queryKeys.instances.all });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.instances.detail(instance.id),
+      });
+    },
+  });
+};
+
 export const useUpdateInstance = () => {
   const queryClient = useQueryClient();
   const authStore = useAuthStore();

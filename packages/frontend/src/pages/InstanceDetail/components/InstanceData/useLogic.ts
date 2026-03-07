@@ -9,6 +9,7 @@ import { useNotify } from "@/composables";
 import { config } from "@/config";
 import {
   useClearLogs,
+  useCloneInstance,
   useDeleteInstance,
   useExtendInstance,
   useRenameInstance,
@@ -28,6 +29,8 @@ export const useInstanceDataLogic = (instance: Ref<Instance>) => {
     useUpdateInstance();
   const { mutateAsync: deleteInstanceMutation, isPending: isDeleting } =
     useDeleteInstance();
+  const { mutateAsync: cloneInstanceMutation, isPending: isCloning } =
+    useCloneInstance();
   const { mutateAsync: clearLogsMutation, isPending: isClearingLogs } =
     useClearLogs();
   const { mutateAsync: extendInstanceMutation, isPending: isExtending } =
@@ -198,6 +201,19 @@ export const useInstanceDataLogic = (instance: Ref<Instance>) => {
     });
   };
 
+  const handleClone = async () => {
+    try {
+      const cloned = await cloneInstanceMutation(instance.value);
+      notify.success("Instance cloned");
+      await router.push({
+        name: "instanceDetail",
+        params: { id: cloned.id },
+      });
+    } catch (e) {
+      notify.error("Failed to clone instance", e);
+    }
+  };
+
   const handleToggleLock = async () => {
     const nextLocked = !isLocked.value;
     try {
@@ -342,6 +358,7 @@ export const useInstanceDataLogic = (instance: Ref<Instance>) => {
     rawContent,
     isDirty,
     isUpdating,
+    isCloning,
     isDeleting,
     isClearingLogs,
     isExtending,
@@ -361,6 +378,7 @@ export const useInstanceDataLogic = (instance: Ref<Instance>) => {
     handleSave,
     handleEditorChange,
     handleDelete,
+    handleClone,
     handleClearLogs,
     handleToggleLock,
     triggerFileUpload,

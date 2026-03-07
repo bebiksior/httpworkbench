@@ -26,6 +26,7 @@ const {
   rawContent,
   isDirty,
   isUpdating,
+  isCloning,
   isDeleting,
   isClearingLogs,
   isLocked,
@@ -33,6 +34,7 @@ const {
   handleSave,
   handleEditorChange,
   handleDelete,
+  handleClone,
   handleClearLogs,
   handleToggleLock,
   handleFileUpload,
@@ -277,6 +279,15 @@ const formattedDate = computed(() => {
         Actions
       </h3>
       <div class="flex flex-col gap-2">
+        <Button
+          label="Clone Instance"
+          icon="pi pi-clone"
+          severity="secondary"
+          outlined
+          class="w-full justify-center"
+          :loading="isCloning"
+          @click="handleClone"
+        />
         <Button
           label="Clear Logs"
           icon="pi pi-ban"
