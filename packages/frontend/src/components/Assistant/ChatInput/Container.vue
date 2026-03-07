@@ -16,15 +16,19 @@ const {
 
 const textareaRef = ref<HTMLTextAreaElement>();
 
-onMounted(() => {
+const focusTextarea = () => {
   textareaRef.value?.focus();
+};
+
+onMounted(() => {
+  focusTextarea();
 });
 
 watch(
   isEditingMessage,
   (isEditing) => {
     if (isEditing && textareaRef.value) {
-      textareaRef.value.focus();
+      focusTextarea();
     }
   },
   { flush: "post" },
@@ -54,7 +58,7 @@ watch(
     />
     <div class="flex gap-2 items-center min-w-0">
       <div class="flex gap-2 shrink-0">
-        <ModelSelector />
+        <ModelSelector @request-focus-input="focusTextarea" />
       </div>
       <div class="flex items-center gap-2 min-w-0 flex-1 justify-end">
         <Button
