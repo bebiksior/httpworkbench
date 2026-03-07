@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { html } from "@codemirror/lang-html";
+import { javascriptLanguage, scopeCompletionSource } from "@codemirror/lang-javascript";
 import { oneDark } from "@codemirror/theme-one-dark";
 import { EditorView } from "@codemirror/view";
 import { computed } from "vue";
@@ -19,7 +20,12 @@ const emit = defineEmits<{
 
 const extensions = computed(() => {
   const editorTheme = themeStore.mode === "dark" ? oneDark : oneLight;
-  return [html(), editorTheme, EditorView.lineWrapping];
+  return [
+    html(),
+    javascriptLanguage.data.of({ autocomplete: scopeCompletionSource(window) }),
+    editorTheme,
+    EditorView.lineWrapping,
+  ];
 });
 
 const handleChange = (value: string) => {
