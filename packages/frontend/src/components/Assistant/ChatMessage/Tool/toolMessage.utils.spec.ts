@@ -2,48 +2,48 @@ import { describe, expect, test } from "vitest";
 import { getToolMessagePresentation } from "./toolMessage.utils";
 
 describe("getToolMessagePresentation", () => {
-  test("marks aborted input states with a warning icon", () => {
+  test("returns aborted copy for interrupted input states", () => {
     expect(
       getToolMessagePresentation({
-        toolName: "createInstance",
+        toolName: "write",
         state: "input-streaming",
+        output: undefined,
         messageState: "abort",
         isAgentStreaming: true,
       }),
     ).toEqual({
       isProcessing: false,
-      icon: "pi pi-exclamation-triangle",
-      label: "Aborted createInstance",
+      label: "Stopped updating the code",
     });
   });
 
-  test("returns the preparing state for streaming input", () => {
+  test("returns natural copy for streaming input", () => {
     expect(
       getToolMessagePresentation({
-        toolName: "createInstance",
+        toolName: "write",
         state: "input-streaming",
+        output: undefined,
         messageState: "streaming",
         isAgentStreaming: true,
       }),
     ).toEqual({
       isProcessing: true,
-      icon: "pi pi-spinner pi-spin",
-      label: "Preparing createInstance...",
+      label: "Updating the code...",
     });
   });
 
-  test("returns the processing state for available input", () => {
+  test("returns natural copy for available input", () => {
     expect(
       getToolMessagePresentation({
-        toolName: "createInstance",
+        toolName: "write",
         state: "input-available",
+        output: undefined,
         messageState: "streaming",
         isAgentStreaming: true,
       }),
     ).toEqual({
       isProcessing: true,
-      icon: "pi pi-spinner pi-spin",
-      label: "Processing createInstance...",
+      label: "Updating the code...",
     });
   });
 
@@ -52,36 +52,52 @@ describe("getToolMessagePresentation", () => {
       getToolMessagePresentation({
         toolName: "createInstance",
         state: "output-available",
+        output: { status: "created" },
         messageState: "done",
         isAgentStreaming: false,
       }),
     ).toEqual({
       isProcessing: false,
-      icon: "pi pi-check",
-      label: "Called tool createInstance",
+      label: "Created a new endpoint",
     });
   });
 
   test("returns failure state for errored tool output", () => {
     expect(
       getToolMessagePresentation({
-        toolName: "createInstance",
+        toolName: "write",
         state: "output-error",
+        output: undefined,
         messageState: "error",
         isAgentStreaming: false,
       }),
     ).toEqual({
       isProcessing: false,
-      icon: "pi pi-exclamation-triangle",
-      label: "Failed createInstance",
+      label: "Couldn't update the code",
+    });
+  });
+
+  test("uses tool output to detect business-level failures", () => {
+    expect(
+      getToolMessagePresentation({
+        toolName: "createInstance",
+        state: "output-available",
+        output: { status: "error", error: "boom" },
+        messageState: "done",
+        isAgentStreaming: false,
+      }),
+    ).toEqual({
+      isProcessing: false,
+      label: "Couldn't create a new endpoint",
     });
   });
 
   test("does not report processing when the agent is not streaming", () => {
     expect(
       getToolMessagePresentation({
-        toolName: "createInstance",
+        toolName: "write",
         state: "input-available",
+        output: undefined,
         messageState: "streaming",
         isAgentStreaming: false,
       }).isProcessing,

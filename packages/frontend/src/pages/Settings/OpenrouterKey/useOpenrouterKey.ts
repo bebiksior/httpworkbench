@@ -1,22 +1,15 @@
-import { computed, onMounted, ref } from "vue";
+import { computed, ref } from "vue";
 import {
   clearOpenrouterKey,
-  hasOpenrouterKey,
+  useHasOpenrouterKey,
   writeOpenrouterKey,
 } from "@/utils/openrouter";
 
 export const useOpenrouterKey = () => {
   const keyInput = ref("");
-  const storedKey = ref(false);
   const errorMessage = ref<string | undefined>(undefined);
+  const hasConfiguredKey = useHasOpenrouterKey();
 
-  const refreshStoredKey = () => {
-    storedKey.value = hasOpenrouterKey();
-  };
-
-  onMounted(refreshStoredKey);
-
-  const hasConfiguredKey = computed(() => storedKey.value);
   const canSubmit = computed(() => keyInput.value.trim().length > 0);
 
   const handleSave = () => {
@@ -29,7 +22,6 @@ export const useOpenrouterKey = () => {
       errorMessage.value = "Local storage is unavailable";
       return;
     }
-    storedKey.value = true;
     keyInput.value = "";
   };
 
@@ -42,7 +34,6 @@ export const useOpenrouterKey = () => {
       errorMessage.value = "Local storage is unavailable";
       return;
     }
-    storedKey.value = false;
     keyInput.value = "";
   };
 

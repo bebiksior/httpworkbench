@@ -1,4 +1,4 @@
-import { computed, ref, type Ref } from "vue";
+import { computed, type Ref } from "vue";
 import type { MessageState } from "@/agent/types";
 import { useAgentsStore } from "@/stores";
 import {
@@ -14,38 +14,22 @@ export const useToolMessage = (params: {
 }) => {
   const { toolName, state, output, messageState } = params;
   const agentsStore = useAgentsStore();
-  const showDetails = ref(false);
 
   const presentation = computed(() => {
     return getToolMessagePresentation({
       toolName: toolName.value,
       state: state.value,
+      output: output.value,
       messageState: messageState.value,
       isAgentStreaming: agentsStore.agent?.status === "streaming",
     });
   });
 
   const isProcessing = computed(() => presentation.value.isProcessing);
-  const toolIcon = computed(() => presentation.value.icon);
   const formatToolCall = computed(() => presentation.value.label);
-
-  const toolDetails = computed(() => {
-    if (output.value === undefined) return undefined;
-    return JSON.stringify(output.value, null, 2);
-  });
-
-  const toggleDetails = () => {
-    if (toolDetails.value !== undefined) {
-      showDetails.value = !showDetails.value;
-    }
-  };
 
   return {
     isProcessing,
-    toolIcon,
     formatToolCall,
-    toolDetails,
-    showDetails,
-    toggleDetails,
   };
 };

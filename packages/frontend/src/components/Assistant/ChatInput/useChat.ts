@@ -2,9 +2,11 @@ import { computed } from "vue";
 import { useAgentsStore } from "@/stores";
 import { getErrorMessage } from "@/utils/error";
 import { isAbsent } from "@/utils/types";
+import { useHasOpenrouterKey } from "@/utils/openrouter";
 
 export const useChat = () => {
   const agentStore = useAgentsStore();
+  const hasOpenrouterKey = useHasOpenrouterKey();
 
   const inputMessage = computed({
     get: () => agentStore.inputMessage,
@@ -21,7 +23,11 @@ export const useChat = () => {
   });
 
   const canSendMessage = computed(() => {
-    return isAgentIdle.value && inputMessage.value.trim() !== "";
+    return (
+      hasOpenrouterKey.value &&
+      isAgentIdle.value &&
+      inputMessage.value.trim() !== ""
+    );
   });
 
   const messages = computed(() => {

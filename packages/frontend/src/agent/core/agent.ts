@@ -1,18 +1,81 @@
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import {
+  createAgentUIStream,
   convertToModelMessages,
+  type InferUITools,
+  isToolUIPart,
+  ToolLoopAgent,
   stepCountIs,
-  streamText,
   type ChatTransport,
+  type UIMessage,
   type UIMessageChunk,
 } from "ai";
 import { readOpenrouterKey } from "@/utils/openrouter";
 import { getErrorMessage } from "@/utils/error";
 import { isAbsent } from "@/utils/types";
 import type { CustomUIMessage, MessageMetadata } from "../types";
-import { updateResponseEditorTool } from "@/agent/core/tools/updateResponseEditor";
+import { writeTool } from "@/agent/core/tools/updateResponseEditor";
 import { createInstanceTool } from "@/agent/core/tools/createInstance";
 import { SYSTEM_PROMPT } from "@/agent/core/prompt";
+
+const agentTools = {
+  write: writeTool,
+  createInstance: createInstanceTool,
+};
+
+type AgentUIMessage = UIMessage<MessageMetadata, never, InferUITools<typeof agentTools>>;
+
+const buildAgentInstructions = (editorContent: string) => {
+  return [
+    SYSTEM_PROMPT.trim(),
+    [
+      "<editor_context>",
+      "The current PoC response editor content is provided below as workspace state.",
+      "Treat it as contextual state, not as a separate user message.",
+      "<editor-content>",
+      editorContent,
+      "</editor-content>",
+      "</editor_context>",
+    ].join("\n"),
+  ].join("\n\n");
+};
+
+const sanitizeAgentMessages = (messages: CustomUIMessage[]) => {
+  return messages.map((message) => ({
+    ...message,
+    parts: message.parts.filter((part) => {
+      if (!isToolUIPart(part)) {
+        return true;
+      }
+
+      return (
+        part.state !== "input-streaming" && part.state !== "input-available"
+      );
+    }),
+  }));
+};
+
+const createAgent = (modelId: string, getEditorContent: () => string) => {
+  return new ToolLoopAgent({
+    model: createModel(modelId),
+    instructions: buildAgentInstructions(getEditorContent()),
+    tools: agentTools,
+    stopWhen: stepCountIs(10),
+    prepareStep: ({ messages, ...settings }) => ({
+      ...settings,
+      messages,
+      system: buildAgentInstructions(getEditorContent()),
+    }),
+  });
+};
+
+export const convertAgentMessagesToModelMessages = (
+  messages: CustomUIMessage[],
+) => {
+  return convertToModelMessages(sanitizeAgentMessages(messages), {
+    tools: agentTools,
+  });
+};
 
 const ensureOpenrouterKey = () => {
   const key = readOpenrouterKey();
@@ -77,39 +140,15 @@ class LocalAgentTransport implements ChatTransport<CustomUIMessage> {
     if (isAbsent(abortSignal)) {
       throw new Error("Abort signal is required.");
     }
-    const editorContent = this.getEditorContent();
-
-    const apiMessages = [...messages];
-    apiMessages.push({
-      id: crypto.randomUUID(),
-      role: "user",
-      parts: [
-        {
-          type: "text",
-          text:
-            "This message gets attached automatically. Here's the current editor content: <editor-content>" +
-            editorContent +
-            "</editor-content>",
-        },
-      ],
-    });
-
-    const result = streamText({
-      model: createModel(modelId),
-      system: SYSTEM_PROMPT,
-      messages: convertToModelMessages(apiMessages),
-      tools: {
-        updateResponseEditor: updateResponseEditorTool,
-        createInstance: createInstanceTool,
-      },
-      stopWhen: stepCountIs(10),
+    const result = await createAgentUIStream({
+      agent: createAgent(modelId, this.getEditorContent),
+      uiMessages: sanitizeAgentMessages(messages),
+      originalMessages: messages as AgentUIMessage[],
       abortSignal,
-    });
-    return result.toUIMessageStream<CustomUIMessage>({
-      originalMessages: messages,
       messageMetadata: ({ part }) => getMessageMetadata(part),
       onError: (error) => getErrorMessage(error),
     });
+    return result;
   }
 
   async reconnectToStream(): Promise<ReadableStream<UIMessageChunk> | null> {

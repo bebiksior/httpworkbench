@@ -24,7 +24,10 @@ export const useReasoning = (args: {
   });
 
   const hasContent = computed(
-    () => args.content.value !== undefined && args.content.value.length > 0,
+    () =>
+      args.content.value !== undefined &&
+      args.content.value.length > 0 &&
+      args.content.value.trim() !== "[REDACTED]",
   );
 
   watch(

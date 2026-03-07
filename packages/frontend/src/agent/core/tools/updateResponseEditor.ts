@@ -2,7 +2,7 @@ import z from "zod";
 import { tool } from "ai";
 import { useResponseEditorStore } from "@/stores";
 
-export const updateResponseEditorTool = tool({
+export const writeTool = tool({
   description:
     "Overwrite the entire PoC response editor with the provided HTML snippet.",
   inputSchema: z.object({

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, toRefs } from "vue";
+import TextShimmer from "@/components/Assistant/TextShimmer.vue";
 import { Markdown } from "../Markdown";
 import { useReasoning } from "./useReasoning";
 import type { MessageState } from "@/agent/types";
@@ -33,7 +34,7 @@ useAutoScroll(
   <div class="py-1">
     <template v-if="isReasoning">
       <div class="flex items-center text-surface-500 text-sm font-mono">
-        <span :class="{ shimmer: true }">{{ reasoningText }}</span>
+        <TextShimmer>{{ reasoningText }}</TextShimmer>
       </div>
       <div
         v-if="hasContent"
@@ -53,7 +54,8 @@ useAutoScroll(
       >
         <span>{{ reasoningText }}</span>
         <i
-          class="pi transition-transform text-sm opacity-0 group-hover:opacity-100 duration-200 ml-auto"
+          class="pi transition-transform opacity-0 group-hover:opacity-100 duration-200 ml-auto"
+          style="font-size: 10px"
           :class="showReasoning ? 'pi-chevron-up' : 'pi-chevron-down'"
         ></i>
       </button>

@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { getToolName, isToolUIPart } from "ai";
 import { computed, toRefs } from "vue";
+import TextShimmer from "@/components/Assistant/TextShimmer.vue";
 import { ChatMessageTool } from "../Tool";
 import { Markdown } from "./Markdown";
 import { Reasoning } from "./Reasoning";
 import { type CustomUIMessage } from "@/agent/types";
 import { useAgentsStore } from "@/stores";
+import { getDisplayParts } from "./messageParts";
 
 const props = defineProps<{
   message: CustomUIMessage & { role: "assistant" };
@@ -51,14 +53,16 @@ const hasPendingStep = computed(() => {
   const parts = message.value.parts;
   return parts.length > 0 && parts[parts.length - 1]?.type === "step-start";
 });
+
+const displayParts = computed(() => getDisplayParts(message.value.parts as never));
 </script>
 
 <template>
   <div class="px-3">
     <template v-if="!noContentYet">
-      <template v-for="(part, index) in message.parts" :key="index">
+      <template v-for="(part, index) in displayParts" :key="index">
         <template v-if="part && part.type === 'text'">
-          <div class="text-surface-700 dark:text-surface-200 text-sm">
+          <div class="text-surface-700 dark:text-surface-200 text-sm py-1">
             <Markdown :content="part?.text ?? ''" />
           </div>
         </template>
@@ -82,7 +86,7 @@ const hasPendingStep = computed(() => {
         v-if="hasPendingStep"
         class="flex items-center text-surface-500 dark:text-surface-300 text-sm font-mono py-1"
       >
-        <span :class="{ shimmer: true }">Planning...</span>
+        <TextShimmer>Planning...</TextShimmer>
       </div>
     </template>
     <div v-else-if="isGenerating" class="px-2 py-2">
