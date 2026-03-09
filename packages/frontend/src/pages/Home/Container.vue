@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import Button from "primevue/button";
+import ConfirmDialog from "primevue/confirmdialog";
 import Divider from "primevue/divider";
 import IconField from "primevue/iconfield";
 import InputIcon from "primevue/inputicon";
@@ -38,6 +39,7 @@ const { isGuest } = storeToRefs(authStore);
 </script>
 
 <template>
+  <ConfirmDialog />
   <div class="h-full overflow-y-auto bg-surface-50 dark:bg-surface-900">
     <div class="mx-auto max-w-7xl px-4 sm:px-6 pt-6 sm:pt-8 pb-2">
       <div

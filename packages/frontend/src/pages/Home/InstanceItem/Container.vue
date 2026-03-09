@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import Button from "primevue/button";
 import InputText from "primevue/inputtext";
+import { useConfirm } from "primevue/useconfirm";
 import type { Instance } from "shared";
 import { computed, toRefs } from "vue";
 import { useRouter } from "vue-router";
@@ -20,6 +21,7 @@ const { instance } = toRefs(props);
 
 const router = useRouter();
 const notify = useNotify();
+const confirm = useConfirm();
 const deleteMutation = useDeleteInstance();
 const cloneMutation = useCloneInstance();
 
@@ -74,16 +76,31 @@ const handleDeleteClick = (event: Event) => {
 
 const handleCloneClick = (event: Event) => {
   event.stopPropagation();
-  cloneMutation.mutate(instance.value, {
-    onSuccess: (clonedInstance) => {
-      notify.success(
-        "Instance cloned",
-        "A copy of your instance has been created successfully",
-      );
-      void router.push(`/instances/${clonedInstance.id}`);
+  confirm.require({
+    message: `Create a duplicate of "${displayName.value}"?`,
+    header: "Duplicate Instance",
+    icon: "pi pi-copy",
+    rejectProps: {
+      label: "Cancel",
+      severity: "secondary",
+      outlined: true,
     },
-    onError: (err: Error) => {
-      notify.error("Failed to clone instance", err);
+    acceptProps: {
+      label: "Duplicate",
+    },
+    accept: () => {
+      cloneMutation.mutate(instance.value, {
+        onSuccess: (clonedInstance) => {
+          notify.success(
+            "Instance cloned",
+            "A copy of your instance has been created successfully",
+          );
+          void router.push(`/instances/${clonedInstance.id}`);
+        },
+        onError: (err: Error) => {
+          notify.error("Failed to clone instance", err);
+        },
+      });
     },
   });
 };
@@ -129,7 +146,10 @@ const handleCloneClick = (event: Event) => {
           outlined
           size="small"
           class="shrink-0"
-          @mousedown="handleCopyClick"
+          aria-label="Copy instance host"
+          v-tooltip.top="'Copy host'"
+          @mousedown.stop
+          @click="handleCopyClick"
         />
         <Button
           :icon="
@@ -141,26 +161,35 @@ const handleCloneClick = (event: Event) => {
           outlined
           size="small"
           class="shrink-0"
+          aria-label="Duplicate instance"
+          v-tooltip.top="'Duplicate instance'"
           :disabled="cloneMutation.isPending.value"
           :loading="cloneMutation.isPending.value"
           @mousedown.stop
           @click="handleCloneClick"
         />
-        <Button
-          :icon="
-            deleteMutation.isPending.value
-              ? 'pi pi-spin pi-spinner'
-              : 'pi pi-trash'
+        <span
+          class="shrink-0 inline-flex"
+          v-tooltip.top="
+            instance.locked ? 'Unlock instance to delete' : 'Delete instance'
           "
-          severity="danger"
-          outlined
-          size="small"
-          class="shrink-0"
-          :disabled="instance.locked || deleteMutation.isPending.value"
-          :loading="deleteMutation.isPending.value"
-          @mousedown.stop
-          @click="handleDeleteClick"
-        />
+        >
+          <Button
+            :icon="
+              deleteMutation.isPending.value
+                ? 'pi pi-spin pi-spinner'
+                : 'pi pi-trash'
+            "
+            severity="danger"
+            outlined
+            size="small"
+            aria-label="Delete instance"
+            :disabled="instance.locked || deleteMutation.isPending.value"
+            :loading="deleteMutation.isPending.value"
+            @mousedown.stop
+            @click="handleDeleteClick"
+          />
+        </span>
       </div>
     </div>
   </div>
