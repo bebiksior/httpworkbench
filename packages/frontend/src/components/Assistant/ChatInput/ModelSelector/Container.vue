@@ -108,7 +108,9 @@ watch(
         class="absolute bottom-full left-0 z-[1202] mb-2 w-72 max-w-[min(28rem,calc(100vw-2rem))] overflow-hidden rounded-xl border border-surface-700/80 bg-surface-950/95 shadow-2xl shadow-black/30 backdrop-blur"
       >
         <div class="border-b border-surface-800 px-3 py-2">
-          <p class="text-[11px] font-medium uppercase tracking-[0.18em] text-surface-500">
+          <p
+            class="text-[11px] font-medium uppercase tracking-[0.18em] text-surface-500"
+          >
             Models
           </p>
         </div>

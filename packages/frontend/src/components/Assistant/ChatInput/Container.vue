@@ -45,7 +45,8 @@ const clampComposerHeight = (height: number) => {
 };
 
 const syncComposerHeight = () => {
-  const fallbackHeight = composerRef.value?.offsetHeight ?? getMinComposerHeight();
+  const fallbackHeight =
+    composerRef.value?.offsetHeight ?? getMinComposerHeight();
   const nextHeight = composerHeight.value ?? fallbackHeight;
   composerHeight.value = clampComposerHeight(nextHeight);
 };
@@ -71,7 +72,9 @@ const handleResizePointerMove = (event: PointerEvent) => {
 
 const handleResizePointerDown = (event: PointerEvent) => {
   const currentHeight =
-    composerHeight.value ?? composerRef.value?.offsetHeight ?? getMinComposerHeight();
+    composerHeight.value ??
+    composerRef.value?.offsetHeight ??
+    getMinComposerHeight();
 
   resizeState = {
     startY: event.clientY,
