@@ -1,13 +1,13 @@
 <script setup lang="ts">
 import { StreamLanguage } from "@codemirror/language";
 import { http } from "@codemirror/legacy-modes/mode/http";
-import { EditorState } from "@codemirror/state";
 import { oneDark } from "@codemirror/theme-one-dark";
 import { EditorView } from "@codemirror/view";
 import { computed, toRefs } from "vue";
 import { Codemirror } from "vue-codemirror";
 import { useThemeStore } from "@/stores/theme";
 import { httpEditorExtensions } from "./extensions";
+import { readonlyEditorExtensions } from "./extensions/readonly";
 import { createSaveKeymap } from "./extensions/saveKeymap";
 import { oneLight } from "./extensions/lightTheme";
 
@@ -49,8 +49,7 @@ const extensions = computed(() => {
     );
   }
   if (readonly.value) {
-    exts.push(EditorState.readOnly.of(true));
-    exts.push(EditorView.editable.of(false));
+    exts.push(...readonlyEditorExtensions);
   }
   return exts;
 });
