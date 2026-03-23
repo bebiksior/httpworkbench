@@ -1,3 +1,5 @@
+import { getDnsInstanceHost } from "./utils/instanceHosts";
+
 declare const __APP_VERSION__: string;
 
 export const config = {
@@ -7,3 +9,5 @@ export const config = {
   getInstanceHost: (id: string) => `${id}.instances.${config.domain}`,
   getInstanceUrl: (id: string) => `https://${id}.instances.${config.domain}`,
 } as const;
+
+export { getDnsInstanceHost };

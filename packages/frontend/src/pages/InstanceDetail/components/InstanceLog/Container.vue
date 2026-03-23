@@ -26,6 +26,12 @@ const absoluteTimestamp = computed(() =>
   dayjs(log.value.timestamp).format("MMM D, YYYY h:mm:ss A"),
 );
 
+const addressLabel = computed(() =>
+  log.value.addressVerified === false
+    ? `${log.value.address} (unverified)`
+    : log.value.address,
+);
+
 const getSeverity = (type: string) => {
   switch (type) {
     case "http":
@@ -53,7 +59,7 @@ const getSeverity = (type: string) => {
           size="small"
         />
         <span class="font-mono text-surface-600 dark:text-surface-400">{{
-          log.address
+          addressLabel
         }}</span>
       </div>
       <div class="flex items-center gap-2">

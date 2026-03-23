@@ -127,6 +127,24 @@ if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
 fi
 echo ""
 
+ENABLE_DNS="false"
+DNS_DOMAIN=""
+DNS_NAMESERVERS=""
+
+read -p "Enable DNS query logging support? (y/N): " -n 1 -r
+echo ""
+if [[ $REPLY =~ ^[Yy]$ ]]; then
+    ENABLE_DNS="true"
+
+    DEFAULT_DNS_DOMAIN="dns.$DOMAIN"
+    read -p "Enter delegated DNS zone [$DEFAULT_DNS_DOMAIN]: " DNS_DOMAIN_INPUT
+    DNS_DOMAIN="${DNS_DOMAIN_INPUT:-$DEFAULT_DNS_DOMAIN}"
+
+    DEFAULT_DNS_NAMESERVERS="ns1.$DOMAIN,ns2.$DOMAIN"
+    read -p "Enter authoritative nameservers [$DEFAULT_DNS_NAMESERVERS]: " DNS_NAMESERVERS_INPUT
+    DNS_NAMESERVERS="${DNS_NAMESERVERS_INPUT:-$DEFAULT_DNS_NAMESERVERS}"
+fi
+
 cat > .env << EOF
 DOMAIN=$DOMAIN
 FRONTEND_URL=https://$DOMAIN
@@ -142,6 +160,11 @@ CLOUDFLARE_API_TOKEN=$CLOUDFLARE_API_TOKEN
 
 ALLOW_GUEST=false
 DATA_DIR=/app/data
+
+DNS_ENABLED=$ENABLE_DNS
+DNS_DOMAIN=$DNS_DOMAIN
+DNS_PORT=53
+DNS_NAMESERVERS=$DNS_NAMESERVERS
 EOF
 
 log_success ".env file created successfully!"
@@ -163,6 +186,18 @@ echo "     https://$DOMAIN/api/auth/google/callback"
 echo ""
 echo "  3. Build and start the application:"
 echo "     docker compose up -d --build"
+if [ "$ENABLE_DNS" = "true" ]; then
+    echo ""
+    echo "  4. DNS query logging setup:"
+    echo "     - Use the same server IP for ns1.$DOMAIN and ns2.$DOMAIN"
+    echo "     - Add A/AAAA records for those nameservers"
+    echo "     - Delegate $DNS_DOMAIN with NS records to $DNS_NAMESERVERS"
+    echo "     - Open public UDP/TCP port 53"
+    echo "     - Start with DNS ports exposed:"
+    echo "       docker compose -f docker-compose.yml -f docker-compose.dns.yml up -d --build"
+    echo ""
+    echo "  ACME is unchanged because DNS logging uses a separate delegated zone."
+fi
 echo ""
 echo "  Note: First startup may take a few minutes to build images and provision SSL."
 echo ""

@@ -53,6 +53,7 @@ One thing stays the same: it will be as easy as before to create new instances. 
 - Domain with Cloudflare DNS
 - Google OAuth credentials ([setup guide](https://developers.google.com/identity/protocols/oauth2))
 - Cloudflare API token with DNS permissions
+- Optional for DNS query logging: ability to delegate a DNS subdomain and expose public UDP/TCP port 53
 
 ### Quick Start
 
@@ -92,6 +93,32 @@ docker compose up -d --build
 ```
 
 The first startup may take a few minutes to build images and provision SSL certificates.
+
+### Optional DNS Query Logging
+
+DNS query logging is opt-in for self-hosted deployments. The default setup continues to work without DNS.
+
+When `DNS_ENABLED=true`, the backend becomes authoritative for a separate delegated zone, which defaults to `dns.yourdomain.com`. Queries to `*.dns.yourdomain.com` are logged and attached to the matching instance.
+
+1. Create nameserver host records in your main zone:
+
+- `ns1.yourdomain.com` → your server IP
+- `ns2.yourdomain.com` → your server IP
+
+2. Delegate the DNS logging zone to those nameservers:
+
+- Add `NS` records for `dns.yourdomain.com`
+- Point them at `ns1.yourdomain.com` and `ns2.yourdomain.com`
+
+3. Expose DNS ports when starting the stack:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.dns.yml up -d --build
+```
+
+4. Open public UDP and TCP port `53` in your firewall.
+
+ACME is unaffected by this setup because wildcard HTTPS remains on `*.instances.yourdomain.com`, while DNS logging uses a separate delegated zone and does not need TLS.
 
 ## Your Data
 

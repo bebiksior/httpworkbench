@@ -3,6 +3,8 @@ import { parseBooleanEnv } from "./utils/env";
 const monthInMs = 30 * 24 * 60 * 60 * 1000;
 const hostedInstanceLimit = 50;
 const staticInstanceRawLimitBytes = 10 * 1024 * 1024;
+const defaultDnsPort = 53;
+const defaultDnsSubdomain = "dns";
 const env = typeof Bun !== "undefined" ? Bun.env : process.env;
 
 const isHosted = parseBooleanEnv(env.IS_HOSTED) ?? false;
@@ -14,4 +16,91 @@ export const instancePolicies = {
   ttlMs: isHosted ? monthInMs : undefined,
   maxInstancesPerOwner: isHosted ? hostedInstanceLimit : undefined,
   rawLimitBytes: staticInstanceRawLimitBytes,
+};
+
+export type DnsConfig = {
+  dnsEnabled: boolean;
+  dnsDomain?: string;
+  dnsPort?: number;
+  dnsNameservers?: string[];
+};
+
+const parseIntegerEnv = (
+  value: string | undefined,
+  fallback: number,
+): number => {
+  const parsed = Number.parseInt(value ?? "", 10);
+  return Number.isNaN(parsed) ? fallback : parsed;
+};
+
+const normalizeDnsName = (value: string): string => {
+  return value.trim().replace(/\.+$/, "").toLowerCase();
+};
+
+const parseNameservers = (
+  value: string | undefined,
+  domain: string | undefined,
+): string[] | undefined => {
+  const fallbackDomain =
+    domain === undefined || domain === ""
+      ? undefined
+      : normalizeDnsName(domain);
+
+  const defaults =
+    fallbackDomain === undefined
+      ? undefined
+      : [`ns1.${fallbackDomain}`, `ns2.${fallbackDomain}`];
+
+  const source = value?.trim() === "" ? undefined : value;
+  const names = (source ?? defaults?.join(","))
+    ?.split(",")
+    .map((name) => normalizeDnsName(name))
+    .filter((name) => name !== "");
+
+  if (names === undefined || names.length === 0) {
+    return undefined;
+  }
+
+  return names;
+};
+
+export const buildDnsConfig = (
+  runtimeEnv: Record<string, string | undefined>,
+): DnsConfig => {
+  const dnsEnabled = parseBooleanEnv(runtimeEnv.DNS_ENABLED) ?? false;
+  if (!dnsEnabled) {
+    return {
+      dnsEnabled: false,
+    };
+  }
+
+  const domain = runtimeEnv.DOMAIN;
+  const fallbackDnsDomain =
+    domain === undefined || domain === ""
+      ? undefined
+      : `${defaultDnsSubdomain}.${normalizeDnsName(domain)}`;
+  const dnsDomain = normalizeDnsName(
+    runtimeEnv.DNS_DOMAIN ?? fallbackDnsDomain ?? "",
+  );
+
+  if (dnsDomain === "") {
+    return {
+      dnsEnabled: false,
+    };
+  }
+
+  return {
+    dnsEnabled: true,
+    dnsDomain,
+    dnsPort: parseIntegerEnv(runtimeEnv.DNS_PORT, defaultDnsPort),
+    dnsNameservers: parseNameservers(runtimeEnv.DNS_NAMESERVERS, domain),
+  };
+};
+
+export const dnsConfig = buildDnsConfig(env);
+
+export const appConfig = {
+  ...instancePolicies,
+  dnsEnabled: dnsConfig.dnsEnabled,
+  dnsDomain: dnsConfig.dnsDomain,
 };

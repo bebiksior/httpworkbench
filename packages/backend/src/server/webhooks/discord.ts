@@ -53,8 +53,10 @@ export const buildDiscordNotificationPayload = (log: Log) => {
     MAX_FOOTER_LENGTH,
   );
   const truncatedRaw = truncateDiscordField(log.raw, MAX_RAW_CONTENT_LENGTH);
+  const addressValue =
+    log.addressVerified === false ? `${log.address} (unverified)` : log.address;
   const truncatedAddress = truncateDiscordField(
-    log.address,
+    addressValue,
     MAX_ADDRESS_LENGTH,
   );
 

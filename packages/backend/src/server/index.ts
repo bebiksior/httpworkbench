@@ -1,8 +1,9 @@
 import type { BunRequest, Server, ServerWebSocket } from "bun";
 import { serve } from "bun";
 import { GUEST_OWNER_ID } from "shared";
+import { addLog } from "../storage";
 import { getInstanceById } from "../storage/repositories/instances";
-import { instancePolicies } from "../config";
+import { dnsConfig, instancePolicies } from "../config";
 import { cleanupExpiredInstances } from "../storage/maintenance";
 import {
   CONFIG_ROUTES,
@@ -16,11 +17,13 @@ import { authenticateRequest } from "./auth";
 import {
   createInstancesServer,
   type LogStreamSocketData,
+  broadcastLog,
   subscribeToLogStream,
   unsubscribeFromLogStream,
 } from "./instances";
+import { createDnsServer } from "./dns";
 
-export const initServer = () => {
+export const initServer = async () => {
   const apiServer = serve({
     hostname: "0.0.0.0",
     port: parseInt(Bun.env.API_PORT ?? "8081", 10),
@@ -117,6 +120,18 @@ export const initServer = () => {
   const instancesServer = createInstancesServer(
     parseInt(Bun.env.INSTANCES_PORT ?? "8082", 10),
   );
+  const dnsServer = dnsConfig.dnsEnabled
+    ? await createDnsServer({
+        config: dnsConfig,
+        deps: {
+          getInstanceById,
+          addLog,
+          broadcastLog,
+          createId: () => crypto.randomUUID(),
+          now: () => Date.now(),
+        },
+      })
+    : undefined;
 
   let cleanupInterval: ReturnType<typeof setInterval> | undefined;
   const ttlMs = instancePolicies.ttlMs;
@@ -138,5 +153,5 @@ export const initServer = () => {
     }
   };
 
-  return { apiServer, instancesServer, stopMaintenance };
+  return { apiServer, instancesServer, dnsServer, stopMaintenance };
 };

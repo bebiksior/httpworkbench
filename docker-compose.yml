@@ -20,6 +20,10 @@ services:
       - FRONTEND_URL=${FRONTEND_URL}
       - IS_HOSTED=${IS_HOSTED:-false}
       - ALLOW_GUEST=${ALLOW_GUEST:-false}
+      - DNS_ENABLED=${DNS_ENABLED:-false}
+      - DNS_DOMAIN=${DNS_DOMAIN:-}
+      - DNS_PORT=${DNS_PORT:-53}
+      - DNS_NAMESERVERS=${DNS_NAMESERVERS:-}
     volumes:
       - backend_data:/app/data
 
