@@ -64,35 +64,37 @@ git clone https://github.com/bebiksior/httpworkbench.git
 cd httpworkbench
 ```
 
-2. Run the setup script:
+2. Run the setup wizard:
 
 ```bash
 ./scripts/setup.sh
 ```
 
-The script will guide you through:
+You can also run it with Bun:
+
+```bash
+bun run setup
+```
+
+The wizard will:
 
 - Domain configuration
 - Google OAuth setup
 - Cloudflare API token setup
+- Write `.env` for you
+- Show the exact DNS records to create
+- Pause while you make changes
+- Re-check DNS and health endpoints before moving on
 
-3. Configure DNS in Cloudflare:
+3. Follow the guided steps in the wizard.
 
-- Add A record: `yourdomain.com` → Your server IP
-- Add A record: `*.instances.yourdomain.com` → Your server IP
+The base setup will have you create:
 
-4. Add Google OAuth redirect URI:
+- `A yourdomain.com` → Your server IP
+- `A *.instances.yourdomain.com` → Your server IP
+- Google OAuth redirect URI: `https://yourdomain.com/api/auth/google/callback`
 
-- Go to Google Cloud Console
-- Add `https://yourdomain.com/api/auth/google/callback` to authorized redirect URIs
-
-5. Start the services:
-
-```bash
-docker compose up -d --build
-```
-
-The first startup may take a few minutes to build images and provision SSL certificates.
+The wizard can start the stack for you, or you can run the compose command yourself at the end. The first startup may take a few minutes to build images and provision SSL certificates.
 
 ### Optional DNS Query Logging
 
@@ -100,23 +102,19 @@ DNS query logging is opt-in for self-hosted deployments. The default setup conti
 
 When `DNS_ENABLED=true`, the backend becomes authoritative for a separate delegated zone, which defaults to `dns.yourdomain.com`. Queries to `*.dns.yourdomain.com` are logged and attached to the matching instance.
 
-1. Create nameserver host records in your main zone:
+If you enable DNS logging in the wizard, it will also walk you through:
 
 - `ns1.yourdomain.com` → your server IP
 - `ns2.yourdomain.com` → your server IP
 
-2. Delegate the DNS logging zone to those nameservers:
-
 - Add `NS` records for `dns.yourdomain.com`
 - Point them at `ns1.yourdomain.com` and `ns2.yourdomain.com`
-
-3. Expose DNS ports when starting the stack:
+- Open public UDP and TCP port `53`
+- Start with:
 
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.dns.yml up -d --build
 ```
-
-4. Open public UDP and TCP port `53` in your firewall.
 
 ACME is unaffected by this setup because wildcard HTTPS remains on `*.instances.yourdomain.com`, while DNS logging uses a separate delegated zone and does not need TLS.
 
