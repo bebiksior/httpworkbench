@@ -589,4 +589,80 @@ describe("handleDnsRequest", () => {
 
     expect(capturedAddressVerified).toBe(true);
   });
+
+  test("rate limits repeated dns logs per instance and client without dropping answers", async () => {
+    const logs: string[] = [];
+    let now = 1_000;
+
+    let response: Buffer | undefined;
+    for (let index = 0; index < 121; index += 1) {
+      response = await handleDnsRequest({
+        payload: dnsPacket.encode({
+          type: "query",
+          id: 30 + index,
+          questions: [{ name: "rate.instances.example.com", type: "A" }],
+        }),
+        transport: "udp",
+        clientAddress: "198.51.100.10",
+        config: createRuntimeDnsConfig(),
+        deps: {
+          ...deps,
+          now: () => now,
+          getInstanceById: async (id: string) =>
+            id === "rate" ? createInstance("rate") : undefined,
+          addLog: async (log) => {
+            logs.push(log.id);
+            return log;
+          },
+          createId: () => `log-${logs.length + 1}`,
+        },
+      });
+    }
+
+    expect(logs).toHaveLength(120);
+    expect(response).toBeDefined();
+
+    if (response === undefined) {
+      throw new Error("Expected a DNS response");
+    }
+
+    const decoded = dnsPacket.decode(response);
+    expect((decoded.flags ?? 0) & 0x000f).toBe(0);
+    expect(decoded.answers).toEqual([
+      {
+        type: "A",
+        name: "rate.instances.example.com",
+        ttl: 60,
+        class: "IN",
+        flush: false,
+        data: "203.0.113.10",
+      },
+    ]);
+
+    now += 60_001;
+
+    await handleDnsRequest({
+      payload: dnsPacket.encode({
+        type: "query",
+        id: 999,
+        questions: [{ name: "rate.instances.example.com", type: "A" }],
+      }),
+      transport: "udp",
+      clientAddress: "198.51.100.10",
+      config: createRuntimeDnsConfig(),
+      deps: {
+        ...deps,
+        now: () => now,
+        getInstanceById: async (id: string) =>
+          id === "rate" ? createInstance("rate") : undefined,
+        addLog: async (log) => {
+          logs.push(log.id);
+          return log;
+        },
+        createId: () => `log-${logs.length + 1}`,
+      },
+    });
+
+    expect(logs).toHaveLength(121);
+  });
 });

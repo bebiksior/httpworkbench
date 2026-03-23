@@ -5,9 +5,9 @@ services:
       dockerfile: packages/backend/Dockerfile
     user: root
     restart: unless-stopped
-    ports:
-      - "8081:8081"
-      - "8082:8082"
+    expose:
+      - "8081"
+      - "8082"
     environment:
       - NODE_ENV=production
       - API_PORT=8081

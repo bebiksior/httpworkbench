@@ -25,6 +25,16 @@ type DnsTransport = "udp" | "tcp";
 const dnsTcpIdleTimeoutMs = 10_000;
 const maxDnsTcpMessageBytes = 4 * 1024;
 const maxDnsTcpBufferedBytes = maxDnsTcpMessageBytes + 2;
+const dnsLogWindowMs = 60_000;
+const maxDnsLogsPerWindow = 120;
+const maxDnsLogRateLimitEntries = 10_000;
+
+type DnsLogRateLimitEntry = {
+  windowStartedAt: number;
+  count: number;
+};
+
+const dnsLogRateLimit = new Map<string, DnsLogRateLimitEntry>();
 
 export type DnsServerDependencies = {
   getInstanceById: (id: string) => Promise<Instance | undefined>;
@@ -89,6 +99,53 @@ const getFirstQuestion = (request: {
   questions?: DnsQuestion[];
 }): DnsQuestion | undefined => {
   return request.questions?.[0];
+};
+
+const pruneDnsLogRateLimit = (now: number): void => {
+  for (const [key, entry] of dnsLogRateLimit) {
+    if (now - entry.windowStartedAt >= dnsLogWindowMs) {
+      dnsLogRateLimit.delete(key);
+    }
+  }
+
+  while (dnsLogRateLimit.size > maxDnsLogRateLimitEntries) {
+    const oldestKey = dnsLogRateLimit.keys().next().value;
+    if (oldestKey === undefined) {
+      break;
+    }
+
+    dnsLogRateLimit.delete(oldestKey);
+  }
+};
+
+const shouldPersistDnsLog = (params: {
+  instanceId: string;
+  clientAddress: string;
+  now: number;
+}): boolean => {
+  if (dnsLogRateLimit.size >= maxDnsLogRateLimitEntries) {
+    pruneDnsLogRateLimit(params.now);
+  }
+
+  const key = `${params.instanceId}:${params.clientAddress}`;
+  const entry = dnsLogRateLimit.get(key);
+  if (
+    entry === undefined ||
+    params.now - entry.windowStartedAt >= dnsLogWindowMs
+  ) {
+    dnsLogRateLimit.set(key, {
+      windowStartedAt: params.now,
+      count: 1,
+    });
+    return true;
+  }
+
+  if (entry.count >= maxDnsLogsPerWindow) {
+    return false;
+  }
+
+  entry.count += 1;
+  return true;
 };
 
 const encodeDnsResponse = (
@@ -182,22 +239,31 @@ export const handleDnsRequest = async ({
           return encodeDnsResponse(transport, response);
         }
 
-        const log = {
-          id: deps.createId(),
-          instanceId: instance.id,
-          type: "dns",
-          timestamp: deps.now(),
-          address: clientAddress,
-          addressVerified: transport === "tcp",
-          raw: formatDnsLogSummary({
-            question,
-            transport,
-            instancesDomain: config.instancesDomain,
-          }),
-        } satisfies Log;
+        const timestamp = deps.now();
+        if (
+          shouldPersistDnsLog({
+            instanceId: instance.id,
+            clientAddress,
+            now: timestamp,
+          })
+        ) {
+          const log = {
+            id: deps.createId(),
+            instanceId: instance.id,
+            type: "dns",
+            timestamp,
+            address: clientAddress,
+            addressVerified: transport === "tcp",
+            raw: formatDnsLogSummary({
+              question,
+              transport,
+              instancesDomain: config.instancesDomain,
+            }),
+          } satisfies Log;
 
-        await deps.addLog(log);
-        deps.broadcastLog(log);
+          await deps.addLog(log);
+          deps.broadcastLog(log);
+        }
 
         const response = buildDnsResponse({
           request,
