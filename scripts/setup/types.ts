@@ -12,7 +12,6 @@ export type SetupConfig = {
   domain: string;
   frontendUrl: string;
   serverIp: string;
-  publicIp: string;
   instancesDomain: string;
   instancesAcmeChallengeDomain: string;
   jwtSecret: string;

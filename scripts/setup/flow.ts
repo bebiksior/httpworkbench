@@ -38,7 +38,7 @@ export const shouldRestartAtCollectConfig = (
     (config.domain === undefined ||
       config.instancesDomain === undefined ||
       config.instancesAcmeChallengeDomain === undefined ||
-      config.publicIp === undefined ||
+      config.serverIp === undefined ||
       config.dnsEnabled !== true ||
       config.googleClientId === undefined ||
       config.googleClientSecret === undefined ||
@@ -89,7 +89,6 @@ export const ensureConfig = (
     config.domain,
     config.frontendUrl,
     config.serverIp,
-    config.publicIp,
     config.instancesDomain,
     config.instancesAcmeChallengeDomain,
     config.jwtSecret,

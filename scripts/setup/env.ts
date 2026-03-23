@@ -10,7 +10,14 @@ import {
 import type { SetupConfig } from "./types";
 
 const parseBoolean = (value: string | undefined): boolean => {
-  return value?.trim().toLowerCase() === "true";
+  const normalized = value?.trim().toLowerCase();
+
+  return (
+    normalized === "true" ||
+    normalized === "1" ||
+    normalized === "yes" ||
+    normalized === "y"
+  );
 };
 
 const parseInteger = (value: string | undefined, fallback: number): number => {
@@ -82,7 +89,6 @@ export const loadExistingConfig = (rootDir: string): Partial<SetupConfig> => {
     instancesDomain,
     instancesAcmeChallengeDomain,
     serverIp: env.PUBLIC_IP?.trim(),
-    publicIp: env.PUBLIC_IP?.trim(),
     jwtSecret: env.JWT_SECRET?.trim(),
     googleClientId: env.GOOGLE_CLIENT_ID?.trim(),
     googleClientSecret: env.GOOGLE_CLIENT_SECRET?.trim(),
@@ -103,7 +109,7 @@ export const buildEnvFileContent = (config: SetupConfig): string => {
     "API_PORT=8081",
     "INSTANCES_PORT=8082",
     "",
-    `PUBLIC_IP=${config.publicIp}`,
+    `PUBLIC_IP=${config.serverIp}`,
     `JWT_SECRET=${config.jwtSecret}`,
     `GOOGLE_CLIENT_ID=${config.googleClientId}`,
     `GOOGLE_CLIENT_SECRET=${config.googleClientSecret}`,
@@ -112,10 +118,7 @@ export const buildEnvFileContent = (config: SetupConfig): string => {
     "",
     "DATA_DIR=/app/data",
     "",
-    "AUTO_HTTPS=on",
-    "TLS_MAIN_DIRECTIVE=",
-    "TLS_WILDCARD_DIRECTIVE=",
-    "",
+    "IS_HOSTED=false",
     "ALLOW_GUEST=false",
     "",
     `DNS_ENABLED=${config.dnsEnabled ? "true" : "false"}`,

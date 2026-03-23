@@ -530,7 +530,6 @@ export const collectConfig = async (
     domain,
     frontendUrl: `https://${domain}`,
     serverIp,
-    publicIp: serverIp,
     instancesDomain,
     instancesAcmeChallengeDomain,
     jwtSecret,

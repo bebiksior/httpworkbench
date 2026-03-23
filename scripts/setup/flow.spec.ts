@@ -14,7 +14,6 @@ const baseConfig: SetupConfig = {
   domain: "example.com",
   frontendUrl: "https://example.com",
   serverIp: "203.0.113.10",
-  publicIp: "203.0.113.10",
   instancesDomain: "instances.example.com",
   instancesAcmeChallengeDomain:
     "_acme-challenge.instances-wildcard.example.com",
