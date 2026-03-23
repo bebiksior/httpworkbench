@@ -22,10 +22,10 @@ services:
       - ALLOW_GUEST=${ALLOW_GUEST:-false}
       - DNS_ENABLED=${DNS_ENABLED:-false}
       - INSTANCES_DOMAIN=${INSTANCES_DOMAIN:-}
+      - INSTANCES_ACME_CHALLENGE_DOMAIN=${INSTANCES_ACME_CHALLENGE_DOMAIN:-}
       - DNS_PORT=${DNS_PORT:-53}
       - DNS_NAMESERVERS=${DNS_NAMESERVERS:-}
       - PUBLIC_IP=${PUBLIC_IP:-}
-      - CADDY_ASK_SECRET=${CADDY_ASK_SECRET:-}
     volumes:
       - backend_data:/app/data
 
@@ -43,8 +43,8 @@ services:
     environment:
       - DOMAIN=${DOMAIN:-localhost}
       - INSTANCES_DOMAIN=${INSTANCES_DOMAIN:-}
+      - INSTANCES_ACME_CHALLENGE_DOMAIN=${INSTANCES_ACME_CHALLENGE_DOMAIN:-}
       - CLOUDFLARE_API_TOKEN=${CLOUDFLARE_API_TOKEN}
-      - CADDY_ASK_SECRET=${CADDY_ASK_SECRET:-}
     volumes:
       - caddy_data:/data
       - caddy_config:/config

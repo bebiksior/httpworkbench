@@ -17,9 +17,7 @@ import type { CheckResult } from "./types";
 export { intro, log, note, outro, spinner };
 
 export const colorSuccess = (value: string): string => pc.green(value);
-export const colorWarning = (value: string): string => pc.yellow(value);
 export const colorError = (value: string): string => pc.red(value);
-export const colorInfo = (value: string): string => pc.cyan(value);
 
 export const cancelled = (message: string): never => {
   cancel(message);

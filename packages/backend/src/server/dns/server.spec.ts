@@ -29,6 +29,8 @@ const createBaseDeps = () => ({
 const createTestDnsConfig = (): DnsConfig => ({
   dnsEnabled: true,
   instancesDomain: "instances.example.com",
+  instancesAcmeChallengeDomain:
+    "_acme-challenge.instances-wildcard.example.com",
   dnsPort: 0,
   dnsNameservers: ["ns1.example.com", "ns2.example.com"],
   publicIp: "203.0.113.10",
@@ -36,6 +38,8 @@ const createTestDnsConfig = (): DnsConfig => ({
 
 const createRuntimeDnsConfig = () => ({
   instancesDomain: "instances.example.com",
+  instancesAcmeChallengeDomain:
+    "_acme-challenge.instances-wildcard.example.com",
   dnsPort: 53,
   dnsNameservers: ["ns1.example.com", "ns2.example.com"],
   publicIp: "203.0.113.10",
@@ -241,6 +245,51 @@ describe("createDnsServer", () => {
       const decoded = dnsPacket.decode(response);
 
       expect((decoded.flags ?? 0) & 0x000f).toBe(3);
+      expect(logs).toHaveLength(0);
+    } finally {
+      await server.stop();
+    }
+  });
+
+  test("returns the delegated ACME challenge CNAME without creating a log", async () => {
+    const logs: string[] = [];
+    const server = await createDnsServer({
+      config: createTestDnsConfig(),
+      deps: {
+        ...createBaseDeps(),
+        getInstanceById: async () => createInstance("demo"),
+        addLog: async (log) => {
+          logs.push(log.id);
+          return log;
+        },
+      },
+    });
+
+    try {
+      const response = await sendUdpQuery(server.udpPort, {
+        type: "query",
+        id: 31,
+        questions: [
+          {
+            name: "_acme-challenge.instances.example.com",
+            type: "TXT",
+          },
+        ],
+      });
+
+      const decoded = dnsPacket.decode(response);
+
+      expect((decoded.flags ?? 0) & 0x000f).toBe(0);
+      expect(decoded.answers).toEqual([
+        {
+          type: "CNAME",
+          name: "_acme-challenge.instances.example.com",
+          ttl: 60,
+          class: "IN",
+          flush: false,
+          data: "_acme-challenge.instances-wildcard.example.com",
+        },
+      ]);
       expect(logs).toHaveLength(0);
     } finally {
       await server.stop();
@@ -462,6 +511,45 @@ describe("handleDnsRequest", () => {
           expire: 86400,
           minimum: 60,
         },
+      },
+    ]);
+  });
+
+  test("returns the delegated ACME challenge CNAME before instance parsing", async () => {
+    const response = await handleDnsRequest({
+      payload: dnsPacket.encode({
+        type: "query",
+        id: 25,
+        questions: [
+          { name: "_acme-challenge.instances.example.com", type: "CNAME" },
+        ],
+      }),
+      transport: "udp",
+      clientAddress: "127.0.0.1",
+      config: createRuntimeDnsConfig(),
+      deps: {
+        ...deps,
+        addLog: async (log) => {
+          throw new Error(`Unexpected DNS log for ${log.instanceId}`);
+        },
+      },
+    });
+
+    expect(response).toBeDefined();
+
+    if (response === undefined) {
+      throw new Error("Expected a DNS response");
+    }
+
+    const decoded = dnsPacket.decode(response);
+    expect(decoded.answers).toEqual([
+      {
+        type: "CNAME",
+        name: "_acme-challenge.instances.example.com",
+        ttl: 60,
+        class: "IN",
+        flush: false,
+        data: "_acme-challenge.instances-wildcard.example.com",
       },
     ]);
   });

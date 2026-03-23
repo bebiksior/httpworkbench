@@ -8,7 +8,6 @@ import { cleanupExpiredInstances } from "../storage/maintenance";
 import {
   CONFIG_ROUTES,
   GUEST_INSTANCES_ROUTES,
-  INTERNAL_ROUTES,
   INSTANCES_ROUTES,
   OAUTH_ROUTES,
   USER_ROUTES,
@@ -44,7 +43,6 @@ export const initServer = async () => {
     },
     routes: {
       ...CONFIG_ROUTES,
-      ...INTERNAL_ROUTES,
       ...OAUTH_ROUTES,
       ...USER_ROUTES,
       ...INSTANCES_ROUTES,

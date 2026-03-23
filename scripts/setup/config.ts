@@ -30,6 +30,12 @@ export const buildDefaultInstancesDomain = (domain: string): string => {
   return `instances.${normalizeDomain(domain)}`;
 };
 
+export const buildDefaultInstancesAcmeChallengeDomain = (
+  domain: string,
+): string => {
+  return `_acme-challenge.instances-wildcard.${normalizeDomain(domain)}`;
+};
+
 export const buildDefaultNameservers = (domain: string): string[] => {
   const normalized = normalizeDomain(domain);
   return [`ns1.${normalized}`, `ns2.${normalized}`];
@@ -50,12 +56,4 @@ export const formatNameservers = (value: string[]): string => {
 
 export const isValidIpv4 = (value: string): boolean => {
   return ipv4Pattern.test(value.trim());
-};
-
-export const maskSecret = (value: string): string => {
-  if (value.length <= 8) {
-    return value === "" ? "(empty)" : "********";
-  }
-
-  return `${value.slice(0, 4)}...${value.slice(-4)}`;
 };

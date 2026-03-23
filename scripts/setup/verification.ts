@@ -281,17 +281,6 @@ export const buildDnsServiceResult = (params: {
   ]);
 };
 
-export const verifyMainDnsRecords = async (
-  config: SetupConfig,
-): Promise<VerificationResult> => {
-  const rootRecords = await resolveARecords(config.domain);
-
-  return buildMainDnsRecordsResult({
-    config,
-    rootRecords,
-  });
-};
-
 export const verifyDnsRecords = async (
   config: SetupConfig,
 ): Promise<VerificationResult> => {
@@ -306,23 +295,6 @@ export const verifyDnsRecords = async (
   return buildDnsRecordsResult({
     config,
     rootRecords,
-    ns1Records,
-    ns2Records,
-    delegatedNameservers,
-  });
-};
-
-export const verifyDnsDelegation = async (
-  config: SetupConfig,
-): Promise<VerificationResult> => {
-  const [ns1Records, ns2Records, delegatedNameservers] = await Promise.all([
-    resolveARecords(config.dnsNameservers[0] ?? ""),
-    resolveARecords(config.dnsNameservers[1] ?? ""),
-    resolveNsRecords(config.instancesDomain),
-  ]);
-
-  return buildDnsDelegationResult({
-    config,
     ns1Records,
     ns2Records,
     delegatedNameservers,

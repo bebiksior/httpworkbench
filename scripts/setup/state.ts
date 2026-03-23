@@ -11,7 +11,7 @@ import type { SetupState } from "./types";
 const stateDirectoryName = ".httpworkbench";
 const stateFileName = "setup-state.json";
 
-export const getStateFilePath = (rootDir: string): string => {
+const getStateFilePath = (rootDir: string): string => {
   return path.join(rootDir, stateDirectoryName, stateFileName);
 };
 

@@ -4,6 +4,7 @@ import type { Packet } from "dns-packet";
 import type { Instance, Log } from "shared";
 import { dnsConfig, type DnsConfig } from "../../config";
 import {
+  buildDnsAcmeChallengeAnswers,
   buildDnsInstanceAnswers,
   buildDnsResponse,
   buildDnsZoneAnswers,
@@ -13,6 +14,7 @@ import {
   encodeTcpResponse,
   encodeUdpResponse,
   formatDnsLogSummary,
+  normalizeDnsName,
   parseInstanceIdFromDnsName,
   type DnsQuestion,
   type DnsRuntimeConfig,
@@ -40,7 +42,7 @@ type DnsRequestParams = {
   deps: DnsServerDependencies;
 };
 
-export type RunningDnsServer = {
+type RunningDnsServer = {
   udpPort: number;
   tcpPort: number;
   stop: () => Promise<void>;
@@ -59,6 +61,10 @@ const toRuntimeDnsConfig = (config: DnsConfig): DnsRuntimeConfig => {
     throw new Error("DNS port is not configured");
   }
 
+  if (config.instancesAcmeChallengeDomain === "") {
+    throw new Error("DNS ACME challenge domain is not configured");
+  }
+
   if (
     config.dnsNameservers === undefined ||
     config.dnsNameservers.length === 0
@@ -72,6 +78,7 @@ const toRuntimeDnsConfig = (config: DnsConfig): DnsRuntimeConfig => {
 
   return {
     instancesDomain: config.instancesDomain,
+    instancesAcmeChallengeDomain: config.instancesAcmeChallengeDomain,
     dnsPort: config.dnsPort,
     dnsNameservers: config.dnsNameservers,
     publicIp: config.publicIp,
@@ -93,6 +100,16 @@ const encodeDnsResponse = (
     : encodeTcpResponse(response);
 };
 
+const matchesInstancesAcmeChallenge = (
+  question: DnsQuestion,
+  config: DnsRuntimeConfig,
+): boolean => {
+  return (
+    normalizeDnsName(question.name) ===
+    `_acme-challenge.${normalizeDnsName(config.instancesDomain)}`
+  );
+};
+
 export const handleDnsRequest = async ({
   payload,
   transport,
@@ -109,6 +126,16 @@ export const handleDnsRequest = async ({
       const response = buildDnsResponse({
         request,
         code: DNS_RCODE.FORMERR,
+      });
+
+      return encodeDnsResponse(transport, response);
+    }
+
+    if (matchesInstancesAcmeChallenge(question, config)) {
+      const response = buildDnsResponse({
+        request,
+        code: DNS_RCODE.NOERROR,
+        answers: buildDnsAcmeChallengeAnswers(question, config).answers,
       });
 
       return encodeDnsResponse(transport, response);

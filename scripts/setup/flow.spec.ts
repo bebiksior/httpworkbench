@@ -16,8 +16,9 @@ const baseConfig: SetupConfig = {
   serverIp: "203.0.113.10",
   publicIp: "203.0.113.10",
   instancesDomain: "instances.example.com",
+  instancesAcmeChallengeDomain:
+    "_acme-challenge.instances-wildcard.example.com",
   jwtSecret: "secret",
-  caddyAskSecret: "ask-secret",
   googleClientId: "google-client-id",
   googleClientSecret: "google-client-secret",
   cloudflareApiToken: "cloudflare-token",
@@ -48,7 +49,7 @@ describe("setup flow helpers", () => {
     expect(
       shouldRestartAtCollectConfig(state, {
         ...baseConfig,
-        caddyAskSecret: undefined,
+        instancesAcmeChallengeDomain: undefined,
       }),
     ).toBe(true);
     expect(shouldRestartAtCollectConfig(state, baseConfig)).toBe(false);

@@ -1,6 +1,7 @@
 import { existsSync, writeFileSync } from "node:fs";
 import * as path from "node:path";
 import {
+  buildDefaultInstancesAcmeChallengeDomain,
   buildDefaultInstancesDomain,
   buildDefaultNameservers,
   isValidDomain,
@@ -74,7 +75,8 @@ export const buildDnsRecordsInstructions = (
     `${config.domain}: Proxied or DNS only`,
     `${config.dnsNameservers[0] ?? "ns1"} and ${config.dnsNameservers[1] ?? "ns2"}: DNS only`,
     `Do not create *.${config.instancesDomain}`,
-    "Open public ports 53, 80, and 443 to this VPS.",
+    `The app DNS server will answer _acme-challenge.${config.instancesDomain} as a CNAME to ${config.instancesAcmeChallengeDomain}.`,
+    "Open public ports 53/tcp, 53/udp, 80, and 443 to this VPS.",
   ].join("\n");
 };
 
@@ -83,6 +85,8 @@ export const buildStartServicesNote = (): string => {
     "Run this command to start the stack:",
     "",
     getComposeCommand(),
+    "",
+    "Keep the DNS compose override in that command so the backend publishes 53/tcp and 53/udp.",
   ].join("\n");
 };
 
@@ -93,6 +97,7 @@ export const buildDomainSetupInstructions = (): string => {
     "The wizard will set up:",
     "- yourdomain.com for the main app",
     "- instances.yourdomain.com for interaction hosts",
+    "- one wildcard certificate for *.instances.yourdomain.com",
   ].join("\n");
 };
 
@@ -152,7 +157,10 @@ export const buildCloudflareTokenInstructions = (
 };
 
 export const buildInteractionDomainInstructions = (
-  config: Pick<SetupConfig, "domain" | "instancesDomain">,
+  config: Pick<
+    SetupConfig,
+    "domain" | "instancesDomain" | "instancesAcmeChallengeDomain"
+  >,
 ): string => {
   return [
     "Interaction zone:",
@@ -162,6 +170,10 @@ export const buildInteractionDomainInstructions = (
     "Example hosts:",
     `- abc.${config.instancesDomain}`,
     `- anything.abc.${config.instancesDomain}`,
+    "",
+    "TLS:",
+    `- One wildcard certificate covers *.${config.instancesDomain}`,
+    `- ACME challenge alias: _acme-challenge.${config.instancesDomain} -> ${config.instancesAcmeChallengeDomain}`,
   ].join("\n");
 };
 
@@ -206,8 +218,8 @@ export const buildHttpVerificationInstructions = (
     "",
     `https://${config.domain}/api/health`,
     "",
-    `Instance HTTPS will use https://<instance>.${config.instancesDomain}.`,
-    "The first request can take longer while the certificate is issued.",
+    `Instance HTTPS will use the wildcard certificate for *.${config.instancesDomain}.`,
+    "First startup provisions the main app certificate and the instances wildcard certificate.",
   ].join("\n");
 };
 
@@ -220,6 +232,7 @@ export const buildDnsServiceInstructions = (config: SetupConfig): string => {
     "",
     `dig demo.${config.instancesDomain} A`,
     `dig anything.demo.${config.instancesDomain} TXT`,
+    `dig @${config.serverIp} _acme-challenge.${config.instancesDomain} CNAME`,
   ].join("\n");
 };
 
@@ -427,6 +440,11 @@ export const collectConfig = async (
     existingConfig.dnsNameservers.length > 0
       ? existingConfig.dnsNameservers
       : buildDefaultNameservers(domain);
+  const defaultInstancesAcmeChallengeDomain =
+    existingConfig.instancesAcmeChallengeDomain !== undefined &&
+    existingConfig.instancesAcmeChallengeDomain !== ""
+      ? existingConfig.instancesAcmeChallengeDomain
+      : buildDefaultInstancesAcmeChallengeDomain(domain);
 
   const serverIpInstructions = buildServerIpInstructions(state);
   if (serverIpInstructions !== undefined) {
@@ -487,11 +505,13 @@ export const collectConfig = async (
     buildInteractionDomainInstructions({
       domain,
       instancesDomain: defaultInstancesDomain,
+      instancesAcmeChallengeDomain: defaultInstancesAcmeChallengeDomain,
     }),
     "Interaction Zone",
   );
 
   const instancesDomain = defaultInstancesDomain;
+  const instancesAcmeChallengeDomain = defaultInstancesAcmeChallengeDomain;
   const dnsNameservers = defaultNameservers;
 
   note(
@@ -505,11 +525,6 @@ export const collectConfig = async (
     existingConfig.jwtSecret !== undefined && existingConfig.jwtSecret !== ""
       ? existingConfig.jwtSecret
       : await generateSecret("JWT secret");
-  const caddyAskSecret =
-    existingConfig.caddyAskSecret !== undefined &&
-    existingConfig.caddyAskSecret !== ""
-      ? existingConfig.caddyAskSecret
-      : await generateSecret("Caddy ask secret");
 
   const config: SetupConfig = {
     domain,
@@ -517,8 +532,8 @@ export const collectConfig = async (
     serverIp,
     publicIp: serverIp,
     instancesDomain,
+    instancesAcmeChallengeDomain,
     jwtSecret,
-    caddyAskSecret,
     googleClientId,
     googleClientSecret,
     cloudflareApiToken,
@@ -536,6 +551,7 @@ export const collectConfig = async (
       `Google Client Secret: ${config.googleClientSecret === "" ? "missing" : "saved"}`,
       `Cloudflare Token: ${config.cloudflareApiToken === "" ? "missing" : "saved"}`,
       `Interaction zone: ${config.instancesDomain}`,
+      `Wildcard ACME alias: ${config.instancesAcmeChallengeDomain}`,
       `Nameservers: ${config.dnsNameservers.join(", ")}`,
       "DNS and HTTP logging: enabled",
     ].join("\n"),
@@ -560,7 +576,7 @@ export const collectConfig = async (
   return config;
 };
 
-export const runVerificationStep = async (params: {
+const runVerificationStep = async (params: {
   title: string;
   instructions: string;
   verify: () => Promise<VerificationResult>;

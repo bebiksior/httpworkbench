@@ -1,6 +1,7 @@
 import * as dnsPacket from "dns-packet";
 import { describe, expect, test } from "vitest";
 import {
+  buildDnsAcmeChallengeAnswers,
   buildDnsInstanceAnswers,
   buildDnsResponse,
   buildDnsZoneAnswers,
@@ -88,6 +89,8 @@ describe("buildDnsZoneAnswers", () => {
         },
         {
           instancesDomain: "instances.example.com",
+          instancesAcmeChallengeDomain:
+            "_acme-challenge.instances-wildcard.example.com",
           dnsPort: 53,
           dnsNameservers: ["ns1.example.com", "ns2.example.com"],
           publicIp: "203.0.113.10",
@@ -110,6 +113,34 @@ describe("buildDnsZoneAnswers", () => {
   });
 });
 
+describe("buildDnsAcmeChallengeAnswers", () => {
+  test("returns a CNAME answer for the delegated ACME challenge hostname", () => {
+    expect(
+      buildDnsAcmeChallengeAnswers(
+        {
+          name: "_acme-challenge.instances.example.com",
+          type: "TXT",
+        },
+        {
+          instancesDomain: "instances.example.com",
+          instancesAcmeChallengeDomain:
+            "_acme-challenge.instances-wildcard.example.com",
+          dnsPort: 53,
+          dnsNameservers: ["ns1.example.com", "ns2.example.com"],
+          publicIp: "203.0.113.10",
+        },
+      ).answers,
+    ).toEqual([
+      {
+        type: "CNAME",
+        name: "_acme-challenge.instances.example.com",
+        ttl: 60,
+        data: "_acme-challenge.instances-wildcard.example.com",
+      },
+    ]);
+  });
+});
+
 describe("buildDnsInstanceAnswers", () => {
   test("returns an A answer for a known instance hostname", () => {
     expect(
@@ -120,6 +151,8 @@ describe("buildDnsInstanceAnswers", () => {
         },
         {
           instancesDomain: "instances.example.com",
+          instancesAcmeChallengeDomain:
+            "_acme-challenge.instances-wildcard.example.com",
           dnsPort: 53,
           dnsNameservers: ["ns1.example.com", "ns2.example.com"],
           publicIp: "203.0.113.10",

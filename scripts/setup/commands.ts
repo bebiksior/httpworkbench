@@ -3,7 +3,7 @@ type CommandOptions = {
   timeoutMs?: number;
 };
 
-export type CommandResult = {
+type CommandResult = {
   success: boolean;
   exitCode: number;
   stdout: string;
@@ -47,10 +47,6 @@ export const runCommand = async (
 export const commandExists = async (command: string): Promise<boolean> => {
   const result = await runCommand(`command -v ${command}`);
   return result.success;
-};
-
-export const escapeShellValue = (value: string): string => {
-  return `'${value.replace(/'/g, `'\\''`)}'`;
 };
 
 export const tailLines = (value: string, count = 12): string => {

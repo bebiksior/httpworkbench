@@ -14,8 +14,8 @@ export type SetupConfig = {
   serverIp: string;
   publicIp: string;
   instancesDomain: string;
+  instancesAcmeChallengeDomain: string;
   jwtSecret: string;
-  caddyAskSecret: string;
   googleClientId: string;
   googleClientSecret: string;
   cloudflareApiToken: string;

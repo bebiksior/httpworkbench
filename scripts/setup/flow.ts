@@ -37,8 +37,8 @@ export const shouldRestartAtCollectConfig = (
     getStepIndex(state.currentStep) > getStepIndex("collect-config") &&
     (config.domain === undefined ||
       config.instancesDomain === undefined ||
+      config.instancesAcmeChallengeDomain === undefined ||
       config.publicIp === undefined ||
-      config.caddyAskSecret === undefined ||
       config.dnsEnabled !== true ||
       config.googleClientId === undefined ||
       config.googleClientSecret === undefined ||
@@ -91,8 +91,8 @@ export const ensureConfig = (
     config.serverIp,
     config.publicIp,
     config.instancesDomain,
+    config.instancesAcmeChallengeDomain,
     config.jwtSecret,
-    config.caddyAskSecret,
     config.googleClientId,
     config.googleClientSecret,
     config.cloudflareApiToken,

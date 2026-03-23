@@ -23,8 +23,9 @@ const config: SetupConfig = {
   serverIp: "203.0.113.10",
   publicIp: "203.0.113.10",
   instancesDomain: "instances.example.com",
+  instancesAcmeChallengeDomain:
+    "_acme-challenge.instances-wildcard.example.com",
   jwtSecret: "secret",
-  caddyAskSecret: "ask-secret",
   googleClientId: "google-client-id",
   googleClientSecret: "google-client-secret",
   cloudflareApiToken: "cloudflare-token",
@@ -40,18 +41,25 @@ describe("setup step helpers", () => {
     expect(instructions).toContain("ns1.example.com");
     expect(instructions).toContain("instances.example.com");
     expect(instructions).toContain("Do not create *.instances.example.com");
+    expect(instructions).toContain(
+      "_acme-challenge.instances.example.com as a CNAME",
+    );
     expect(instructions).toContain("203.0.113.10");
     expect(instructions).toContain("Proxied or DNS only");
-    expect(instructions).toContain("Open public ports 53, 80, and 443");
+    expect(instructions).toContain("Open public ports 53/tcp, 53/udp, 80, and 443");
   });
 
   test("builds service startup and onboarding instructions", () => {
     expect(buildStartServicesNote()).toContain("docker-compose.dns.yml");
+    expect(buildStartServicesNote()).toContain("53/tcp and 53/udp");
     expect(buildOauthInstructions(config)).toContain(
       "https://example.com/api/auth/google/callback",
     );
     expect(buildDomainSetupInstructions()).toContain(
       "instances.yourdomain.com for interaction hosts",
+    );
+    expect(buildDomainSetupInstructions()).toContain(
+      "one wildcard certificate",
     );
     expect(buildCloudflareTokenInstructions(config)).toContain(
       "Edit zone DNS template",
@@ -61,6 +69,9 @@ describe("setup step helpers", () => {
     );
     expect(buildInteractionDomainInstructions(config)).toContain(
       "Example hosts:",
+    );
+    expect(buildInteractionDomainInstructions(config)).toContain(
+      "ACME challenge alias:",
     );
     expect(buildNameserverInstructions(config)).toContain(
       "ns1.example.com, ns2.example.com",
@@ -80,10 +91,13 @@ describe("setup step helpers", () => {
       "https://example.com/api/health",
     );
     expect(buildHttpVerificationInstructions(config)).toContain(
-      "The first request can take longer",
+      "First startup provisions the main app certificate and the instances wildcard certificate.",
     );
     expect(buildDnsServiceInstructions(config)).toContain(
       "dig demo.instances.example.com A",
+    );
+    expect(buildDnsServiceInstructions(config)).toContain(
+      "dig @203.0.113.10 _acme-challenge.instances.example.com CNAME",
     );
   });
 

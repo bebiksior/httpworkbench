@@ -21,6 +21,7 @@ export const instancePolicies = {
 export type DnsConfig = {
   dnsEnabled: boolean;
   instancesDomain: string;
+  instancesAcmeChallengeDomain: string;
   dnsPort?: number;
   dnsNameservers?: string[];
   publicIp?: string;
@@ -69,24 +70,38 @@ export const buildDnsConfig = (
   runtimeEnv: Record<string, string | undefined>,
 ): DnsConfig => {
   const domain = runtimeEnv.DOMAIN;
-  const fallbackInstancesDomain =
+  const normalizedDomain =
     domain === undefined || domain === ""
+      ? undefined
+      : normalizeDnsName(domain);
+  const fallbackInstancesDomain =
+    normalizedDomain === undefined
       ? `${defaultInstancesSubdomain}.localhost`
-      : `${defaultInstancesSubdomain}.${normalizeDnsName(domain)}`;
+      : `${defaultInstancesSubdomain}.${normalizedDomain}`;
   const instancesDomain = normalizeDnsName(
     runtimeEnv.INSTANCES_DOMAIN ?? fallbackInstancesDomain,
+  );
+  const fallbackInstancesAcmeChallengeDomain =
+    normalizedDomain === undefined
+      ? "_acme-challenge.instances-wildcard.localhost"
+      : `_acme-challenge.instances-wildcard.${normalizedDomain}`;
+  const instancesAcmeChallengeDomain = normalizeDnsName(
+    runtimeEnv.INSTANCES_ACME_CHALLENGE_DOMAIN ??
+      fallbackInstancesAcmeChallengeDomain,
   );
   const dnsEnabled = parseBooleanEnv(runtimeEnv.DNS_ENABLED) ?? false;
   if (!dnsEnabled) {
     return {
       dnsEnabled: false,
       instancesDomain,
+      instancesAcmeChallengeDomain,
     };
   }
 
   return {
     dnsEnabled: true,
     instancesDomain,
+    instancesAcmeChallengeDomain,
     dnsPort: parseIntegerEnv(runtimeEnv.DNS_PORT, defaultDnsPort),
     dnsNameservers: parseNameservers(runtimeEnv.DNS_NAMESERVERS, domain),
     publicIp: runtimeEnv.PUBLIC_IP?.trim(),
@@ -94,7 +109,6 @@ export const buildDnsConfig = (
 };
 
 export const dnsConfig = buildDnsConfig(env);
-export const getCaddyAskSecret = () => env.CADDY_ASK_SECRET?.trim();
 
 export const appConfig = {
   ...instancePolicies,

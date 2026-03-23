@@ -22,6 +22,7 @@ const defaultDnsMinimumSeconds = 60;
 
 export type DnsRuntimeConfig = {
   instancesDomain: string;
+  instancesAcmeChallengeDomain: string;
   dnsPort: number;
   dnsNameservers: string[];
   publicIp: string;
@@ -36,8 +37,6 @@ type DnsResponseOptions = {
 
 export type DnsQuestion = Question;
 
-export type DnsNameResolution = InstanceNameResolution;
-
 export const normalizeDnsName = (value: string): string => {
   return normalizeHostname(value);
 };
@@ -45,7 +44,7 @@ export const normalizeDnsName = (value: string): string => {
 export const parseInstanceIdFromDnsName = (
   name: string,
   instancesDomain: string,
-): DnsNameResolution => {
+): InstanceNameResolution => {
   return resolveInstanceName(name, instancesDomain);
 };
 
@@ -109,6 +108,24 @@ export const buildDnsZoneAnswers = (
         answers: [],
       };
   }
+};
+
+export const buildDnsAcmeChallengeAnswers = (
+  question: DnsQuestion,
+  config: DnsRuntimeConfig,
+): {
+  answers: Answer[];
+} => {
+  return {
+    answers: [
+      {
+        type: "CNAME" as const,
+        name: normalizeDnsName(question.name),
+        ttl: defaultDnsMinimumSeconds,
+        data: normalizeDnsName(config.instancesAcmeChallengeDomain),
+      },
+    ],
+  };
 };
 
 export const buildDnsInstanceAnswers = (

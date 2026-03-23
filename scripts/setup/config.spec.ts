@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest";
 import {
+  buildDefaultInstancesAcmeChallengeDomain,
   buildDefaultInstancesDomain,
   buildDefaultNameservers,
   formatNameservers,
@@ -17,6 +18,9 @@ describe("setup config helpers", () => {
   test("builds delegated dns defaults", () => {
     expect(buildDefaultInstancesDomain("example.com")).toBe(
       "instances.example.com",
+    );
+    expect(buildDefaultInstancesAcmeChallengeDomain("example.com")).toBe(
+      "_acme-challenge.instances-wildcard.example.com",
     );
     expect(buildDefaultNameservers("example.com")).toEqual([
       "ns1.example.com",

@@ -1,8 +1,5 @@
 {
 	admin off
-	on_demand_tls {
-		ask http://backend:8081/api/internal/tls/allow?token={$CADDY_ASK_SECRET}
-	}
 	auto_https disable_redirects
 	log {
 		level ERROR
@@ -33,9 +30,11 @@ http://{$DOMAIN}, https://{$DOMAIN} {
 	}
 }
 
-http://{$INSTANCES_DOMAIN}, http://*.{$INSTANCES_DOMAIN}, https://{$INSTANCES_DOMAIN}, https://*.{$INSTANCES_DOMAIN} {
+http://*.{$INSTANCES_DOMAIN}, https://*.{$INSTANCES_DOMAIN} {
 	tls {
-		on_demand
+		dns cloudflare {env.CLOUDFLARE_API_TOKEN}
+		dns_challenge_override_domain {$INSTANCES_ACME_CHALLENGE_DOMAIN}
+		resolvers 1.1.1.1 1.0.0.1
 	}
 
 	reverse_proxy backend:8082 {

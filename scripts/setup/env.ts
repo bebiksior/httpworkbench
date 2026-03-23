@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import * as path from "node:path";
 import {
+  buildDefaultInstancesAcmeChallengeDomain,
   buildDefaultNameservers,
   formatNameservers,
   normalizeDomain,
@@ -62,6 +63,9 @@ export const loadExistingConfig = (rootDir: string): Partial<SetupConfig> => {
   const instancesDomain =
     normalizeDomain(env.INSTANCES_DOMAIN ?? "") ||
     (domain === "" ? "" : `instances.${domain}`);
+  const instancesAcmeChallengeDomain =
+    normalizeDomain(env.INSTANCES_ACME_CHALLENGE_DOMAIN ?? "") ||
+    (domain === "" ? "" : buildDefaultInstancesAcmeChallengeDomain(domain));
   const dnsNameservers = normalizeNameservers(
     env.DNS_NAMESERVERS ??
       (domain === "" ? "" : formatNameservers(buildDefaultNameservers(domain))),
@@ -76,10 +80,10 @@ export const loadExistingConfig = (rootDir: string): Partial<SetupConfig> => {
           ? undefined
           : `https://${domain}`,
     instancesDomain,
+    instancesAcmeChallengeDomain,
     serverIp: env.PUBLIC_IP?.trim(),
     publicIp: env.PUBLIC_IP?.trim(),
     jwtSecret: env.JWT_SECRET?.trim(),
-    caddyAskSecret: env.CADDY_ASK_SECRET?.trim(),
     googleClientId: env.GOOGLE_CLIENT_ID?.trim(),
     googleClientSecret: env.GOOGLE_CLIENT_SECRET?.trim(),
     cloudflareApiToken: env.CLOUDFLARE_API_TOKEN?.trim(),
@@ -94,13 +98,13 @@ export const buildEnvFileContent = (config: SetupConfig): string => {
     `DOMAIN=${config.domain}`,
     `FRONTEND_URL=${config.frontendUrl}`,
     `INSTANCES_DOMAIN=${config.instancesDomain}`,
+    `INSTANCES_ACME_CHALLENGE_DOMAIN=${config.instancesAcmeChallengeDomain}`,
     "",
     "API_PORT=8081",
     "INSTANCES_PORT=8082",
     "",
     `PUBLIC_IP=${config.publicIp}`,
     `JWT_SECRET=${config.jwtSecret}`,
-    `CADDY_ASK_SECRET=${config.caddyAskSecret}`,
     `GOOGLE_CLIENT_ID=${config.googleClientId}`,
     `GOOGLE_CLIENT_SECRET=${config.googleClientSecret}`,
     "",
