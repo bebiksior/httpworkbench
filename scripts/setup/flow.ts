@@ -30,6 +30,60 @@ export const getStepIndex = (step: WizardStepId): number => {
   return stepOrder.indexOf(step);
 };
 
+export const shouldRestartAtCollectConfig = (
+  state: SetupState,
+  config: Partial<SetupConfig>,
+): boolean => {
+  return (
+    getStepIndex(state.currentStep) > getStepIndex("collect-config") &&
+    (config.domain === undefined ||
+      config.googleClientId === undefined ||
+      config.googleClientSecret === undefined ||
+      config.cloudflareApiToken === undefined)
+  );
+};
+
+export const getNextWizardStep = (
+  step: Exclude<WizardStepId, "done">,
+  config: Pick<SetupConfig, "dnsEnabled">,
+): WizardStepId => {
+  switch (step) {
+    case "preflight":
+      return "collect-config";
+    case "collect-config":
+      return "verify-main-dns";
+    case "verify-main-dns":
+      return "oauth";
+    case "oauth":
+      return config.dnsEnabled ? "verify-dns-delegation" : "start-stack";
+    case "verify-dns-delegation":
+      return "start-stack";
+    case "start-stack":
+      return "verify-http";
+    case "verify-http":
+      return config.dnsEnabled ? "verify-dns-service" : "done";
+    case "verify-dns-service":
+      return "done";
+  }
+};
+
+export const getComposeCommand = (dnsEnabled: boolean): string => {
+  return dnsEnabled
+    ? "docker compose -f docker-compose.yml -f docker-compose.dns.yml up -d --build"
+    : "docker compose up -d --build";
+};
+
+export const buildFinalChecklist = (config: SetupConfig): string[] => {
+  return [
+    `- Open ${config.frontendUrl}`,
+    "- Create an instance and send an HTTP request to its subdomain",
+    config.dnsEnabled
+      ? `- Query the DNS hostname shown in the instance details, for example: dig <instance>.${config.dnsDomain} A`
+      : "- Enable DNS logging later by rerunning the wizard and turning it on",
+    `- Start or restart the stack anytime with: ${getComposeCommand(config.dnsEnabled)}`,
+  ];
+};
+
 export const ensureConfig = (
   config: Partial<SetupConfig>,
   currentStep: WizardStepId,

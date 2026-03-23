@@ -87,16 +87,23 @@ export const formatRecords = (
     .join("\n");
 };
 
-export const verifyMainDnsRecords = async (
-  config: SetupConfig,
-): Promise<VerificationResult> => {
-  const wildcardProbe = `setup-check-${Date.now()}.instances.${config.domain}`;
-  const [rootRecords, wildcardRecords] = await Promise.all([
-    resolveARecords(config.domain),
-    resolveARecords(wildcardProbe),
-  ]);
+export const buildVerificationResult = (
+  items: CheckResult[],
+): VerificationResult => {
+  return {
+    success: items.every((item) => item.ok),
+    items,
+  };
+};
 
-  const items: CheckResult[] = [
+export const buildMainDnsRecordsResult = (params: {
+  config: SetupConfig;
+  rootRecords: string[];
+  wildcardRecords: string[];
+}): VerificationResult => {
+  const { config, rootRecords, wildcardRecords } = params;
+
+  return buildVerificationResult([
     {
       label: `${config.domain} resolves to the server IP`,
       ok: rootRecords.includes(config.serverIp),
@@ -113,25 +120,19 @@ export const verifyMainDnsRecords = async (
           ? "The wildcard record is not visible yet."
           : `Resolved to: ${wildcardRecords.join(", ")}`,
     },
-  ];
-
-  return {
-    success: items.every((item) => item.ok),
-    items,
-  };
+  ]);
 };
 
-export const verifyDnsDelegation = async (
-  config: SetupConfig,
-): Promise<VerificationResult> => {
-  const [ns1Records, ns2Records, delegatedNameservers] = await Promise.all([
-    resolveARecords(config.dnsNameservers[0] ?? ""),
-    resolveARecords(config.dnsNameservers[1] ?? ""),
-    resolveNsRecords(config.dnsDomain),
-  ]);
-
+export const buildDnsDelegationResult = (params: {
+  config: SetupConfig;
+  ns1Records: string[];
+  ns2Records: string[];
+  delegatedNameservers: string[];
+}): VerificationResult => {
+  const { config, ns1Records, ns2Records, delegatedNameservers } = params;
   const expectedNameservers = config.dnsNameservers.map(normalizeName);
-  const items: CheckResult[] = [
+
+  return buildVerificationResult([
     {
       label: `${expectedNameservers[0]} resolves to the server IP`,
       ok: ns1Records.includes(config.serverIp),
@@ -158,12 +159,143 @@ export const verifyDnsDelegation = async (
           ? "No NS delegation is visible yet."
           : `Visible NS records: ${delegatedNameservers.join(", ")}`,
     },
-  ];
+  ]);
+};
 
-  return {
-    success: items.every((item) => item.ok),
-    items,
-  };
+export const buildHttpHealthSuccessResult = (params: {
+  httpsUrl: string;
+  status: number;
+  body: string;
+}): VerificationResult => {
+  const { httpsUrl, status, body } = params;
+  const httpsOk = status >= 200 && status < 300 && body.includes('"status":"ok"');
+
+  return buildVerificationResult([
+    {
+      label: `${httpsUrl} returns a healthy response`,
+      ok: httpsOk,
+      details: `HTTP ${status}: ${body.slice(0, 120)}`,
+    },
+  ]);
+};
+
+export const buildHttpHealthFallbackResult = (params: {
+  httpsUrl: string;
+  httpUrl: string;
+  httpsError: unknown;
+  httpStatus?: number;
+  httpBody?: string;
+  httpError?: unknown;
+}): VerificationResult => {
+  const httpsMessage =
+    params.httpsError instanceof Error
+      ? params.httpsError.message
+      : "HTTPS request failed.";
+
+  if (params.httpError !== undefined) {
+    return buildVerificationResult([
+      {
+        label: `${params.httpsUrl} returns a healthy response`,
+        ok: false,
+        details: httpsMessage,
+      },
+      {
+        label: `${params.httpUrl} returns a healthy response`,
+        ok: false,
+        details:
+          params.httpError instanceof Error
+            ? params.httpError.message
+            : "HTTP request failed.",
+      },
+    ]);
+  }
+
+  const httpBody = params.httpBody ?? "";
+  const httpStatus = params.httpStatus ?? 0;
+  const httpOk = httpStatus >= 200 && httpStatus < 300 && httpBody.includes('"status":"ok"');
+
+  return buildVerificationResult([
+    {
+      label: `${params.httpsUrl} is reachable with TLS`,
+      ok: false,
+      details: httpsMessage,
+    },
+    {
+      label: `${params.httpUrl} responds while certificates are provisioning`,
+      ok: httpOk,
+      details: `HTTP ${httpStatus}: ${httpBody.slice(0, 120)}`,
+    },
+  ]);
+};
+
+export const buildDnsServiceResult = (params: {
+  config: SetupConfig;
+  directSoa?: string;
+  directNs: string[];
+  publicSoa?: string;
+}): VerificationResult => {
+  const { config, directSoa, directNs, publicSoa } = params;
+  const expectedNameservers = config.dnsNameservers.map(normalizeName);
+
+  return buildVerificationResult([
+    {
+      label: `The app answers SOA queries directly on ${config.serverIp}`,
+      ok: directSoa !== undefined,
+      details:
+        directSoa === undefined
+          ? "No authoritative SOA response yet."
+          : `Direct SOA: ${directSoa}`,
+    },
+    {
+      label: `The app answers NS queries directly on ${config.serverIp}`,
+      ok: expectedNameservers.every((nameserver) => directNs.includes(nameserver)),
+      details:
+        directNs.length === 0
+          ? "No NS response yet."
+          : `Direct NS records: ${directNs.join(", ")}`,
+    },
+    {
+      label: `Public resolvers can reach the delegated DNS zone`,
+      ok: publicSoa !== undefined,
+      details:
+        publicSoa === undefined
+          ? "Public SOA lookup is still failing."
+          : `Public SOA: ${publicSoa}`,
+    },
+  ]);
+};
+
+export const verifyMainDnsRecords = async (
+  config: SetupConfig,
+): Promise<VerificationResult> => {
+  const wildcardProbe = `setup-check-${Date.now()}.instances.${config.domain}`;
+  const [rootRecords, wildcardRecords] = await Promise.all([
+    resolveARecords(config.domain),
+    resolveARecords(wildcardProbe),
+  ]);
+
+  return buildMainDnsRecordsResult({
+    config,
+    rootRecords,
+    wildcardRecords,
+  });
+};
+
+export const verifyDnsDelegation = async (
+  config: SetupConfig,
+): Promise<VerificationResult> => {
+  const [ns1Records, ns2Records, delegatedNameservers] = await Promise.all([
+    resolveARecords(config.dnsNameservers[0] ?? ""),
+    resolveARecords(config.dnsNameservers[1] ?? ""),
+    resolveNsRecords(config.dnsDomain),
+  ]);
+
+  return buildDnsDelegationResult({
+    config,
+    ns1Records,
+    ns2Records,
+    delegatedNameservers,
+  });
 };
 
 export const verifyHttpHealth = async (
@@ -177,66 +309,31 @@ export const verifyHttpHealth = async (
       signal: AbortSignal.timeout(10_000),
     });
     const httpsBody = await httpsResponse.text();
-    const httpsOk = httpsResponse.ok && httpsBody.includes('"status":"ok"');
-
-    return {
-      success: httpsOk,
-      items: [
-        {
-          label: `${httpsUrl} returns a healthy response`,
-          ok: httpsOk,
-          details: `HTTP ${httpsResponse.status}: ${httpsBody.slice(0, 120)}`,
-        },
-      ],
-    };
+    return buildHttpHealthSuccessResult({
+      httpsUrl,
+      status: httpsResponse.status,
+      body: httpsBody,
+    });
   } catch (httpsError) {
     try {
       const httpResponse = await fetch(httpUrl, {
         signal: AbortSignal.timeout(10_000),
       });
       const httpBody = await httpResponse.text();
-      const httpOk = httpResponse.ok && httpBody.includes('"status":"ok"');
-
-      return {
-        success: false,
-        items: [
-          {
-            label: `${httpsUrl} is reachable with TLS`,
-            ok: false,
-            details:
-              httpsError instanceof Error
-                ? httpsError.message
-                : "HTTPS request failed.",
-          },
-          {
-            label: `${httpUrl} responds while certificates are provisioning`,
-            ok: httpOk,
-            details: `HTTP ${httpResponse.status}: ${httpBody.slice(0, 120)}`,
-          },
-        ],
-      };
+      return buildHttpHealthFallbackResult({
+        httpsUrl,
+        httpUrl,
+        httpsError,
+        httpStatus: httpResponse.status,
+        httpBody,
+      });
     } catch (httpError) {
-      return {
-        success: false,
-        items: [
-          {
-            label: `${httpsUrl} returns a healthy response`,
-            ok: false,
-            details:
-              httpsError instanceof Error
-                ? httpsError.message
-                : "HTTPS request failed.",
-          },
-          {
-            label: `${httpUrl} returns a healthy response`,
-            ok: false,
-            details:
-              httpError instanceof Error
-                ? httpError.message
-                : "HTTP request failed.",
-          },
-        ],
-      };
+      return buildHttpHealthFallbackResult({
+        httpsUrl,
+        httpUrl,
+        httpsError,
+        httpError,
+      });
     }
   }
 };
@@ -251,38 +348,10 @@ export const verifyDnsService = async (
     resolveSoaRecord(config.dnsDomain),
   ]);
 
-  const expectedNameservers = config.dnsNameservers.map(normalizeName);
-  const items: CheckResult[] = [
-    {
-      label: `The app answers SOA queries directly on ${config.serverIp}`,
-      ok: directSoa !== undefined,
-      details:
-        directSoa === undefined
-          ? "No authoritative SOA response yet."
-          : `Direct SOA: ${directSoa}`,
-    },
-    {
-      label: `The app answers NS queries directly on ${config.serverIp}`,
-      ok: expectedNameservers.every((nameserver) =>
-        directNs.includes(nameserver),
-      ),
-      details:
-        directNs.length === 0
-          ? "No NS response yet."
-          : `Direct NS records: ${directNs.join(", ")}`,
-    },
-    {
-      label: `Public resolvers can reach the delegated DNS zone`,
-      ok: publicSoa !== undefined,
-      details:
-        publicSoa === undefined
-          ? "Public SOA lookup is still failing."
-          : `Public SOA: ${publicSoa}`,
-    },
-  ];
-
-  return {
-    success: items.every((item) => item.ok),
-    items,
-  };
+  return buildDnsServiceResult({
+    config,
+    directSoa,
+    directNs,
+    publicSoa,
+  });
 };

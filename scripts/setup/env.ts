@@ -48,9 +48,18 @@ const parseEnvFile = (filePath: string): Record<string, string> => {
   }, {});
 };
 
+export const getEnvFilePath = (rootDir: string): string => {
+  return path.join(rootDir, ".env");
+};
+
+export const hasEnvFile = (rootDir: string): boolean => {
+  return existsSync(getEnvFilePath(rootDir));
+};
+
 export const loadExistingConfig = (rootDir: string): Partial<SetupConfig> => {
-  const env = parseEnvFile(path.join(rootDir, ".env"));
+  const env = parseEnvFile(getEnvFilePath(rootDir));
   const domain = normalizeDomain(env.DOMAIN ?? "");
+  const frontendUrl = env.FRONTEND_URL?.trim();
   const dnsDomain =
     normalizeDomain(env.DNS_DOMAIN ?? "") ||
     (domain === "" ? "" : buildDefaultDnsDomain(domain));
@@ -62,8 +71,8 @@ export const loadExistingConfig = (rootDir: string): Partial<SetupConfig> => {
   return {
     domain,
     frontendUrl:
-      env.FRONTEND_URL?.trim() !== ""
-        ? env.FRONTEND_URL.trim()
+      frontendUrl !== undefined && frontendUrl !== ""
+        ? frontendUrl
         : domain === ""
           ? undefined
           : `https://${domain}`,

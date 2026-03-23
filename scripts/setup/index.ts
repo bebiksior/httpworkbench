@@ -1,10 +1,14 @@
 import * as pc from "picocolors";
-import { loadExistingConfig } from "./env";
+import { hasEnvFile, loadExistingConfig } from "./env";
 import {
+  buildFinalChecklist,
   createInitialState,
   ensureConfig,
+  getComposeCommand,
+  getNextWizardStep,
   getStepIndex,
   rootDir,
+  shouldRestartAtCollectConfig,
   stepOrder,
 } from "./flow";
 import { clearState, loadState, saveState } from "./state";
@@ -19,10 +23,16 @@ import {
   startStack,
 } from "./steps";
 import { intro, log, outro, promptSelect } from "./ui";
-import type { SetupConfig, WizardStepId } from "./types";
+import type { SetupConfig } from "./types";
 
 const main = async (): Promise<void> => {
   intro(pc.bold("HTTP Workbench Setup Wizard"));
+
+  if (!hasEnvFile(rootDir)) {
+    log.message(
+      "No .env file was found, so the wizard will start a fresh setup for this server.",
+    );
+  }
 
   const existingState = loadState(rootDir);
   let state = existingState ?? createInitialState();
@@ -57,13 +67,7 @@ const main = async (): Promise<void> => {
     serverIp: state.serverIp,
   };
 
-  if (
-    getStepIndex(state.currentStep) > getStepIndex("collect-config") &&
-    (config.domain === undefined ||
-      config.googleClientId === undefined ||
-      config.googleClientSecret === undefined ||
-      config.cloudflareApiToken === undefined)
-  ) {
+  if (shouldRestartAtCollectConfig(state, config)) {
     log.warn(
       "Saved progress exists, but .env is missing required values. Restarting at collect-config.",
     );
@@ -82,7 +86,7 @@ const main = async (): Promise<void> => {
         const preflight = await runPreflight(state);
         state = {
           ...state,
-          currentStep: "collect-config",
+          currentStep: getNextWizardStep(step, { dnsEnabled: false }),
           detectedServerIp: preflight.detectedServerIp,
         };
         break;
@@ -91,7 +95,7 @@ const main = async (): Promise<void> => {
         config = await collectConfig(config, state);
         state = {
           ...state,
-          currentStep: "verify-main-dns",
+          currentStep: getNextWizardStep(step, { dnsEnabled: config.dnsEnabled }),
           serverIp: config.serverIp,
         };
         break;
@@ -101,7 +105,7 @@ const main = async (): Promise<void> => {
         await runMainDnsVerification(resolvedConfig);
         state = {
           ...state,
-          currentStep: "oauth",
+          currentStep: getNextWizardStep(step, resolvedConfig),
         };
         break;
       }
@@ -110,9 +114,7 @@ const main = async (): Promise<void> => {
         await showOauthInstructions(resolvedConfig);
         state = {
           ...state,
-          currentStep: resolvedConfig.dnsEnabled
-            ? "verify-dns-delegation"
-            : "start-stack",
+          currentStep: getNextWizardStep(step, resolvedConfig),
         };
         break;
       }
@@ -121,7 +123,7 @@ const main = async (): Promise<void> => {
         await runDnsDelegationVerification(resolvedConfig);
         state = {
           ...state,
-          currentStep: "start-stack",
+          currentStep: getNextWizardStep(step, resolvedConfig),
         };
         break;
       }
@@ -130,7 +132,7 @@ const main = async (): Promise<void> => {
         await startStack(resolvedConfig);
         state = {
           ...state,
-          currentStep: "verify-http",
+          currentStep: getNextWizardStep(step, resolvedConfig),
         };
         break;
       }
@@ -139,9 +141,7 @@ const main = async (): Promise<void> => {
         await runHttpVerification(resolvedConfig);
         state = {
           ...state,
-          currentStep: resolvedConfig.dnsEnabled
-            ? "verify-dns-service"
-            : "done",
+          currentStep: getNextWizardStep(step, resolvedConfig),
         };
         break;
       }
@@ -150,7 +150,7 @@ const main = async (): Promise<void> => {
         await runDnsServiceVerification(resolvedConfig);
         state = {
           ...state,
-          currentStep: "done",
+          currentStep: getNextWizardStep(step, resolvedConfig),
         };
         break;
       }
@@ -166,21 +166,12 @@ const main = async (): Promise<void> => {
     },
     "done",
   );
-  const composeCommand = finalConfig.dnsEnabled
-    ? "docker compose -f docker-compose.yml -f docker-compose.dns.yml up -d --build"
-    : "docker compose up -d --build";
-
   outro(
     [
       "Setup finished.",
       "",
       "Final checklist:",
-      `- Open ${finalConfig.frontendUrl}`,
-      "- Create an instance and send an HTTP request to its subdomain",
-      finalConfig.dnsEnabled
-        ? `- Query the DNS hostname shown in the instance details, for example: dig <instance>.${finalConfig.dnsDomain} A`
-        : "- Enable DNS logging later by rerunning the wizard and turning it on",
-      `- Start or restart the stack anytime with: ${composeCommand}`,
+      ...buildFinalChecklist(finalConfig),
     ].join("\n"),
   );
 };

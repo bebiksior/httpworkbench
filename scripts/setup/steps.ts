@@ -12,7 +12,7 @@ import {
 } from "./config";
 import { commandExists, runCommand, tailLines } from "./commands";
 import { buildEnvFileContent } from "./env";
-import { rootDir } from "./flow";
+import { getComposeCommand, rootDir } from "./flow";
 import {
   detectPublicServerIp,
   formatRecords,
@@ -38,6 +38,102 @@ import type {
   SetupState,
   VerificationResult,
 } from "./types";
+
+export const buildMainDnsVerificationInstructions = (
+  config: SetupConfig,
+): string => {
+  return [
+    "Create these records in Cloudflare before continuing:",
+    "",
+    formatRecords([
+      {
+        type: "A",
+        host: config.domain,
+        value: config.serverIp,
+      },
+      {
+        type: "A",
+        host: `*.instances.${config.domain}`,
+        value: config.serverIp,
+      },
+    ]),
+  ].join("\n");
+};
+
+export const buildDnsDelegationInstructions = (
+  config: SetupConfig,
+): string => {
+  return [
+    "DNS logging uses a delegated zone. Add these records before continuing:",
+    "",
+    formatRecords([
+      {
+        type: "A",
+        host: config.dnsNameservers[0] ?? "ns1",
+        value: config.serverIp,
+      },
+      {
+        type: "A",
+        host: config.dnsNameservers[1] ?? "ns2",
+        value: config.serverIp,
+      },
+      {
+        type: "NS",
+        host: config.dnsDomain,
+        value: config.dnsNameservers[0] ?? "ns1",
+      },
+      {
+        type: "NS",
+        host: config.dnsDomain,
+        value: config.dnsNameservers[1] ?? "ns2",
+      },
+    ]),
+    "",
+    "Open public UDP and TCP port 53 on the server firewall as part of this step.",
+  ].join("\n");
+};
+
+export const buildStartServicesNote = (dnsEnabled: boolean): string => {
+  return [
+    "The wizard can start the stack for you now.",
+    "",
+    getComposeCommand(dnsEnabled),
+    "",
+    "This can take a few minutes on a fresh server.",
+  ].join("\n");
+};
+
+export const buildOauthInstructions = (config: SetupConfig): string => {
+  return [
+    "Add this Google OAuth redirect URI before you continue:",
+    "",
+    `${config.frontendUrl}/api/auth/google/callback`,
+    "",
+    "Once it is saved in Google Cloud Console, continue to the next step.",
+  ].join("\n");
+};
+
+export const buildHttpVerificationInstructions = (
+  config: SetupConfig,
+): string => {
+  return [
+    "The app should now be reachable over HTTPS.",
+    "",
+    `Expected health URL: https://${config.domain}/api/health`,
+  ].join("\n");
+};
+
+export const buildDnsServiceInstructions = (
+  config: SetupConfig,
+): string => {
+  return [
+    "The DNS server should now answer authoritatively for the delegated zone.",
+    "",
+    `Zone: ${config.dnsDomain}`,
+    `Nameservers: ${config.dnsNameservers.join(", ")}`,
+    `Server IP: ${config.serverIp}`,
+  ].join("\n");
+};
 
 const checkDependency = async (
   label: string,
@@ -353,22 +449,7 @@ export const runMainDnsVerification = async (
 ): Promise<void> => {
   await runVerificationStep({
     title: "Main DNS Records",
-    instructions: [
-      "Create these records in Cloudflare before continuing:",
-      "",
-      formatRecords([
-        {
-          type: "A",
-          host: config.domain,
-          value: config.serverIp,
-        },
-        {
-          type: "A",
-          host: `*.instances.${config.domain}`,
-          value: config.serverIp,
-        },
-      ]),
-    ].join("\n"),
+    instructions: buildMainDnsVerificationInstructions(config),
     verify: () => verifyMainDnsRecords(config),
   });
 };
@@ -378,53 +459,15 @@ export const runDnsDelegationVerification = async (
 ): Promise<void> => {
   await runVerificationStep({
     title: "DNS Delegation",
-    instructions: [
-      "DNS logging uses a delegated zone. Add these records before continuing:",
-      "",
-      formatRecords([
-        {
-          type: "A",
-          host: config.dnsNameservers[0] ?? "ns1",
-          value: config.serverIp,
-        },
-        {
-          type: "A",
-          host: config.dnsNameservers[1] ?? "ns2",
-          value: config.serverIp,
-        },
-        {
-          type: "NS",
-          host: config.dnsDomain,
-          value: config.dnsNameservers[0] ?? "ns1",
-        },
-        {
-          type: "NS",
-          host: config.dnsDomain,
-          value: config.dnsNameservers[1] ?? "ns2",
-        },
-      ]),
-      "",
-      "Open public UDP and TCP port 53 on the server firewall as part of this step.",
-    ].join("\n"),
+    instructions: buildDnsDelegationInstructions(config),
     verify: () => verifyDnsDelegation(config),
   });
 };
 
 export const startStack = async (config: SetupConfig): Promise<void> => {
-  const composeCommand = config.dnsEnabled
-    ? "docker compose -f docker-compose.yml -f docker-compose.dns.yml up -d --build"
-    : "docker compose up -d --build";
+  const composeCommand = getComposeCommand(config.dnsEnabled);
 
-  note(
-    [
-      "The wizard can start the stack for you now.",
-      "",
-      composeCommand,
-      "",
-      "This can take a few minutes on a fresh server.",
-    ].join("\n"),
-    "Start Services",
-  );
+  note(buildStartServicesNote(config.dnsEnabled), "Start Services");
 
   while (true) {
     const action = await promptSelect<"start" | "skip">({
@@ -485,16 +528,7 @@ export const startStack = async (config: SetupConfig): Promise<void> => {
 export const showOauthInstructions = async (
   config: SetupConfig,
 ): Promise<void> => {
-  note(
-    [
-      "Add this Google OAuth redirect URI before you continue:",
-      "",
-      `${config.frontendUrl}/api/auth/google/callback`,
-      "",
-      "Once it is saved in Google Cloud Console, continue to the next step.",
-    ].join("\n"),
-    "Google OAuth",
-  );
+  note(buildOauthInstructions(config), "Google OAuth");
 
   const confirmed = await promptConfirm({
     message: "Have you added the Google OAuth redirect URI?",
@@ -511,11 +545,7 @@ export const runHttpVerification = async (
 ): Promise<void> => {
   await runVerificationStep({
     title: "HTTP Health",
-    instructions: [
-      "The app should now be reachable over HTTPS.",
-      "",
-      `Expected health URL: https://${config.domain}/api/health`,
-    ].join("\n"),
+    instructions: buildHttpVerificationInstructions(config),
     verify: () => verifyHttpHealth(config),
   });
 };
@@ -525,13 +555,7 @@ export const runDnsServiceVerification = async (
 ): Promise<void> => {
   await runVerificationStep({
     title: "DNS Service",
-    instructions: [
-      "The DNS server should now answer authoritatively for the delegated zone.",
-      "",
-      `Zone: ${config.dnsDomain}`,
-      `Nameservers: ${config.dnsNameservers.join(", ")}`,
-      `Server IP: ${config.serverIp}`,
-    ].join("\n"),
+    instructions: buildDnsServiceInstructions(config),
     verify: () => verifyDnsService(config),
   });
 };
