@@ -14,12 +14,14 @@ const config: SetupConfig = {
   domain: "example.com",
   frontendUrl: "https://example.com",
   serverIp: "203.0.113.10",
+  publicIp: "203.0.113.10",
+  instancesDomain: "instances.example.com",
   jwtSecret: "secret",
+  caddyAskSecret: "ask-secret",
   googleClientId: "google-client-id",
   googleClientSecret: "google-client-secret",
   cloudflareApiToken: "cloudflare-token",
   dnsEnabled: true,
-  dnsDomain: "dns.example.com",
   dnsPort: 53,
   dnsNameservers: ["ns1.example.com", "ns2.example.com"],
 };
@@ -29,7 +31,7 @@ describe("setup verification helpers", () => {
     expect(
       formatRecords([
         { type: "A", host: "example.com", value: "203.0.113.10" },
-        { type: "NS", host: "dns.example.com", value: "ns1.example.com" },
+        { type: "NS", host: "instances.example.com", value: "ns1.example.com" },
       ]),
     ).toContain("A    example.com");
   });
@@ -53,12 +55,14 @@ describe("setup verification helpers", () => {
     const result = buildMainDnsRecordsResult({
       config,
       rootRecords: ["203.0.113.10"],
-      wildcardRecords: ["198.51.100.2"],
+      ns1Records: ["203.0.113.10"],
+      ns2Records: ["198.51.100.2"],
     });
 
     expect(result.success).toBe(false);
     expect(result.items[0]?.ok).toBe(true);
-    expect(result.items[1]?.ok).toBe(false);
+    expect(result.items[1]?.ok).toBe(true);
+    expect(result.items[2]?.ok).toBe(false);
   });
 
   test("evaluates DNS delegation visibility", () => {
@@ -95,9 +99,9 @@ describe("setup verification helpers", () => {
   test("evaluates direct and public DNS service reachability", () => {
     const result = buildDnsServiceResult({
       config,
-      directSoa: "ns1.example.com / hostmaster.dns.example.com",
+      directSoa: "ns1.example.com / hostmaster.instances.example.com",
       directNs: ["ns1.example.com", "ns2.example.com"],
-      publicSoa: "ns1.example.com / hostmaster.dns.example.com",
+      publicSoa: "ns1.example.com / hostmaster.instances.example.com",
     });
 
     expect(result.success).toBe(true);

@@ -14,12 +14,14 @@ const baseConfig: SetupConfig = {
   domain: "example.com",
   frontendUrl: "https://example.com",
   serverIp: "203.0.113.10",
+  publicIp: "203.0.113.10",
+  instancesDomain: "instances.example.com",
   jwtSecret: "secret",
+  caddyAskSecret: "ask-secret",
   googleClientId: "google-client-id",
   googleClientSecret: "google-client-secret",
   cloudflareApiToken: "cloudflare-token",
   dnsEnabled: true,
-  dnsDomain: "dns.example.com",
   dnsPort: 53,
   dnsNameservers: ["ns1.example.com", "ns2.example.com"],
 };
@@ -33,9 +35,7 @@ describe("setup flow helpers", () => {
   });
 
   test("returns a stable step ordering", () => {
-    expect(getStepIndex("preflight")).toBeLessThan(
-      getStepIndex("verify-http"),
-    );
+    expect(getStepIndex("preflight")).toBeLessThan(getStepIndex("verify-http"));
     expect(getStepIndex("done")).toBeGreaterThan(getStepIndex("oauth"));
   });
 
@@ -48,34 +48,39 @@ describe("setup flow helpers", () => {
     expect(
       shouldRestartAtCollectConfig(state, {
         ...baseConfig,
-        cloudflareApiToken: undefined,
+        caddyAskSecret: undefined,
       }),
     ).toBe(true);
     expect(shouldRestartAtCollectConfig(state, baseConfig)).toBe(false);
   });
 
-  test("computes the next wizard step based on DNS mode", () => {
-    expect(getNextWizardStep("oauth", { dnsEnabled: true })).toBe(
-      "verify-dns-delegation",
-    );
-    expect(getNextWizardStep("oauth", { dnsEnabled: false })).toBe(
-      "start-stack",
-    );
-    expect(getNextWizardStep("verify-http", { dnsEnabled: false })).toBe(
-      "done",
-    );
+  test("computes the next wizard step for the mandatory interaction flow", () => {
+    expect(getNextWizardStep("oauth")).toBe("verify-dns-delegation");
+    expect(getNextWizardStep("verify-http")).toBe("verify-dns-service");
   });
 
-  test("builds the compose command and final checklist", () => {
-    expect(getComposeCommand(true)).toContain("docker-compose.dns.yml");
-    expect(getComposeCommand(false)).toBe("docker compose up -d --build");
+  test("always uses the DNS compose override and updated interaction checklist", () => {
+    expect(getComposeCommand()).toContain("docker-compose.dns.yml");
 
     const checklist = buildFinalChecklist(baseConfig);
     expect(checklist).toContain("- Open https://example.com");
-    expect(checklist[2]).toContain("dig <instance>.dns.example.com A");
+    expect(checklist[1]).toContain("<instance>.instances.example.com");
+    expect(checklist[2]).toContain("dig <instance>.instances.example.com A");
+    expect(checklist[3]).toContain(
+      "curl https://<instance>.instances.example.com",
+    );
   });
 
   test("throws when required config is missing", () => {
+    expect(() =>
+      ensureConfig(
+        {
+          ...baseConfig,
+          dnsEnabled: false,
+        },
+        "start-stack",
+      ),
+    ).toThrow("Missing saved configuration before start-stack");
     expect(() =>
       ensureConfig(
         {

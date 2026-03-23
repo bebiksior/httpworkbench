@@ -5,20 +5,23 @@ describe("buildDnsConfig", () => {
   test("returns dns disabled by default", () => {
     expect(buildDnsConfig({ DOMAIN: "example.com" })).toEqual({
       dnsEnabled: false,
+      instancesDomain: "instances.example.com",
     });
   });
 
-  test("uses the default delegated dns zone and nameservers when enabled", () => {
+  test("uses the default delegated instances zone and nameservers when enabled", () => {
     expect(
       buildDnsConfig({
         DOMAIN: "example.com",
         DNS_ENABLED: "true",
+        PUBLIC_IP: "203.0.113.10",
       }),
     ).toEqual({
       dnsEnabled: true,
-      dnsDomain: "dns.example.com",
+      instancesDomain: "instances.example.com",
       dnsPort: 53,
       dnsNameservers: ["ns1.example.com", "ns2.example.com"],
+      publicIp: "203.0.113.10",
     });
   });
 
@@ -27,15 +30,17 @@ describe("buildDnsConfig", () => {
       buildDnsConfig({
         DOMAIN: "example.com",
         DNS_ENABLED: "1",
-        DNS_DOMAIN: "queries.example.net.",
+        INSTANCES_DOMAIN: "interact.example.net.",
         DNS_PORT: "5300",
         DNS_NAMESERVERS: "ns-a.example.net, ns-b.example.net",
+        PUBLIC_IP: "198.51.100.20",
       }),
     ).toEqual({
       dnsEnabled: true,
-      dnsDomain: "queries.example.net",
+      instancesDomain: "interact.example.net",
       dnsPort: 5300,
       dnsNameservers: ["ns-a.example.net", "ns-b.example.net"],
+      publicIp: "198.51.100.20",
     });
   });
 });

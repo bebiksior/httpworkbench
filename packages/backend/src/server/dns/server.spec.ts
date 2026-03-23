@@ -28,15 +28,17 @@ const createBaseDeps = () => ({
 
 const createTestDnsConfig = (): DnsConfig => ({
   dnsEnabled: true,
-  dnsDomain: "dns.example.com",
+  instancesDomain: "instances.example.com",
   dnsPort: 0,
   dnsNameservers: ["ns1.example.com", "ns2.example.com"],
+  publicIp: "203.0.113.10",
 });
 
 const createRuntimeDnsConfig = () => ({
-  dnsDomain: "dns.example.com",
+  instancesDomain: "instances.example.com",
   dnsPort: 53,
   dnsNameservers: ["ns1.example.com", "ns2.example.com"],
+  publicIp: "203.0.113.10",
 });
 
 const sendUdpQuery = async (port: number, packet: Packet) => {
@@ -140,7 +142,7 @@ describe("createDnsServer", () => {
         id: 1,
         questions: [
           {
-            name: "foo.demo.dns.example.com",
+            name: "foo.demo.instances.example.com",
             type: "A",
           },
         ],
@@ -149,13 +151,23 @@ describe("createDnsServer", () => {
       const decoded = dnsPacket.decode(response);
 
       expect((decoded.flags ?? 0) & 0x000f).toBe(0);
+      expect(decoded.answers).toEqual([
+        {
+          type: "A",
+          name: "foo.demo.instances.example.com",
+          ttl: 60,
+          class: "IN",
+          flush: false,
+          data: "203.0.113.10",
+        },
+      ]);
       expect(logs).toHaveLength(1);
       expect(logs[0]).toMatchObject({
         instanceId: "demo",
         address: "127.0.0.1",
         addressVerified: false,
       });
-      expect(logs[0]?.raw).toContain("QNAME: foo.demo.dns.example.com");
+      expect(logs[0]?.raw).toContain("QNAME: foo.demo.instances.example.com");
       expect(broadcasts).toEqual(["log-1"]);
     } finally {
       await server.stop();
@@ -183,7 +195,7 @@ describe("createDnsServer", () => {
         id: 2,
         questions: [
           {
-            name: "demo.dns.example.com",
+            name: "demo.instances.example.com",
             type: "AAAA",
           },
         ],
@@ -220,7 +232,7 @@ describe("createDnsServer", () => {
         id: 3,
         questions: [
           {
-            name: "missing.dns.example.com",
+            name: "missing.instances.example.com",
             type: "A",
           },
         ],
@@ -281,7 +293,7 @@ describe("createDnsServer", () => {
         id: 5,
         questions: [
           {
-            name: "dns.example.com",
+            name: "instances.example.com",
             type: "NS",
           },
         ],
@@ -292,7 +304,7 @@ describe("createDnsServer", () => {
       expect(decoded.answers).toEqual([
         {
           type: "NS",
-          name: "dns.example.com",
+          name: "instances.example.com",
           ttl: 60,
           class: "IN",
           flush: false,
@@ -300,7 +312,7 @@ describe("createDnsServer", () => {
         },
         {
           type: "NS",
-          name: "dns.example.com",
+          name: "instances.example.com",
           ttl: 60,
           class: "IN",
           flush: false,
@@ -332,12 +344,12 @@ describe("createDnsServer", () => {
         {
           type: "query",
           id: 10,
-          questions: [{ name: "demo.dns.example.com", type: "A" }],
+          questions: [{ name: "demo.instances.example.com", type: "A" }],
         },
         {
           type: "query",
           id: 11,
-          questions: [{ name: "demo.dns.example.com", type: "TXT" }],
+          questions: [{ name: "demo.instances.example.com", type: "TXT" }],
         },
       ]);
 
@@ -394,7 +406,7 @@ describe("handleDnsRequest", () => {
         type: "query",
         id: 22,
         flags: dnsPacket.RECURSION_DESIRED,
-        questions: [{ name: "demo.dns.example.com", type: "A" }],
+        questions: [{ name: "demo.instances.example.com", type: "A" }],
       }),
       transport: "udp",
       clientAddress: "127.0.0.1",
@@ -419,7 +431,7 @@ describe("handleDnsRequest", () => {
       payload: dnsPacket.encode({
         type: "query",
         id: 23,
-        questions: [{ name: "dns.example.com", type: "SOA" }],
+        questions: [{ name: "instances.example.com", type: "SOA" }],
       }),
       transport: "udp",
       clientAddress: "127.0.0.1",
@@ -437,13 +449,13 @@ describe("handleDnsRequest", () => {
     expect(decoded.answers).toEqual([
       {
         type: "SOA",
-        name: "dns.example.com",
+        name: "instances.example.com",
         ttl: 60,
         class: "IN",
         flush: false,
         data: {
           mname: "ns1.example.com",
-          rname: "hostmaster.dns.example.com",
+          rname: "hostmaster.instances.example.com",
           serial: 1,
           refresh: 3600,
           retry: 600,
@@ -473,7 +485,7 @@ describe("handleDnsRequest", () => {
       payload: dnsPacket.streamEncode({
         type: "query",
         id: 24,
-        questions: [{ name: "demo.dns.example.com", type: "A" }],
+        questions: [{ name: "demo.instances.example.com", type: "A" }],
       }),
       transport: "tcp",
       clientAddress: "127.0.0.1",

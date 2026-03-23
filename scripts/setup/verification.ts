@@ -99,9 +99,12 @@ export const buildVerificationResult = (
 export const buildMainDnsRecordsResult = (params: {
   config: SetupConfig;
   rootRecords: string[];
-  wildcardRecords: string[];
+  ns1Records: string[];
+  ns2Records: string[];
 }): VerificationResult => {
-  const { config, rootRecords, wildcardRecords } = params;
+  const { config, rootRecords, ns1Records, ns2Records } = params;
+  const expectedNs1 = config.dnsNameservers[0] ?? "ns1";
+  const expectedNs2 = config.dnsNameservers[1] ?? "ns2";
 
   return buildVerificationResult([
     {
@@ -113,12 +116,20 @@ export const buildMainDnsRecordsResult = (params: {
           : `Resolved to: ${rootRecords.join(", ")}`,
     },
     {
-      label: `*.instances.${config.domain} wildcard resolves to the server IP`,
-      ok: wildcardRecords.includes(config.serverIp),
+      label: `${expectedNs1} resolves to the server IP`,
+      ok: ns1Records.includes(config.serverIp),
       details:
-        wildcardRecords.length === 0
-          ? "The wildcard record is not visible yet."
-          : `Resolved to: ${wildcardRecords.join(", ")}`,
+        ns1Records.length === 0
+          ? "No A record is visible yet."
+          : `Resolved to: ${ns1Records.join(", ")}`,
+    },
+    {
+      label: `${expectedNs2} resolves to the server IP`,
+      ok: ns2Records.includes(config.serverIp),
+      details:
+        ns2Records.length === 0
+          ? "No A record is visible yet."
+          : `Resolved to: ${ns2Records.join(", ")}`,
     },
   ]);
 };
@@ -150,7 +161,7 @@ export const buildDnsDelegationResult = (params: {
           : `Resolved to: ${ns2Records.join(", ")}`,
     },
     {
-      label: `${config.dnsDomain} delegates to the configured nameservers`,
+      label: `${config.instancesDomain} delegates to the configured nameservers`,
       ok: expectedNameservers.every((nameserver) =>
         delegatedNameservers.includes(nameserver),
       ),
@@ -168,7 +179,8 @@ export const buildHttpHealthSuccessResult = (params: {
   body: string;
 }): VerificationResult => {
   const { httpsUrl, status, body } = params;
-  const httpsOk = status >= 200 && status < 300 && body.includes('"status":"ok"');
+  const httpsOk =
+    status >= 200 && status < 300 && body.includes('"status":"ok"');
 
   return buildVerificationResult([
     {
@@ -212,7 +224,8 @@ export const buildHttpHealthFallbackResult = (params: {
 
   const httpBody = params.httpBody ?? "";
   const httpStatus = params.httpStatus ?? 0;
-  const httpOk = httpStatus >= 200 && httpStatus < 300 && httpBody.includes('"status":"ok"');
+  const httpOk =
+    httpStatus >= 200 && httpStatus < 300 && httpBody.includes('"status":"ok"');
 
   return buildVerificationResult([
     {
@@ -248,7 +261,9 @@ export const buildDnsServiceResult = (params: {
     },
     {
       label: `The app answers NS queries directly on ${config.serverIp}`,
-      ok: expectedNameservers.every((nameserver) => directNs.includes(nameserver)),
+      ok: expectedNameservers.every((nameserver) =>
+        directNs.includes(nameserver),
+      ),
       details:
         directNs.length === 0
           ? "No NS response yet."
@@ -268,16 +283,17 @@ export const buildDnsServiceResult = (params: {
 export const verifyMainDnsRecords = async (
   config: SetupConfig,
 ): Promise<VerificationResult> => {
-  const wildcardProbe = `setup-check-${Date.now()}.instances.${config.domain}`;
-  const [rootRecords, wildcardRecords] = await Promise.all([
+  const [rootRecords, ns1Records, ns2Records] = await Promise.all([
     resolveARecords(config.domain),
-    resolveARecords(wildcardProbe),
+    resolveARecords(config.dnsNameservers[0] ?? ""),
+    resolveARecords(config.dnsNameservers[1] ?? ""),
   ]);
 
   return buildMainDnsRecordsResult({
     config,
     rootRecords,
-    wildcardRecords,
+    ns1Records,
+    ns2Records,
   });
 };
 
@@ -287,7 +303,7 @@ export const verifyDnsDelegation = async (
   const [ns1Records, ns2Records, delegatedNameservers] = await Promise.all([
     resolveARecords(config.dnsNameservers[0] ?? ""),
     resolveARecords(config.dnsNameservers[1] ?? ""),
-    resolveNsRecords(config.dnsDomain),
+    resolveNsRecords(config.instancesDomain),
   ]);
 
   return buildDnsDelegationResult({
@@ -343,9 +359,9 @@ export const verifyDnsService = async (
 ): Promise<VerificationResult> => {
   const directServer = [config.serverIp];
   const [directSoa, directNs, publicSoa] = await Promise.all([
-    resolveSoaRecord(config.dnsDomain, directServer),
-    resolveNsRecords(config.dnsDomain, directServer),
-    resolveSoaRecord(config.dnsDomain),
+    resolveSoaRecord(config.instancesDomain, directServer),
+    resolveNsRecords(config.instancesDomain, directServer),
+    resolveSoaRecord(config.instancesDomain),
   ]);
 
   return buildDnsServiceResult({

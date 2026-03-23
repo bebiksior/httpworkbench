@@ -4,7 +4,6 @@ import {
   buildFinalChecklist,
   createInitialState,
   ensureConfig,
-  getComposeCommand,
   getNextWizardStep,
   getStepIndex,
   rootDir,
@@ -86,7 +85,7 @@ const main = async (): Promise<void> => {
         const preflight = await runPreflight(state);
         state = {
           ...state,
-          currentStep: getNextWizardStep(step, { dnsEnabled: false }),
+          currentStep: getNextWizardStep(step),
           detectedServerIp: preflight.detectedServerIp,
         };
         break;
@@ -95,7 +94,7 @@ const main = async (): Promise<void> => {
         config = await collectConfig(config, state);
         state = {
           ...state,
-          currentStep: getNextWizardStep(step, { dnsEnabled: config.dnsEnabled }),
+          currentStep: getNextWizardStep(step),
           serverIp: config.serverIp,
         };
         break;
@@ -105,7 +104,7 @@ const main = async (): Promise<void> => {
         await runMainDnsVerification(resolvedConfig);
         state = {
           ...state,
-          currentStep: getNextWizardStep(step, resolvedConfig),
+          currentStep: getNextWizardStep(step),
         };
         break;
       }
@@ -114,7 +113,7 @@ const main = async (): Promise<void> => {
         await showOauthInstructions(resolvedConfig);
         state = {
           ...state,
-          currentStep: getNextWizardStep(step, resolvedConfig),
+          currentStep: getNextWizardStep(step),
         };
         break;
       }
@@ -123,7 +122,7 @@ const main = async (): Promise<void> => {
         await runDnsDelegationVerification(resolvedConfig);
         state = {
           ...state,
-          currentStep: getNextWizardStep(step, resolvedConfig),
+          currentStep: getNextWizardStep(step),
         };
         break;
       }
@@ -132,7 +131,7 @@ const main = async (): Promise<void> => {
         await startStack(resolvedConfig);
         state = {
           ...state,
-          currentStep: getNextWizardStep(step, resolvedConfig),
+          currentStep: getNextWizardStep(step),
         };
         break;
       }
@@ -141,7 +140,7 @@ const main = async (): Promise<void> => {
         await runHttpVerification(resolvedConfig);
         state = {
           ...state,
-          currentStep: getNextWizardStep(step, resolvedConfig),
+          currentStep: getNextWizardStep(step),
         };
         break;
       }
@@ -150,7 +149,7 @@ const main = async (): Promise<void> => {
         await runDnsServiceVerification(resolvedConfig);
         state = {
           ...state,
-          currentStep: getNextWizardStep(step, resolvedConfig),
+          currentStep: getNextWizardStep(step),
         };
         break;
       }

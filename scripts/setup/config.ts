@@ -26,8 +26,8 @@ export const isValidDomain = (value: string): boolean => {
     );
 };
 
-export const buildDefaultDnsDomain = (domain: string): string => {
-  return `dns.${normalizeDomain(domain)}`;
+export const buildDefaultInstancesDomain = (domain: string): string => {
+  return `instances.${normalizeDomain(domain)}`;
 };
 
 export const buildDefaultNameservers = (domain: string): string[] => {

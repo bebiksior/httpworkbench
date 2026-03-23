@@ -4,7 +4,7 @@ const monthInMs = 30 * 24 * 60 * 60 * 1000;
 const hostedInstanceLimit = 50;
 const staticInstanceRawLimitBytes = 10 * 1024 * 1024;
 const defaultDnsPort = 53;
-const defaultDnsSubdomain = "dns";
+const defaultInstancesSubdomain = "instances";
 const env = typeof Bun !== "undefined" ? Bun.env : process.env;
 
 const isHosted = parseBooleanEnv(env.IS_HOSTED) ?? false;
@@ -20,9 +20,10 @@ export const instancePolicies = {
 
 export type DnsConfig = {
   dnsEnabled: boolean;
-  dnsDomain?: string;
+  instancesDomain: string;
   dnsPort?: number;
   dnsNameservers?: string[];
+  publicIp?: string;
 };
 
 const parseIntegerEnv = (
@@ -67,40 +68,36 @@ const parseNameservers = (
 export const buildDnsConfig = (
   runtimeEnv: Record<string, string | undefined>,
 ): DnsConfig => {
+  const domain = runtimeEnv.DOMAIN;
+  const fallbackInstancesDomain =
+    domain === undefined || domain === ""
+      ? `${defaultInstancesSubdomain}.localhost`
+      : `${defaultInstancesSubdomain}.${normalizeDnsName(domain)}`;
+  const instancesDomain = normalizeDnsName(
+    runtimeEnv.INSTANCES_DOMAIN ?? fallbackInstancesDomain,
+  );
   const dnsEnabled = parseBooleanEnv(runtimeEnv.DNS_ENABLED) ?? false;
   if (!dnsEnabled) {
     return {
       dnsEnabled: false,
-    };
-  }
-
-  const domain = runtimeEnv.DOMAIN;
-  const fallbackDnsDomain =
-    domain === undefined || domain === ""
-      ? undefined
-      : `${defaultDnsSubdomain}.${normalizeDnsName(domain)}`;
-  const dnsDomain = normalizeDnsName(
-    runtimeEnv.DNS_DOMAIN ?? fallbackDnsDomain ?? "",
-  );
-
-  if (dnsDomain === "") {
-    return {
-      dnsEnabled: false,
+      instancesDomain,
     };
   }
 
   return {
     dnsEnabled: true,
-    dnsDomain,
+    instancesDomain,
     dnsPort: parseIntegerEnv(runtimeEnv.DNS_PORT, defaultDnsPort),
     dnsNameservers: parseNameservers(runtimeEnv.DNS_NAMESERVERS, domain),
+    publicIp: runtimeEnv.PUBLIC_IP?.trim(),
   };
 };
 
 export const dnsConfig = buildDnsConfig(env);
+export const getCaddyAskSecret = () => env.CADDY_ASK_SECRET?.trim();
 
 export const appConfig = {
   ...instancePolicies,
   dnsEnabled: dnsConfig.dnsEnabled,
-  dnsDomain: dnsConfig.dnsDomain,
+  instancesDomain: dnsConfig.instancesDomain,
 };

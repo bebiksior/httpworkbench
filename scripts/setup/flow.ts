@@ -37,6 +37,10 @@ export const shouldRestartAtCollectConfig = (
   return (
     getStepIndex(state.currentStep) > getStepIndex("collect-config") &&
     (config.domain === undefined ||
+      config.instancesDomain === undefined ||
+      config.publicIp === undefined ||
+      config.caddyAskSecret === undefined ||
+      config.dnsEnabled !== true ||
       config.googleClientId === undefined ||
       config.googleClientSecret === undefined ||
       config.cloudflareApiToken === undefined)
@@ -45,7 +49,6 @@ export const shouldRestartAtCollectConfig = (
 
 export const getNextWizardStep = (
   step: Exclude<WizardStepId, "done">,
-  config: Pick<SetupConfig, "dnsEnabled">,
 ): WizardStepId => {
   switch (step) {
     case "preflight":
@@ -55,32 +58,29 @@ export const getNextWizardStep = (
     case "verify-main-dns":
       return "oauth";
     case "oauth":
-      return config.dnsEnabled ? "verify-dns-delegation" : "start-stack";
+      return "verify-dns-delegation";
     case "verify-dns-delegation":
       return "start-stack";
     case "start-stack":
       return "verify-http";
     case "verify-http":
-      return config.dnsEnabled ? "verify-dns-service" : "done";
+      return "verify-dns-service";
     case "verify-dns-service":
       return "done";
   }
 };
 
-export const getComposeCommand = (dnsEnabled: boolean): string => {
-  return dnsEnabled
-    ? "docker compose -f docker-compose.yml -f docker-compose.dns.yml up -d --build"
-    : "docker compose up -d --build";
+export const getComposeCommand = (): string => {
+  return "docker compose -f docker-compose.yml -f docker-compose.dns.yml up -d --build";
 };
 
 export const buildFinalChecklist = (config: SetupConfig): string[] => {
   return [
     `- Open ${config.frontendUrl}`,
-    "- Create an instance and send an HTTP request to its subdomain",
-    config.dnsEnabled
-      ? `- Query the DNS hostname shown in the instance details, for example: dig <instance>.${config.dnsDomain} A`
-      : "- Enable DNS logging later by rerunning the wizard and turning it on",
-    `- Start or restart the stack anytime with: ${getComposeCommand(config.dnsEnabled)}`,
+    `- Create an instance and note its interaction host: <instance>.${config.instancesDomain}`,
+    `- Test DNS logging with: dig <instance>.${config.instancesDomain} A`,
+    `- Test HTTP logging with: curl https://<instance>.${config.instancesDomain}`,
+    `- Start or restart the stack anytime with: ${getComposeCommand()}`,
   ];
 };
 
@@ -92,11 +92,13 @@ export const ensureConfig = (
     config.domain,
     config.frontendUrl,
     config.serverIp,
+    config.publicIp,
+    config.instancesDomain,
     config.jwtSecret,
+    config.caddyAskSecret,
     config.googleClientId,
     config.googleClientSecret,
     config.cloudflareApiToken,
-    config.dnsDomain,
   ];
 
   const hasRequiredNameservers =
@@ -104,7 +106,7 @@ export const ensureConfig = (
 
   if (
     required.some((value) => value === undefined || value === "") ||
-    config.dnsEnabled === undefined ||
+    config.dnsEnabled !== true ||
     config.dnsPort === undefined ||
     !hasRequiredNameservers
   ) {

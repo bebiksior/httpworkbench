@@ -1,5 +1,7 @@
 import type { Socket } from "bun";
 import { HttpForge } from "ts-http-forge";
+import { dnsConfig } from "../../config";
+import { resolveInstanceName } from "../nameResolution";
 
 const encoder = new TextEncoder();
 
@@ -21,58 +23,31 @@ type InstanceHostResult =
 
 export const parseInstanceIdFromHost = (
   host: string,
-  domain: string,
+  instancesDomain: string,
 ): InstanceHostResult => {
-  const instancesSubdomain = `instances.${domain}`;
-  if (host === instancesSubdomain) {
-    return {
-      kind: "error",
-      error: "Host is empty",
-    };
+  const resolution = resolveInstanceName(host, instancesDomain);
+  switch (resolution.kind) {
+    case "zone":
+    case "missing_instance":
+      return {
+        kind: "error",
+        error: "Host is empty",
+      };
+    case "out_of_zone":
+      return {
+        kind: "error",
+        error: "Host does not end with instances domain",
+      };
+    case "instance":
+      return {
+        kind: "ok",
+        instanceId: resolution.instanceId,
+      };
   }
-
-  const instancesSubdomainSuffix = `.${instancesSubdomain}`;
-
-  if (!host.endsWith(instancesSubdomainSuffix)) {
-    return {
-      kind: "error",
-      error: "Host does not end with instances subdomain",
-    };
-  }
-
-  const prefix = host.slice(0, -instancesSubdomainSuffix.length);
-
-  if (prefix === "") {
-    return {
-      kind: "error",
-      error: "Host is empty",
-    };
-  }
-
-  const parts = prefix.split(".");
-  const instanceId = parts[parts.length - 1];
-
-  if (instanceId === undefined || instanceId === "") {
-    return {
-      kind: "error",
-      error: "Instance ID is empty",
-    };
-  }
-
-  return {
-    kind: "ok",
-    instanceId,
-  };
 };
 
 export const getInstanceIDFromHost = (host: string): InstanceHostResult => {
-  const domain = Bun.env.DOMAIN;
-
-  if (domain === undefined || domain === "") {
-    throw new Error("DOMAIN environment variable is not set");
-  }
-
-  return parseInstanceIdFromHost(host, domain);
+  return parseInstanceIdFromHost(host, dnsConfig.instancesDomain);
 };
 
 export const respond = <T>(socket: Socket<T>, raw: Uint8Array) => {

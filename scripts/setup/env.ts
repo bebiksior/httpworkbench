@@ -1,7 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
 import * as path from "node:path";
 import {
-  buildDefaultDnsDomain,
   buildDefaultNameservers,
   formatNameservers,
   normalizeDomain,
@@ -60,9 +59,9 @@ export const loadExistingConfig = (rootDir: string): Partial<SetupConfig> => {
   const env = parseEnvFile(getEnvFilePath(rootDir));
   const domain = normalizeDomain(env.DOMAIN ?? "");
   const frontendUrl = env.FRONTEND_URL?.trim();
-  const dnsDomain =
-    normalizeDomain(env.DNS_DOMAIN ?? "") ||
-    (domain === "" ? "" : buildDefaultDnsDomain(domain));
+  const instancesDomain =
+    normalizeDomain(env.INSTANCES_DOMAIN ?? "") ||
+    (domain === "" ? "" : `instances.${domain}`);
   const dnsNameservers = normalizeNameservers(
     env.DNS_NAMESERVERS ??
       (domain === "" ? "" : formatNameservers(buildDefaultNameservers(domain))),
@@ -76,12 +75,15 @@ export const loadExistingConfig = (rootDir: string): Partial<SetupConfig> => {
         : domain === ""
           ? undefined
           : `https://${domain}`,
+    instancesDomain,
+    serverIp: env.PUBLIC_IP?.trim(),
+    publicIp: env.PUBLIC_IP?.trim(),
     jwtSecret: env.JWT_SECRET?.trim(),
+    caddyAskSecret: env.CADDY_ASK_SECRET?.trim(),
     googleClientId: env.GOOGLE_CLIENT_ID?.trim(),
     googleClientSecret: env.GOOGLE_CLIENT_SECRET?.trim(),
     cloudflareApiToken: env.CLOUDFLARE_API_TOKEN?.trim(),
     dnsEnabled: parseBoolean(env.DNS_ENABLED),
-    dnsDomain,
     dnsPort: parseInteger(env.DNS_PORT, 53),
     dnsNameservers,
   };
@@ -91,11 +93,14 @@ export const buildEnvFileContent = (config: SetupConfig): string => {
   return [
     `DOMAIN=${config.domain}`,
     `FRONTEND_URL=${config.frontendUrl}`,
+    `INSTANCES_DOMAIN=${config.instancesDomain}`,
     "",
     "API_PORT=8081",
     "INSTANCES_PORT=8082",
     "",
+    `PUBLIC_IP=${config.publicIp}`,
     `JWT_SECRET=${config.jwtSecret}`,
+    `CADDY_ASK_SECRET=${config.caddyAskSecret}`,
     `GOOGLE_CLIENT_ID=${config.googleClientId}`,
     `GOOGLE_CLIENT_SECRET=${config.googleClientSecret}`,
     "",
@@ -110,7 +115,6 @@ export const buildEnvFileContent = (config: SetupConfig): string => {
     "ALLOW_GUEST=false",
     "",
     `DNS_ENABLED=${config.dnsEnabled ? "true" : "false"}`,
-    `DNS_DOMAIN=${config.dnsDomain}`,
     `DNS_PORT=${config.dnsPort}`,
     `DNS_NAMESERVERS=${formatNameservers(config.dnsNameservers)}`,
     "",

@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import {
-  buildDefaultDnsDomain,
+  buildDefaultInstancesDomain,
   buildDefaultNameservers,
   formatNameservers,
   isValidDomain,
@@ -15,7 +15,9 @@ describe("setup config helpers", () => {
   });
 
   test("builds delegated dns defaults", () => {
-    expect(buildDefaultDnsDomain("example.com")).toBe("dns.example.com");
+    expect(buildDefaultInstancesDomain("example.com")).toBe(
+      "instances.example.com",
+    );
     expect(buildDefaultNameservers("example.com")).toEqual([
       "ns1.example.com",
       "ns2.example.com",

@@ -6,7 +6,7 @@ import { storeToRefs } from "pinia";
 import { useTimeAgo } from "@vueuse/core";
 import dayjs from "dayjs";
 import { useNotify } from "@/composables";
-import { config, getDnsInstanceHost } from "@/config";
+import { config } from "@/config";
 import {
   useClearLogs,
   useCloneInstance,
@@ -16,7 +16,7 @@ import {
   useSetInstanceLocked,
   useUpdateInstance,
 } from "@/queries/domains/useInstances";
-import { useAuthStore, useConfigStore } from "@/stores";
+import { useAuthStore } from "@/stores";
 import { isAbsent, isPresent } from "@/utils/types";
 import { useFileUpload } from "./useFileUpload";
 
@@ -41,16 +41,10 @@ export const useInstanceDataLogic = (instance: Ref<Instance>) => {
 
   const authStore = useAuthStore();
   const { isGuest } = storeToRefs(authStore);
-  const configStore = useConfigStore();
-  const { config: appConfig } = storeToRefs(configStore);
 
   const instanceHost = computed(() =>
     config.getInstanceHost(instance.value.id),
   );
-  const dnsHost = computed(() =>
-    getDnsInstanceHost(instance.value.id, appConfig.value?.dnsDomain),
-  );
-  const isDnsEnabled = computed(() => appConfig.value?.dnsEnabled === true);
   const isLocked = computed(() => instance.value.locked);
 
   const rawContent = ref("");
@@ -145,15 +139,6 @@ export const useInstanceDataLogic = (instance: Ref<Instance>) => {
 
   const handleCopy = async () => {
     await navigator.clipboard.writeText(instanceHost.value);
-    notify.copied();
-  };
-
-  const handleCopyDns = async () => {
-    if (dnsHost.value === undefined) {
-      return;
-    }
-
-    await navigator.clipboard.writeText(dnsHost.value);
     notify.copied();
   };
 
@@ -370,8 +355,6 @@ export const useInstanceDataLogic = (instance: Ref<Instance>) => {
 
   return {
     instanceHost,
-    dnsHost,
-    isDnsEnabled,
     rawContent,
     isDirty,
     isUpdating,
@@ -392,7 +375,6 @@ export const useInstanceDataLogic = (instance: Ref<Instance>) => {
     editLabel,
     labelInputRef,
     handleCopy,
-    handleCopyDns,
     handleSave,
     handleEditorChange,
     handleDelete,

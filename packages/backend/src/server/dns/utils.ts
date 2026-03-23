@@ -1,5 +1,10 @@
 import * as dnsPacket from "dns-packet";
 import type { Answer, Packet, Question } from "dns-packet";
+import {
+  normalizeHostname,
+  resolveInstanceName,
+  type InstanceNameResolution,
+} from "../nameResolution";
 
 const DNS_RESPONSE_CODES = {
   NOERROR: 0,
@@ -16,9 +21,10 @@ const defaultDnsExpireSeconds = 86400;
 const defaultDnsMinimumSeconds = 60;
 
 export type DnsRuntimeConfig = {
-  dnsDomain: string;
+  instancesDomain: string;
   dnsPort: number;
   dnsNameservers: string[];
+  publicIp: string;
 };
 
 type DnsResponseOptions = {
@@ -30,62 +36,23 @@ type DnsResponseOptions = {
 
 export type DnsQuestion = Question;
 
-export type DnsNameResolution =
-  | {
-      kind: "zone";
-    }
-  | {
-      kind: "instance";
-      instanceId: string;
-    }
-  | {
-      kind: "out_of_zone";
-    }
-  | {
-      kind: "missing_instance";
-    };
+export type DnsNameResolution = InstanceNameResolution;
 
 export const normalizeDnsName = (value: string): string => {
-  return value.trim().replace(/\.+$/, "").toLowerCase();
+  return normalizeHostname(value);
 };
 
 export const parseInstanceIdFromDnsName = (
   name: string,
-  dnsDomain: string,
+  instancesDomain: string,
 ): DnsNameResolution => {
-  const normalizedName = normalizeDnsName(name);
-  const normalizedDomain = normalizeDnsName(dnsDomain);
-
-  if (normalizedName === normalizedDomain) {
-    return { kind: "zone" };
-  }
-
-  const suffix = `.${normalizedDomain}`;
-  if (!normalizedName.endsWith(suffix)) {
-    return { kind: "out_of_zone" };
-  }
-
-  const prefix = normalizedName.slice(0, -suffix.length);
-  if (prefix === "") {
-    return { kind: "missing_instance" };
-  }
-
-  const parts = prefix.split(".").filter((part) => part !== "");
-  const instanceId = parts[parts.length - 1];
-  if (instanceId === undefined || instanceId === "") {
-    return { kind: "missing_instance" };
-  }
-
-  return {
-    kind: "instance",
-    instanceId,
-  };
+  return resolveInstanceName(name, instancesDomain);
 };
 
 export const formatDnsLogSummary = (params: {
   question: DnsQuestion;
   transport: "udp" | "tcp";
-  dnsDomain: string;
+  instancesDomain: string;
 }): string => {
   const recordClass = params.question.class ?? "IN";
 
@@ -94,7 +61,7 @@ export const formatDnsLogSummary = (params: {
     `QTYPE: ${params.question.type}`,
     `QCLASS: ${recordClass}`,
     `TRANSPORT: ${params.transport.toUpperCase()}`,
-    `ZONE: ${normalizeDnsName(params.dnsDomain)}`,
+    `ZONE: ${normalizeDnsName(params.instancesDomain)}`,
   ].join("\n");
 };
 
@@ -104,7 +71,7 @@ export const buildDnsZoneAnswers = (
 ): {
   answers: Answer[];
 } => {
-  const normalizedZone = normalizeDnsName(config.dnsDomain);
+  const normalizedZone = normalizeDnsName(config.instancesDomain);
   const normalizedNameservers = config.dnsNameservers.map(normalizeDnsName);
   const ttl = defaultDnsMinimumSeconds;
 
@@ -142,6 +109,30 @@ export const buildDnsZoneAnswers = (
         answers: [],
       };
   }
+};
+
+export const buildDnsInstanceAnswers = (
+  question: DnsQuestion,
+  config: DnsRuntimeConfig,
+): {
+  answers: Answer[];
+} => {
+  if (question.type !== "A") {
+    return {
+      answers: [],
+    };
+  }
+
+  return {
+    answers: [
+      {
+        type: "A" as const,
+        name: normalizeDnsName(question.name),
+        ttl: defaultDnsMinimumSeconds,
+        data: config.publicIp,
+      },
+    ],
+  };
 };
 
 export const buildDnsResponse = ({

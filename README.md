@@ -91,32 +91,36 @@ The wizard will:
 The base setup will have you create:
 
 - `A yourdomain.com` → Your server IP
-- `A *.instances.yourdomain.com` → Your server IP
+- `A ns1.yourdomain.com` → Your server IP
+- `A ns2.yourdomain.com` → Your server IP
+- `NS instances.yourdomain.com` → `ns1.yourdomain.com`
+- `NS instances.yourdomain.com` → `ns2.yourdomain.com`
 - Google OAuth redirect URI: `https://yourdomain.com/api/auth/google/callback`
 
 The wizard can start the stack for you, or you can run the compose command yourself at the end. The first startup may take a few minutes to build images and provision SSL certificates.
 
-### Optional DNS Query Logging
+### Interaction Hostnames
 
-DNS query logging is opt-in for self-hosted deployments. The default setup continues to work without DNS.
+HTTP Workbench uses a delegated child zone, which defaults to `instances.yourdomain.com`, for both HTTP and DNS interaction logging.
 
-When `DNS_ENABLED=true`, the backend becomes authoritative for a separate delegated zone, which defaults to `dns.yourdomain.com`. Queries to `*.dns.yourdomain.com` are logged and attached to the matching instance.
+That means a hostname like `abc.instances.yourdomain.com` is used for:
 
-If you enable DNS logging in the wizard, it will also walk you through:
+- HTTP/HTTPS interaction logging
+- DNS interaction logging
 
-- `ns1.yourdomain.com` → your server IP
-- `ns2.yourdomain.com` → your server IP
+To make that work:
 
-- Add `NS` records for `dns.yourdomain.com`
-- Point them at `ns1.yourdomain.com` and `ns2.yourdomain.com`
+- Keep your main app domain on Cloudflare
+- Delegate `instances.yourdomain.com` to `ns1.yourdomain.com` and `ns2.yourdomain.com`
 - Open public UDP and TCP port `53`
+- Make sure public `80` and `443` also reach the VPS directly for the delegated interaction zone
 - Start with:
 
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.dns.yml up -d --build
 ```
 
-ACME is unaffected by this setup because wildcard HTTPS remains on `*.instances.yourdomain.com`, while DNS logging uses a separate delegated zone and does not need TLS.
+The main app certificate still uses Cloudflare DNS challenge. Instance subdomains under the delegated interaction zone are issued directly with on-demand TLS by Caddy the first time they are requested, stored in Caddy's persistent data volume, and renewed automatically.
 
 ## Your Data
 

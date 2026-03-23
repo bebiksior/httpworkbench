@@ -75,7 +75,7 @@ export const ConfigSchema = z.object({
   maxInstancesPerOwner: z.number().optional(),
   rawLimitBytes: z.number(),
   dnsEnabled: z.boolean(),
-  dnsDomain: z.string().optional(),
+  instancesDomain: z.string(),
 });
 
 export type Config = z.infer<typeof ConfigSchema>;

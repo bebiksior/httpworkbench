@@ -8,7 +8,10 @@ import {
 describe("parseInstanceIdFromHost", () => {
   test("extracts the instance id from an instances subdomain host", () => {
     expect(
-      parseInstanceIdFromHost("demo.instances.example.com", "example.com"),
+      parseInstanceIdFromHost(
+        "demo.instances.example.com",
+        "instances.example.com",
+      ),
     ).toEqual({
       kind: "ok",
       instanceId: "demo",
@@ -17,7 +20,22 @@ describe("parseInstanceIdFromHost", () => {
 
   test("uses the last host label before instances domain as instance id", () => {
     expect(
-      parseInstanceIdFromHost("team.demo.instances.example.com", "example.com"),
+      parseInstanceIdFromHost(
+        "team.demo.instances.example.com",
+        "instances.example.com",
+      ),
+    ).toEqual({
+      kind: "ok",
+      instanceId: "demo",
+    });
+  });
+
+  test("ignores a host port when extracting the instance id", () => {
+    expect(
+      parseInstanceIdFromHost(
+        "demo.instances.example.com:443",
+        "instances.example.com",
+      ),
     ).toEqual({
       kind: "ok",
       instanceId: "demo",
@@ -26,16 +44,16 @@ describe("parseInstanceIdFromHost", () => {
 
   test("returns an error when host does not belong to instances subdomain", () => {
     expect(
-      parseInstanceIdFromHost("demo.api.example.com", "example.com"),
+      parseInstanceIdFromHost("demo.api.example.com", "instances.example.com"),
     ).toEqual({
       kind: "error",
-      error: "Host does not end with instances subdomain",
+      error: "Host does not end with instances domain",
     });
   });
 
   test("returns an error when instance id is missing", () => {
     expect(
-      parseInstanceIdFromHost("instances.example.com", "example.com"),
+      parseInstanceIdFromHost("instances.example.com", "instances.example.com"),
     ).toEqual({
       kind: "error",
       error: "Host is empty",

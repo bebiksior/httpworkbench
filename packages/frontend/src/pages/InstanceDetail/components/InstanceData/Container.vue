@@ -26,8 +26,6 @@ const { instance } = toRefs(props);
 
 const {
   instanceHost,
-  dnsHost,
-  isDnsEnabled,
   rawContent,
   isDirty,
   isUpdating,
@@ -46,7 +44,6 @@ const {
   fileInputRef,
   triggerFileUpload,
   handleCopy,
-  handleCopyDns,
   selectedWebhookIds,
   showExpirationNotice,
   expirationText,
@@ -198,7 +195,7 @@ const formattedDate = computed(() => {
         <label
           class="text-sm font-medium text-surface-700 dark:text-surface-300"
         >
-          Subdomain
+          Interaction Host
         </label>
         <div class="flex gap-2">
           <InputText
@@ -214,32 +211,8 @@ const formattedDate = computed(() => {
           />
         </div>
         <p class="text-xs text-surface-500">
-          Send HTTP requests to this subdomain to see them appear in the logs.
-          Supports HTTP and HTTPS protocols.
-        </p>
-      </div>
-
-      <div v-if="isDnsEnabled && dnsHost" class="flex flex-col gap-2">
-        <label
-          class="text-sm font-medium text-surface-700 dark:text-surface-300"
-        >
-          DNS Hostname
-        </label>
-        <div class="flex gap-2">
-          <InputText
-            :value="dnsHost"
-            readonly
-            class="w-full font-mono text-sm bg-surface-50 dark:bg-surface-800"
-          />
-          <Button
-            icon="pi pi-copy"
-            severity="secondary"
-            outlined
-            @click="handleCopyDns"
-          />
-        </div>
-        <p class="text-xs text-surface-500">
-          Send DNS queries to this hostname to see them appear in the logs.
+          Send HTTP, HTTPS, and DNS requests to this host to see them appear in
+          the logs.
         </p>
       </div>
 

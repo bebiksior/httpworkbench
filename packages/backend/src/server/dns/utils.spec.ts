@@ -1,6 +1,7 @@
 import * as dnsPacket from "dns-packet";
 import { describe, expect, test } from "vitest";
 import {
+  buildDnsInstanceAnswers,
   buildDnsResponse,
   buildDnsZoneAnswers,
   DNS_RCODE,
@@ -9,9 +10,12 @@ import {
 } from "./utils";
 
 describe("parseInstanceIdFromDnsName", () => {
-  test("extracts the instance id from a delegated dns zone", () => {
+  test("extracts the instance id from the instances zone", () => {
     expect(
-      parseInstanceIdFromDnsName("demo.dns.example.com", "dns.example.com"),
+      parseInstanceIdFromDnsName(
+        "demo.instances.example.com",
+        "instances.example.com",
+      ),
     ).toEqual({
       kind: "instance",
       instanceId: "demo",
@@ -21,8 +25,8 @@ describe("parseInstanceIdFromDnsName", () => {
   test("uses the last label before the delegated zone as the instance id", () => {
     expect(
       parseInstanceIdFromDnsName(
-        "foo.bar.demo.dns.example.com",
-        "dns.example.com",
+        "foo.bar.demo.instances.example.com",
+        "instances.example.com",
       ),
     ).toEqual({
       kind: "instance",
@@ -32,7 +36,10 @@ describe("parseInstanceIdFromDnsName", () => {
 
   test("recognizes the zone apex", () => {
     expect(
-      parseInstanceIdFromDnsName("dns.example.com", "dns.example.com"),
+      parseInstanceIdFromDnsName(
+        "instances.example.com",
+        "instances.example.com",
+      ),
     ).toEqual({
       kind: "zone",
     });
@@ -40,7 +47,7 @@ describe("parseInstanceIdFromDnsName", () => {
 
   test("returns out_of_zone for names outside the delegated zone", () => {
     expect(
-      parseInstanceIdFromDnsName("demo.example.com", "dns.example.com"),
+      parseInstanceIdFromDnsName("demo.example.com", "instances.example.com"),
     ).toEqual({
       kind: "out_of_zone",
     });
@@ -52,20 +59,20 @@ describe("formatDnsLogSummary", () => {
     expect(
       formatDnsLogSummary({
         question: {
-          name: "Demo.DNS.Example.com.",
+          name: "Demo.Instances.Example.com.",
           type: "A",
           class: "IN",
         },
         transport: "udp",
-        dnsDomain: "dns.example.com",
+        instancesDomain: "instances.example.com",
       }),
     ).toBe(
       [
-        "QNAME: demo.dns.example.com",
+        "QNAME: demo.instances.example.com",
         "QTYPE: A",
         "QCLASS: IN",
         "TRANSPORT: UDP",
-        "ZONE: dns.example.com",
+        "ZONE: instances.example.com",
       ].join("\n"),
     );
   });
@@ -76,27 +83,54 @@ describe("buildDnsZoneAnswers", () => {
     expect(
       buildDnsZoneAnswers(
         {
-          name: "dns.example.com",
+          name: "instances.example.com",
           type: "NS",
         },
         {
-          dnsDomain: "dns.example.com",
+          instancesDomain: "instances.example.com",
           dnsPort: 53,
           dnsNameservers: ["ns1.example.com", "ns2.example.com"],
+          publicIp: "203.0.113.10",
         },
       ).answers,
     ).toEqual([
       {
         type: "NS",
-        name: "dns.example.com",
+        name: "instances.example.com",
         ttl: 60,
         data: "ns1.example.com",
       },
       {
         type: "NS",
-        name: "dns.example.com",
+        name: "instances.example.com",
         ttl: 60,
         data: "ns2.example.com",
+      },
+    ]);
+  });
+});
+
+describe("buildDnsInstanceAnswers", () => {
+  test("returns an A answer for a known instance hostname", () => {
+    expect(
+      buildDnsInstanceAnswers(
+        {
+          name: "demo.instances.example.com",
+          type: "A",
+        },
+        {
+          instancesDomain: "instances.example.com",
+          dnsPort: 53,
+          dnsNameservers: ["ns1.example.com", "ns2.example.com"],
+          publicIp: "203.0.113.10",
+        },
+      ).answers,
+    ).toEqual([
+      {
+        type: "A",
+        name: "demo.instances.example.com",
+        ttl: 60,
+        data: "203.0.113.10",
       },
     ]);
   });
@@ -110,7 +144,7 @@ describe("buildDnsResponse", () => {
           id: 7,
           questions: [
             {
-              name: "demo.dns.example.com",
+              name: "demo.instances.example.com",
               type: "A",
             },
           ],

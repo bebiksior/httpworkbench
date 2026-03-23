@@ -1,5 +1,8 @@
 {
 	admin off
+	on_demand_tls {
+		ask http://backend:8081/api/internal/tls/allow?domain={host}&token={$CADDY_ASK_SECRET}
+	}
 	auto_https disable_redirects
 	log {
 		level ERROR
@@ -29,16 +32,22 @@ http://{$DOMAIN}, https://{$DOMAIN} {
 	}
 }
 
-http://*.instances.{$DOMAIN}, https://*.instances.{$DOMAIN} {
+http://, https:// {
 	tls {
-		dns cloudflare {env.CLOUDFLARE_API_TOKEN}
+		on_demand
 	}
 
-	reverse_proxy backend:8082 {
-		header_up X-Internal-Real-IP {remote_host}
-		header_up -X-Forwarded-For
-		header_up -X-Forwarded-Host
-		header_up -X-Forwarded-Proto
-		header_up -Via
+	@instances expression `{host} == "{$INSTANCES_DOMAIN}" || {host}.endsWith(".{$INSTANCES_DOMAIN}")`
+
+	handle @instances {
+		reverse_proxy backend:8082 {
+			header_up X-Internal-Real-IP {remote_host}
+			header_up -X-Forwarded-For
+			header_up -X-Forwarded-Host
+			header_up -X-Forwarded-Proto
+			header_up -Via
+		}
 	}
+
+	abort
 }

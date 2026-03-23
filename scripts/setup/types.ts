@@ -13,12 +13,14 @@ export type SetupConfig = {
   domain: string;
   frontendUrl: string;
   serverIp: string;
+  publicIp: string;
+  instancesDomain: string;
   jwtSecret: string;
+  caddyAskSecret: string;
   googleClientId: string;
   googleClientSecret: string;
   cloudflareApiToken: string;
   dnsEnabled: boolean;
-  dnsDomain: string;
   dnsPort: number;
   dnsNameservers: string[];
 };

@@ -10,7 +10,9 @@ RUN bun install --frozen-lockfile
 
 FROM base AS build
 ARG VITE_DOMAIN=localhost
+ARG VITE_INSTANCES_DOMAIN=
 ENV VITE_DOMAIN=${VITE_DOMAIN}
+ENV VITE_INSTANCES_DOMAIN=${VITE_INSTANCES_DOMAIN}
 COPY --from=deps /app/node_modules node_modules
 COPY . .
 WORKDIR /app/packages/frontend

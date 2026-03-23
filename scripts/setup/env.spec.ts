@@ -14,12 +14,15 @@ describe("setup env helpers", () => {
       expect(loadExistingConfig(tempDir)).toEqual({
         domain: "",
         frontendUrl: undefined,
+        instancesDomain: "",
+        serverIp: undefined,
+        publicIp: undefined,
         jwtSecret: undefined,
+        caddyAskSecret: undefined,
         googleClientId: undefined,
         googleClientSecret: undefined,
         cloudflareApiToken: undefined,
         dnsEnabled: false,
-        dnsDomain: "",
         dnsPort: 53,
         dnsNameservers: [],
       });
@@ -41,8 +44,10 @@ describe("setup env helpers", () => {
       expect(loadExistingConfig(tempDir)).toMatchObject({
         domain: "example.com",
         frontendUrl: "https://example.com",
+        instancesDomain: "instances.example.com",
         dnsEnabled: true,
-        dnsDomain: "dns.example.com",
+        serverIp: undefined,
+        publicIp: undefined,
         dnsNameservers: ["ns1.example.com", "ns2.example.com"],
       });
     } finally {

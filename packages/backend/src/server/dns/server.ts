@@ -4,6 +4,7 @@ import type { Packet } from "dns-packet";
 import type { Instance, Log } from "shared";
 import { dnsConfig, type DnsConfig } from "../../config";
 import {
+  buildDnsInstanceAnswers,
   buildDnsResponse,
   buildDnsZoneAnswers,
   decodeTcpQuery,
@@ -50,8 +51,8 @@ const toRuntimeDnsConfig = (config: DnsConfig): DnsRuntimeConfig => {
     throw new Error("DNS is not enabled");
   }
 
-  if (config.dnsDomain === undefined || config.dnsDomain === "") {
-    throw new Error("DNS domain is not configured");
+  if (config.instancesDomain === "") {
+    throw new Error("Instances domain is not configured");
   }
 
   if (config.dnsPort === undefined) {
@@ -65,10 +66,15 @@ const toRuntimeDnsConfig = (config: DnsConfig): DnsRuntimeConfig => {
     throw new Error("DNS nameservers are not configured");
   }
 
+  if (config.publicIp === undefined || config.publicIp === "") {
+    throw new Error("DNS public IP is not configured");
+  }
+
   return {
-    dnsDomain: config.dnsDomain,
+    instancesDomain: config.instancesDomain,
     dnsPort: config.dnsPort,
     dnsNameservers: config.dnsNameservers,
+    publicIp: config.publicIp,
   };
 };
 
@@ -110,7 +116,7 @@ export const handleDnsRequest = async ({
 
     const resolution = parseInstanceIdFromDnsName(
       question.name,
-      config.dnsDomain,
+      config.instancesDomain,
     );
     switch (resolution.kind) {
       case "zone": {
@@ -159,7 +165,7 @@ export const handleDnsRequest = async ({
           raw: formatDnsLogSummary({
             question,
             transport,
-            dnsDomain: config.dnsDomain,
+            instancesDomain: config.instancesDomain,
           }),
         } satisfies Log;
 
@@ -169,6 +175,7 @@ export const handleDnsRequest = async ({
         const response = buildDnsResponse({
           request,
           code: DNS_RCODE.NOERROR,
+          answers: buildDnsInstanceAnswers(question, config).answers,
         });
 
         return encodeDnsResponse(transport, response);
@@ -344,7 +351,7 @@ export const createDnsServer = async ({
   const tcpPort = getBoundPort(tcpServer);
 
   console.log(
-    `DNS server running on port ${udpPort} (UDP) and ${tcpPort} (TCP) for ${runtimeConfig.dnsDomain}`,
+    `DNS server running on port ${udpPort} (UDP) and ${tcpPort} (TCP) for ${runtimeConfig.instancesDomain}`,
   );
 
   return {
