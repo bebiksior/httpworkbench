@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 import {
   buildDnsDelegationResult,
+  buildDnsRecordsResult,
   buildDnsServiceResult,
   buildHttpHealthFallbackResult,
   buildHttpHealthSuccessResult,
@@ -55,14 +56,24 @@ describe("setup verification helpers", () => {
     const result = buildMainDnsRecordsResult({
       config,
       rootRecords: ["203.0.113.10"],
-      ns1Records: ["203.0.113.10"],
-      ns2Records: ["198.51.100.2"],
     });
 
-    expect(result.success).toBe(false);
+    expect(result.success).toBe(true);
     expect(result.items[0]?.ok).toBe(true);
-    expect(result.items[1]?.ok).toBe(true);
-    expect(result.items[2]?.ok).toBe(false);
+    expect(result.items).toHaveLength(1);
+  });
+
+  test("evaluates combined DNS record setup", () => {
+    const result = buildDnsRecordsResult({
+      config,
+      rootRecords: ["203.0.113.10"],
+      ns1Records: ["203.0.113.10"],
+      ns2Records: ["203.0.113.10"],
+      delegatedNameservers: ["ns1.example.com", "ns2.example.com"],
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.items).toHaveLength(4);
   });
 
   test("evaluates DNS delegation visibility", () => {

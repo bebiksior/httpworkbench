@@ -3,12 +3,9 @@ import * as path from "node:path";
 import {
   buildDefaultInstancesDomain,
   buildDefaultNameservers,
-  formatNameservers,
   isValidDomain,
   isValidIpv4,
-  maskSecret,
   normalizeDomain,
-  normalizeNameservers,
 } from "./config";
 import { commandExists, runCommand, tailLines } from "./commands";
 import { buildEnvFileContent } from "./env";
@@ -16,13 +13,14 @@ import { getComposeCommand, rootDir } from "./flow";
 import {
   detectPublicServerIp,
   formatRecords,
-  verifyDnsDelegation,
+  verifyDnsRecords,
   verifyDnsService,
   verifyHttpHealth,
-  verifyMainDnsRecords,
 } from "./verification";
 import {
   cancelled,
+  colorError,
+  colorSuccess,
   log,
   note,
   promptConfirm,
@@ -39,11 +37,11 @@ import type {
   VerificationResult,
 } from "./types";
 
-export const buildMainDnsVerificationInstructions = (
+export const buildDnsRecordsInstructions = (
   config: SetupConfig,
 ): string => {
   return [
-    "Keep your main app domain on Cloudflare, then create these records before continuing:",
+    "Create these records in Cloudflare:",
     "",
     formatRecords([
       {
@@ -51,27 +49,6 @@ export const buildMainDnsVerificationInstructions = (
         host: config.domain,
         value: config.serverIp,
       },
-      {
-        type: "A",
-        host: config.dnsNameservers[0] ?? "ns1",
-        value: config.serverIp,
-      },
-      {
-        type: "A",
-        host: config.dnsNameservers[1] ?? "ns2",
-        value: config.serverIp,
-      },
-    ]),
-    "",
-    `Do not create a wildcard A record for ${config.instancesDomain}. That child zone will be delegated to this server instead.`,
-  ].join("\n");
-};
-
-export const buildDnsDelegationInstructions = (config: SetupConfig): string => {
-  return [
-    "Delegate the interaction zone to this server before continuing:",
-    "",
-    formatRecords([
       {
         type: "A",
         host: config.dnsNameservers[0] ?? "ns1",
@@ -94,33 +71,46 @@ export const buildDnsDelegationInstructions = (config: SetupConfig): string => {
       },
     ]),
     "",
-    `After delegation, queries for <instance>.${config.instancesDomain} will bypass Cloudflare and go straight to this VPS.`,
-    "Open public UDP and TCP port 53 on the server firewall as part of this step.",
-    "Public ports 80 and 443 must also reach this VPS directly so Caddy can issue and renew HTTPS certificates for instance hosts.",
+    `${config.domain}: Proxied or DNS only`,
+    `${config.dnsNameservers[0] ?? "ns1"} and ${config.dnsNameservers[1] ?? "ns2"}: DNS only`,
+    `Do not create *.${config.instancesDomain}`,
+    "Open public ports 53, 80, and 443 to this VPS.",
   ].join("\n");
 };
 
 export const buildStartServicesNote = (): string => {
   return [
-    "The wizard can start the stack for you now.",
+    "Run this command to start the stack:",
     "",
     getComposeCommand(),
-    "",
-    "This uses the DNS compose override because instance HTTP and DNS traffic share the delegated interaction zone.",
   ].join("\n");
 };
 
 export const buildDomainSetupInstructions = (): string => {
   return [
-    "Before you begin, make sure the domain you plan to use is managed in Cloudflare DNS.",
+    "Use a domain that is managed in Cloudflare DNS.",
     "",
-    "HTTP Workbench keeps the main app on your root domain and delegates a child interaction zone to this VPS.",
-    "That lets the same hostname log both HTTP and DNS activity, similar to interact.sh.",
-    "Later in the setup, the wizard will ask you to create records like:",
-    "- yourdomain.com",
-    "- ns1.yourdomain.com",
-    "- ns2.yourdomain.com",
-    "- NS instances.yourdomain.com -> ns1/ns2.yourdomain.com",
+    "The wizard will set up:",
+    "- yourdomain.com for the main app",
+    "- instances.yourdomain.com for interaction hosts",
+  ].join("\n");
+};
+
+export const buildCloudflareDomainActivationInstructions = (
+  config: Pick<SetupConfig, "domain">,
+): string => {
+  return [
+    "Add the domain to Cloudflare first:",
+    "",
+    "1. Open the Cloudflare dashboard.",
+    `2. Click Add a domain and enter ${config.domain}.`,
+    "3. Finish the add-domain flow.",
+    "4. Copy the two nameservers Cloudflare gives you.",
+    "5. Open your domain registrar.",
+    "6. Replace the current nameservers with the two Cloudflare nameservers.",
+    "7. Wait until Cloudflare shows the zone as Active.",
+    "",
+    "Then return here and continue.",
   ].join("\n");
 };
 
@@ -141,11 +131,9 @@ export const buildServerIpInstructions = (
   }
 
   return [
-    "The next prompt is prefilled with the public IPv4 detected during preflight.",
+    "Detected public IPv4:",
     "",
-    `Detected public IPv4: ${state.detectedServerIp}`,
-    "",
-    "Change it only if this server is behind another public IP, reverse proxy, or load balancer.",
+    state.detectedServerIp,
   ].join("\n");
 };
 
@@ -153,16 +141,13 @@ export const buildCloudflareTokenInstructions = (
   config: Pick<SetupConfig, "domain">,
 ): string => {
   return [
-    "HTTP Workbench uses a Cloudflare API token so Caddy can request HTTPS certificates for the main app domain through Cloudflare DNS.",
+    "Create a Cloudflare API token:",
     "",
-    "In Cloudflare:",
-    "1. Go to My Profile -> API Tokens",
-    "2. Click Create Token",
-    "3. Use the Edit zone DNS template as the easiest option",
-    `4. Scope it to the ${config.domain} zone`,
-    "5. Copy the token and paste it into the next prompt",
-    "",
-    "The main app stays on Cloudflare. Instance subdomains under the delegated interaction zone are issued directly with on-demand TLS by this server.",
+    "1. Open My Profile -> API Tokens.",
+    "2. Click Create Token.",
+    "3. Use the Edit zone DNS template.",
+    `4. Scope it to ${config.domain}.`,
+    "5. Copy the token.",
   ].join("\n");
 };
 
@@ -170,17 +155,23 @@ export const buildInteractionDomainInstructions = (
   config: Pick<SetupConfig, "domain" | "instancesDomain">,
 ): string => {
   return [
-    "HTTP Workbench uses one delegated interaction zone for both HTTP and DNS logging.",
+    "Interaction zone:",
     "",
-    "A typical choice is:",
     config.instancesDomain,
     "",
-    "Example interaction hostnames:",
+    "Example hosts:",
     `- abc.${config.instancesDomain}`,
     `- anything.abc.${config.instancesDomain}`,
+  ].join("\n");
+};
+
+export const buildNameserverInstructions = (
+  config: Pick<SetupConfig, "dnsNameservers">,
+): string => {
+  return [
+    "Nameservers:",
     "",
-    "This child zone must be delegated away from Cloudflare to your VPS so the app can answer DNS queries directly.",
-    "The same hostnames also terminate HTTPS directly on this VPS with on-demand certificates.",
+    config.dnsNameservers.join(", "),
   ].join("\n");
 };
 
@@ -188,27 +179,22 @@ export const buildGoogleOauthClientSetupInstructions = (
   config: Pick<SetupConfig, "frontendUrl">,
 ): string => {
   return [
-    "HTTP Workbench uses Google OAuth so users can sign in securely without you storing passwords.",
+    "Create a Google OAuth client:",
     "",
-    "In Google Cloud Console:",
-    "1. Go to APIs & Services -> Credentials",
-    "2. If prompted, create and configure an OAuth consent screen first",
-    "3. Create an OAuth 2.0 Client ID",
-    "4. Choose Web application as the application type",
-    "5. Add this authorized redirect URI:",
+    "1. Open Google Cloud Console -> APIs & Services -> Credentials.",
+    "2. Create an OAuth consent screen if Google asks you to.",
+    "3. Create an OAuth 2.0 Client ID.",
+    "4. Choose Web application.",
+    "5. Add this redirect URI:",
     `${config.frontendUrl}/api/auth/google/callback`,
-    "",
-    "Then paste the client ID and client secret into the next prompts.",
   ].join("\n");
 };
 
 export const buildOauthInstructions = (config: SetupConfig): string => {
   return [
-    "Add this Google OAuth redirect URI before you continue:",
+    "Add this Google OAuth redirect URI:",
     "",
     `${config.frontendUrl}/api/auth/google/callback`,
-    "",
-    "Once it is saved in Google Cloud Console, continue to the next step.",
   ].join("\n");
 };
 
@@ -216,27 +202,24 @@ export const buildHttpVerificationInstructions = (
   config: SetupConfig,
 ): string => {
   return [
-    "The main app should now be reachable over HTTPS.",
+    "Check the main app:",
     "",
-    `Expected health URL: https://${config.domain}/api/health`,
+    `https://${config.domain}/api/health`,
     "",
-    `Instance HTTPS is served directly from this VPS at https://<instance>.${config.instancesDomain}.`,
-    "The first HTTPS hit to an instance host can take a bit longer while Caddy issues the certificate on demand.",
-    "After that, Caddy stores the certificate in its persistent data volume and keeps renewal automatic.",
+    `Instance HTTPS will use https://<instance>.${config.instancesDomain}.`,
+    "The first request can take longer while the certificate is issued.",
   ].join("\n");
 };
 
 export const buildDnsServiceInstructions = (config: SetupConfig): string => {
   return [
-    "The DNS server should now answer authoritatively for the delegated interaction zone.",
+    "Check the DNS service:",
     "",
     `Zone: ${config.instancesDomain}`,
     `Nameservers: ${config.dnsNameservers.join(", ")}`,
-    `Server IP: ${config.serverIp}`,
-    `A answers: ${config.publicIp}`,
     "",
-    `Example checks: dig demo.${config.instancesDomain} A`,
-    `                dig anything.demo.${config.instancesDomain} TXT`,
+    `dig demo.${config.instancesDomain} A`,
+    `dig anything.demo.${config.instancesDomain} TXT`,
   ].join("\n");
 };
 
@@ -250,6 +233,45 @@ const checkDependency = async (
     label,
     ok,
     details: ok ? "Found and ready." : installHint,
+  };
+};
+
+const detectPort53Usage = async (): Promise<string | undefined> => {
+  const checks = [
+    "ss -ltnup | grep -E '(:53\\s|:53$)'",
+    "lsof -nP -iTCP:53 -sTCP:LISTEN -iUDP:53",
+  ];
+
+  for (const command of checks) {
+    const result = await runCommand(command);
+    if (result.stdout !== "") {
+      return tailLines(result.stdout, 8);
+    }
+  }
+
+  return undefined;
+};
+
+export const buildPort53CheckResult = (
+  port53Usage: string | undefined,
+): CheckResult => {
+  if (port53Usage === undefined) {
+    return {
+      label: "Host port 53 is available",
+      ok: true,
+      details: "Nothing is listening on port 53.",
+    };
+  }
+
+  return {
+    label: "Host port 53 is available",
+    ok: false,
+    details: [
+      "Port 53 is already in use.",
+      "Stop the service using it before continuing. Common causes are systemd-resolved, dnsmasq, or bind9.",
+      "",
+      port53Usage,
+    ].join("\n"),
   };
 };
 
@@ -287,19 +309,23 @@ export const runPreflight = async (
 
   const detectedServerIp =
     state?.detectedServerIp ?? (await detectPublicServerIp());
+  const port53Usage = await detectPort53Usage();
+  const port53Check = buildPort53CheckResult(port53Usage);
 
   progress.stop("Preflight checks complete");
 
   note(
     [
-      renderChecks(dependencies),
+      renderChecks([...dependencies, port53Check]),
       "",
       `Detected public IPv4: ${detectedServerIp ?? "not detected automatically"}`,
     ].join("\n"),
     "Preflight",
   );
 
-  const missingRequired = dependencies.filter((item) => !item.ok);
+  const missingRequired = [...dependencies, port53Check].filter(
+    (item) => !item.ok,
+  );
   if (missingRequired.length > 0) {
     log.error(
       "Required prerequisites are missing. Install them and rerun the wizard.",
@@ -367,6 +393,30 @@ export const collectConfig = async (
     }),
   );
 
+  const isManagedInCloudflare = await promptConfirm({
+    message: `Is ${domain} already managed in Cloudflare DNS?`,
+    initialValue: true,
+  });
+
+  if (!isManagedInCloudflare) {
+    note(
+      buildCloudflareDomainActivationInstructions({ domain }),
+      "Cloudflare Domain Setup",
+    );
+
+    const confirmed = await promptConfirm({
+      message:
+        "Have you added the domain to Cloudflare and updated the registrar nameservers?",
+      initialValue: false,
+    });
+
+    if (!confirmed) {
+      cancelled(
+        "Setup paused until the domain is active in Cloudflare DNS.",
+      );
+    }
+  }
+
   const defaultInstancesDomain =
     existingConfig.instancesDomain !== undefined &&
     existingConfig.instancesDomain !== ""
@@ -397,16 +447,6 @@ export const collectConfig = async (
     })
   ).trim();
 
-  note(buildCloudflareTokenInstructions({ domain }), "Cloudflare Token");
-
-  note(
-    buildInteractionDomainInstructions({
-      domain,
-      instancesDomain: defaultInstancesDomain,
-    }),
-    "Interaction Zone",
-  );
-
   note(
     buildGoogleOauthClientSetupInstructions({
       frontendUrl: `https://${domain}`,
@@ -435,41 +475,30 @@ export const collectConfig = async (
     message: "Google OAuth client secret",
     existingValue: existingConfig.googleClientSecret,
   });
+
+  note(buildCloudflareTokenInstructions({ domain }), "Cloudflare Token");
+
   const cloudflareApiToken = await promptSecretWithKeep({
     message: "Cloudflare API token with DNS edit access",
     existingValue: existingConfig.cloudflareApiToken,
   });
 
-  const instancesDomain = normalizeDomain(
-    await promptText({
-      message: "Delegated interaction domain",
-      placeholder: "instances.example.com",
-      defaultValue: defaultInstancesDomain,
-      validate: (value) => {
-        if (!isValidDomain(value)) {
-          return "Enter a valid delegated interaction domain.";
-        }
-        return undefined;
-      },
+  note(
+    buildInteractionDomainInstructions({
+      domain,
+      instancesDomain: defaultInstancesDomain,
     }),
+    "Interaction Zone",
   );
 
-  const dnsNameservers = normalizeNameservers(
-    await promptText({
-      message: "Authoritative nameservers",
-      placeholder: "ns1.example.com,ns2.example.com",
-      defaultValue: formatNameservers(defaultNameservers),
-      validate: (value) => {
-        const parsed = normalizeNameservers(value);
-        if (
-          parsed.length < 2 ||
-          parsed.some((entry) => !isValidDomain(entry))
-        ) {
-          return "Enter at least two valid hostnames separated by commas.";
-        }
-        return undefined;
-      },
+  const instancesDomain = defaultInstancesDomain;
+  const dnsNameservers = defaultNameservers;
+
+  note(
+    buildNameserverInstructions({
+      dnsNameservers,
     }),
+    "Nameservers",
   );
 
   const jwtSecret =
@@ -504,11 +533,11 @@ export const collectConfig = async (
       `Server IP: ${config.serverIp}`,
       `Frontend URL: ${config.frontendUrl}`,
       `Google Client ID: ${config.googleClientId}`,
-      `Google Client Secret: ${maskSecret(config.googleClientSecret)}`,
-      `Cloudflare Token: ${maskSecret(config.cloudflareApiToken)}`,
+      `Google Client Secret: ${config.googleClientSecret === "" ? "missing" : "saved"}`,
+      `Cloudflare Token: ${config.cloudflareApiToken === "" ? "missing" : "saved"}`,
       `Interaction zone: ${config.instancesDomain}`,
       `Nameservers: ${config.dnsNameservers.join(", ")}`,
-      `DNS and HTTP logging: enabled on the same interaction host`,
+      "DNS and HTTP logging: enabled",
     ].join("\n"),
     "Configuration Summary",
   );
@@ -546,12 +575,12 @@ export const runVerificationStep = async (params: {
         {
           value: "check",
           label: "Check now",
-          hint: "Run automated verification for this step",
+          hint: "Run the check",
         },
         {
           value: "skip",
-          label: params.continueLabel ?? "Continue without verification",
-          hint: "Keep moving and verify later",
+          label: params.continueLabel ?? "Skip this check",
+          hint: "Continue for now",
         },
       ],
     });
@@ -565,7 +594,9 @@ export const runVerificationStep = async (params: {
     progress.start("Verifying");
     const result = await params.verify();
     progress.stop(
-      result.success ? "Verification passed" : "Verification not ready yet",
+      result.success
+        ? colorSuccess("Verification passed")
+        : colorError("Verification not ready yet"),
     );
 
     note(
@@ -579,23 +610,13 @@ export const runVerificationStep = async (params: {
   }
 };
 
-export const runMainDnsVerification = async (
+export const runDnsRecordsVerification = async (
   config: SetupConfig,
 ): Promise<void> => {
   await runVerificationStep({
-    title: "Main DNS Records",
-    instructions: buildMainDnsVerificationInstructions(config),
-    verify: () => verifyMainDnsRecords(config),
-  });
-};
-
-export const runDnsDelegationVerification = async (
-  config: SetupConfig,
-): Promise<void> => {
-  await runVerificationStep({
-    title: "DNS Delegation",
-    instructions: buildDnsDelegationInstructions(config),
-    verify: () => verifyDnsDelegation(config),
+    title: "Setup DNS Records",
+    instructions: buildDnsRecordsInstructions(config),
+    verify: () => verifyDnsRecords(config),
   });
 };
 

@@ -10,9 +10,8 @@ export const rootDir = path.resolve(
 export const stepOrder: WizardStepId[] = [
   "preflight",
   "collect-config",
-  "verify-main-dns",
+  "verify-dns-records",
   "oauth",
-  "verify-dns-delegation",
   "start-stack",
   "verify-http",
   "verify-dns-service",
@@ -54,12 +53,10 @@ export const getNextWizardStep = (
     case "preflight":
       return "collect-config";
     case "collect-config":
-      return "verify-main-dns";
-    case "verify-main-dns":
+      return "verify-dns-records";
+    case "verify-dns-records":
       return "oauth";
     case "oauth":
-      return "verify-dns-delegation";
-    case "verify-dns-delegation":
       return "start-stack";
     case "start-stack":
       return "verify-http";

@@ -97,6 +97,13 @@ The base setup will have you create:
 - `NS instances.yourdomain.com` → `ns2.yourdomain.com`
 - Google OAuth redirect URI: `https://yourdomain.com/api/auth/google/callback`
 
+Cloudflare proxy settings:
+
+- `yourdomain.com`: `Proxied` is fine and usually preferred for the main app, but `DNS only` also works
+- `ns1.yourdomain.com`: `DNS only`
+- `ns2.yourdomain.com`: `DNS only`
+- `NS` records are just `NS` records; there is no proxy toggle for them
+
 The wizard can start the stack for you, or you can run the compose command yourself at the end. The first startup may take a few minutes to build images and provision SSL certificates.
 
 ### Interaction Hostnames

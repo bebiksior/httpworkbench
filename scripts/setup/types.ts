@@ -1,9 +1,8 @@
 export type WizardStepId =
   | "preflight"
   | "collect-config"
-  | "verify-main-dns"
+  | "verify-dns-records"
   | "oauth"
-  | "verify-dns-delegation"
   | "start-stack"
   | "verify-http"
   | "verify-dns-service"

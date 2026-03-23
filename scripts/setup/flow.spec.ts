@@ -55,7 +55,9 @@ describe("setup flow helpers", () => {
   });
 
   test("computes the next wizard step for the mandatory interaction flow", () => {
-    expect(getNextWizardStep("oauth")).toBe("verify-dns-delegation");
+    expect(getNextWizardStep("collect-config")).toBe("verify-dns-records");
+    expect(getNextWizardStep("verify-dns-records")).toBe("oauth");
+    expect(getNextWizardStep("oauth")).toBe("start-stack");
     expect(getNextWizardStep("verify-http")).toBe("verify-dns-service");
   });
 

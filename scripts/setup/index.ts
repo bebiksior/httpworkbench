@@ -13,10 +13,9 @@ import {
 import { clearState, loadState, saveState } from "./state";
 import {
   collectConfig,
-  runDnsDelegationVerification,
+  runDnsRecordsVerification,
   runDnsServiceVerification,
   runHttpVerification,
-  runMainDnsVerification,
   runPreflight,
   showOauthInstructions,
   startStack,
@@ -99,9 +98,9 @@ const main = async (): Promise<void> => {
         };
         break;
       }
-      case "verify-main-dns": {
+      case "verify-dns-records": {
         const resolvedConfig = ensureConfig(config, step);
-        await runMainDnsVerification(resolvedConfig);
+        await runDnsRecordsVerification(resolvedConfig);
         state = {
           ...state,
           currentStep: getNextWizardStep(step),
@@ -111,15 +110,6 @@ const main = async (): Promise<void> => {
       case "oauth": {
         const resolvedConfig = ensureConfig(config, step);
         await showOauthInstructions(resolvedConfig);
-        state = {
-          ...state,
-          currentStep: getNextWizardStep(step),
-        };
-        break;
-      }
-      case "verify-dns-delegation": {
-        const resolvedConfig = ensureConfig(config, step);
-        await runDnsDelegationVerification(resolvedConfig);
         state = {
           ...state,
           currentStep: getNextWizardStep(step),

@@ -96,15 +96,32 @@ export const buildVerificationResult = (
   };
 };
 
-export const buildMainDnsRecordsResult = (params: {
+export const buildDnsRecordsResult = (params: {
   config: SetupConfig;
   rootRecords: string[];
   ns1Records: string[];
   ns2Records: string[];
+  delegatedNameservers: string[];
 }): VerificationResult => {
-  const { config, rootRecords, ns1Records, ns2Records } = params;
-  const expectedNs1 = config.dnsNameservers[0] ?? "ns1";
-  const expectedNs2 = config.dnsNameservers[1] ?? "ns2";
+  const mainDns = buildMainDnsRecordsResult({
+    config: params.config,
+    rootRecords: params.rootRecords,
+  });
+  const delegation = buildDnsDelegationResult({
+    config: params.config,
+    ns1Records: params.ns1Records,
+    ns2Records: params.ns2Records,
+    delegatedNameservers: params.delegatedNameservers,
+  });
+
+  return buildVerificationResult([...mainDns.items, ...delegation.items]);
+};
+
+export const buildMainDnsRecordsResult = (params: {
+  config: SetupConfig;
+  rootRecords: string[];
+}): VerificationResult => {
+  const { config, rootRecords } = params;
 
   return buildVerificationResult([
     {
@@ -114,22 +131,6 @@ export const buildMainDnsRecordsResult = (params: {
         rootRecords.length === 0
           ? "No A record is visible yet."
           : `Resolved to: ${rootRecords.join(", ")}`,
-    },
-    {
-      label: `${expectedNs1} resolves to the server IP`,
-      ok: ns1Records.includes(config.serverIp),
-      details:
-        ns1Records.length === 0
-          ? "No A record is visible yet."
-          : `Resolved to: ${ns1Records.join(", ")}`,
-    },
-    {
-      label: `${expectedNs2} resolves to the server IP`,
-      ok: ns2Records.includes(config.serverIp),
-      details:
-        ns2Records.length === 0
-          ? "No A record is visible yet."
-          : `Resolved to: ${ns2Records.join(", ")}`,
     },
   ]);
 };
@@ -283,17 +284,31 @@ export const buildDnsServiceResult = (params: {
 export const verifyMainDnsRecords = async (
   config: SetupConfig,
 ): Promise<VerificationResult> => {
-  const [rootRecords, ns1Records, ns2Records] = await Promise.all([
-    resolveARecords(config.domain),
-    resolveARecords(config.dnsNameservers[0] ?? ""),
-    resolveARecords(config.dnsNameservers[1] ?? ""),
-  ]);
+  const rootRecords = await resolveARecords(config.domain);
 
   return buildMainDnsRecordsResult({
     config,
     rootRecords,
+  });
+};
+
+export const verifyDnsRecords = async (
+  config: SetupConfig,
+): Promise<VerificationResult> => {
+  const [rootRecords, ns1Records, ns2Records, delegatedNameservers] =
+    await Promise.all([
+      resolveARecords(config.domain),
+      resolveARecords(config.dnsNameservers[0] ?? ""),
+      resolveARecords(config.dnsNameservers[1] ?? ""),
+      resolveNsRecords(config.instancesDomain),
+    ]);
+
+  return buildDnsRecordsResult({
+    config,
+    rootRecords,
     ns1Records,
     ns2Records,
+    delegatedNameservers,
   });
 };
 
