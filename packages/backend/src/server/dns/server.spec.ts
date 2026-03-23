@@ -590,6 +590,44 @@ describe("handleDnsRequest", () => {
     expect(capturedAddressVerified).toBe(true);
   });
 
+  test("returns an answer even when dns log persistence fails", async () => {
+    const response = await handleDnsRequest({
+      payload: dnsPacket.encode({
+        type: "query",
+        id: 26,
+        questions: [{ name: "demo.instances.example.com", type: "A" }],
+      }),
+      transport: "udp",
+      clientAddress: "127.0.0.1",
+      config: createRuntimeDnsConfig(),
+      deps: {
+        ...deps,
+        addLog: async () => {
+          throw new Error("disk full");
+        },
+      },
+    });
+
+    expect(response).toBeDefined();
+
+    if (response === undefined) {
+      throw new Error("Expected a DNS response");
+    }
+
+    const decoded = dnsPacket.decode(response);
+    expect((decoded.flags ?? 0) & 0x000f).toBe(0);
+    expect(decoded.answers).toEqual([
+      {
+        type: "A",
+        name: "demo.instances.example.com",
+        ttl: 60,
+        class: "IN",
+        flush: false,
+        data: "203.0.113.10",
+      },
+    ]);
+  });
+
   test("rate limits repeated dns logs per instance and client without dropping answers", async () => {
     const logs: string[] = [];
     let now = 1_000;

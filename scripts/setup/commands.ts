@@ -12,6 +12,21 @@ type CommandResult = {
 
 const defaultTimeoutMs = 30_000;
 
+const runCommandSync = (command: string): CommandResult => {
+  const process = Bun.spawnSync({
+    cmd: ["/bin/sh", "-lc", command],
+    stdout: "pipe",
+    stderr: "pipe",
+  });
+
+  return {
+    success: process.exitCode === 0,
+    exitCode: process.exitCode,
+    stdout: process.stdout.toString().trim(),
+    stderr: process.stderr.toString().trim(),
+  };
+};
+
 export const runCommand = async (
   command: string,
   options: CommandOptions = {},
@@ -47,6 +62,20 @@ export const runCommand = async (
 export const commandExists = async (command: string): Promise<boolean> => {
   const result = await runCommand(`command -v ${command}`);
   return result.success;
+};
+
+export const getDockerComposeBaseCommand = (): string => {
+  const dockerCompose = runCommandSync("docker compose version");
+  if (dockerCompose.success) {
+    return "docker compose";
+  }
+
+  const dockerComposeLegacy = runCommandSync("docker-compose version");
+  if (dockerComposeLegacy.success) {
+    return "docker-compose";
+  }
+
+  return "docker compose";
 };
 
 export const tailLines = (value: string, count = 12): string => {

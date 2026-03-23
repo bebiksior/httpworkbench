@@ -239,6 +239,12 @@ export const handleDnsRequest = async ({
           return encodeDnsResponse(transport, response);
         }
 
+        const response = buildDnsResponse({
+          request,
+          code: DNS_RCODE.NOERROR,
+          answers: buildDnsInstanceAnswers(question, config).answers,
+        });
+
         const timestamp = deps.now();
         if (
           shouldPersistDnsLog({
@@ -261,15 +267,13 @@ export const handleDnsRequest = async ({
             }),
           } satisfies Log;
 
-          await deps.addLog(log);
-          deps.broadcastLog(log);
+          try {
+            await deps.addLog(log);
+            deps.broadcastLog(log);
+          } catch (error) {
+            console.error("Failed to persist DNS log", error);
+          }
         }
-
-        const response = buildDnsResponse({
-          request,
-          code: DNS_RCODE.NOERROR,
-          answers: buildDnsInstanceAnswers(question, config).answers,
-        });
 
         return encodeDnsResponse(transport, response);
       }

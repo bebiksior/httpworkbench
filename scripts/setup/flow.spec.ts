@@ -1,4 +1,9 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
+
+vi.mock("./commands", () => ({
+  getDockerComposeBaseCommand: () => "docker-compose",
+}));
+
 import {
   buildFinalChecklist,
   createInitialState,
@@ -54,6 +59,20 @@ describe("setup flow helpers", () => {
     expect(shouldRestartAtCollectConfig(state, baseConfig)).toBe(false);
   });
 
+  test("requires collect-config when saved config contains blank strings", () => {
+    const state: SetupState = {
+      version: 1,
+      currentStep: "verify-http",
+    };
+
+    expect(
+      shouldRestartAtCollectConfig(state, {
+        ...baseConfig,
+        instancesDomain: "",
+      }),
+    ).toBe(true);
+  });
+
   test("computes the next wizard step for the mandatory interaction flow", () => {
     expect(getNextWizardStep("collect-config")).toBe("verify-dns-records");
     expect(getNextWizardStep("verify-dns-records")).toBe("oauth");
@@ -62,7 +81,9 @@ describe("setup flow helpers", () => {
   });
 
   test("always uses the DNS compose override and updated interaction checklist", () => {
-    expect(getComposeCommand()).toContain("docker-compose.dns.yml");
+    expect(getComposeCommand()).toBe(
+      "docker-compose -f docker-compose.yml -f docker-compose.dns.yml up -d --build",
+    );
 
     const checklist = buildFinalChecklist(baseConfig);
     expect(checklist).toContain("- Open https://example.com");

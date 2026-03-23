@@ -1,5 +1,6 @@
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
+import { getDockerComposeBaseCommand } from "./commands";
 import type { SetupConfig, SetupState, WizardStepId } from "./types";
 
 export const rootDir = path.resolve(
@@ -29,20 +30,24 @@ export const getStepIndex = (step: WizardStepId): number => {
   return stepOrder.indexOf(step);
 };
 
+const isMissingConfigValue = (value: string | undefined): boolean => {
+  return value === undefined || value === "";
+};
+
 export const shouldRestartAtCollectConfig = (
   state: SetupState,
   config: Partial<SetupConfig>,
 ): boolean => {
   return (
     getStepIndex(state.currentStep) > getStepIndex("collect-config") &&
-    (config.domain === undefined ||
-      config.instancesDomain === undefined ||
-      config.instancesAcmeChallengeDomain === undefined ||
-      config.serverIp === undefined ||
+    (isMissingConfigValue(config.domain) ||
+      isMissingConfigValue(config.instancesDomain) ||
+      isMissingConfigValue(config.instancesAcmeChallengeDomain) ||
+      isMissingConfigValue(config.serverIp) ||
       config.dnsEnabled !== true ||
-      config.googleClientId === undefined ||
-      config.googleClientSecret === undefined ||
-      config.cloudflareApiToken === undefined)
+      isMissingConfigValue(config.googleClientId) ||
+      isMissingConfigValue(config.googleClientSecret) ||
+      isMissingConfigValue(config.cloudflareApiToken))
   );
 };
 
@@ -68,7 +73,7 @@ export const getNextWizardStep = (
 };
 
 export const getComposeCommand = (): string => {
-  return "docker compose -f docker-compose.yml -f docker-compose.dns.yml up -d --build";
+  return `${getDockerComposeBaseCommand()} -f docker-compose.yml -f docker-compose.dns.yml up -d --build`;
 };
 
 export const buildFinalChecklist = (config: SetupConfig): string[] => {
