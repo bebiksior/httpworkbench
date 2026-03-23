@@ -1,7 +1,7 @@
 {
 	admin off
 	on_demand_tls {
-		ask http://backend:8081/api/internal/tls/allow?domain={host}&token={$CADDY_ASK_SECRET}
+		ask http://backend:8081/api/internal/tls/allow?token={$CADDY_ASK_SECRET}
 	}
 	auto_https disable_redirects
 	log {
@@ -32,22 +32,16 @@ http://{$DOMAIN}, https://{$DOMAIN} {
 	}
 }
 
-http://, https:// {
+http://{$INSTANCES_DOMAIN}, http://*.{$INSTANCES_DOMAIN}, https://{$INSTANCES_DOMAIN}, https://*.{$INSTANCES_DOMAIN} {
 	tls {
 		on_demand
 	}
 
-	@instances expression `{host} == "{$INSTANCES_DOMAIN}" || {host}.endsWith(".{$INSTANCES_DOMAIN}")`
-
-	handle @instances {
-		reverse_proxy backend:8082 {
-			header_up X-Internal-Real-IP {remote_host}
-			header_up -X-Forwarded-For
-			header_up -X-Forwarded-Host
-			header_up -X-Forwarded-Proto
-			header_up -Via
-		}
+	reverse_proxy backend:8082 {
+		header_up X-Internal-Real-IP {remote_host}
+		header_up -X-Forwarded-For
+		header_up -X-Forwarded-Host
+		header_up -X-Forwarded-Proto
+		header_up -Via
 	}
-
-	abort
 }
