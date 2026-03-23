@@ -1,11 +1,10 @@
 <script setup lang="ts">
-import { StreamLanguage } from "@codemirror/language";
-import { http } from "@codemirror/legacy-modes/mode/http";
 import { oneDark } from "@codemirror/theme-one-dark";
 import { EditorView } from "@codemirror/view";
 import { computed, toRefs } from "vue";
 import { Codemirror } from "vue-codemirror";
 import { useThemeStore } from "@/stores/theme";
+import { getEditorLanguageExtension, type EditorSyntax } from "./language";
 import { httpEditorExtensions } from "./extensions";
 import { readonlyEditorExtensions } from "./extensions/readonly";
 import { createSaveKeymap } from "./extensions/saveKeymap";
@@ -19,6 +18,7 @@ const props = defineProps<{
   autoHeight?: boolean;
   maxHeight?: string;
   isDirty?: boolean;
+  syntax?: EditorSyntax;
 }>();
 
 const emit = defineEmits<{
@@ -26,7 +26,8 @@ const emit = defineEmits<{
   (e: "save"): void;
 }>();
 
-const { modelValue, readonly, autoHeight, maxHeight, isDirty } = toRefs(props);
+const { modelValue, readonly, autoHeight, maxHeight, isDirty, syntax } =
+  toRefs(props);
 
 const handleSave = () => {
   emit("save");
@@ -35,7 +36,7 @@ const handleSave = () => {
 const extensions = computed(() => {
   const editorTheme = themeStore.mode === "dark" ? oneDark : oneLight;
   const exts = [
-    StreamLanguage.define(http),
+    getEditorLanguageExtension(syntax.value),
     editorTheme,
     EditorView.lineWrapping,
   ];
