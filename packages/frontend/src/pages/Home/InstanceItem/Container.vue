@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import Button from "primevue/button";
 import InputText from "primevue/inputtext";
+import Tag from "primevue/tag";
 import { useConfirm } from "primevue/useconfirm";
 import type { Instance } from "shared";
 import { computed, toRefs } from "vue";
@@ -126,6 +127,12 @@ const handleCloneClick = (event: Event) => {
           >
             {{ displayName }}
           </h3>
+          <Tag
+            v-if="instance.public"
+            value="Public"
+            severity="success"
+            rounded
+          />
           <i v-if="instance.locked" class="pi pi-lock text-surface-400" />
         </div>
         <div class="text-xs sm:text-sm text-surface-400">

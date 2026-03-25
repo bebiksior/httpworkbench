@@ -70,6 +70,7 @@ export const GUEST_INSTANCES_ROUTES = {
         createdAt: now,
         expiresAt: now + GUEST_INSTANCE_TTL_MS,
         webhookIds: [] as string[],
+        public: false,
         locked: false,
       };
 

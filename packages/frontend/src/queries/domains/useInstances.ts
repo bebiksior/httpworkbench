@@ -6,6 +6,7 @@ import type {
   Instance,
   RenameInstanceInput,
   SetInstanceLockedInput,
+  SetInstancePublicInput,
   UpdateInstanceInput,
 } from "shared";
 import { guestInstancesApi } from "@/api/domains/guestInstances";
@@ -283,6 +284,28 @@ export const useSetInstanceLocked = () => {
         return guestInstancesApi.setLocked(id, input);
       }
       return instancesApi.setLocked(id, input);
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.instances.all });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.instances.detail(data.id),
+      });
+    },
+  });
+};
+
+export const useSetInstancePublic = () => {
+  const queryClient = useQueryClient();
+  const authStore = useAuthStore();
+  const { isGuest } = storeToRefs(authStore);
+
+  return useMutation({
+    mutationFn: async ({ id, isPublic }: { id: string; isPublic: boolean }) => {
+      const input: SetInstancePublicInput = { public: isPublic };
+      if (isGuest.value) {
+        throw new ForbiddenError("Guest instances cannot change visibility");
+      }
+      return instancesApi.setPublic(id, input);
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.instances.all });

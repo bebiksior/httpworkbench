@@ -5,6 +5,7 @@ import {
   InstanceDetailResponseSchema,
   RenameInstanceSchema,
   SetInstanceLockedSchema,
+  SetInstancePublicSchema,
   UpdateInstanceSchema,
 } from "shared";
 import {
@@ -18,7 +19,8 @@ import {
   updateInstance,
 } from "../../storage";
 import { instancePolicies } from "../../config";
-import { withAuth } from "../auth";
+import { authenticateOptionalRequest, withAuth } from "../auth";
+import { canReadInstance } from "../instances/access";
 import {
   ensureStaticResponseWithinLimit,
   generateInstanceID,
@@ -101,6 +103,7 @@ export const INSTANCES_ROUTES = {
         id: generateInstanceID(),
         ownerId: user.id,
         createdAt: now,
+        public: false,
         locked: false,
         expiresAt:
           instancePolicies.ttlMs === undefined
@@ -131,7 +134,7 @@ export const INSTANCES_ROUTES = {
     }),
   },
   "/api/instances/:id": {
-    GET: withAuth(async (req: BunRequest<"/api/instances/:id">, user) => {
+    GET: async (req: BunRequest<"/api/instances/:id">) => {
       const id = req.params.id;
       if (id === "") {
         return Response.json({ error: "Invalid id" }, { status: 400 });
@@ -141,14 +144,16 @@ export const INSTANCES_ROUTES = {
       if (instance === undefined) {
         return Response.json({ error: "Not found" }, { status: 404 });
       }
-      if (instance.ownerId !== user.id) {
-        return Response.json({ error: "Forbidden" }, { status: 403 });
+
+      const user = await authenticateOptionalRequest(req);
+      if (!canReadInstance({ instance, user })) {
+        return Response.json({ error: "Not found" }, { status: 404 });
       }
 
       const logs = await getLogsForInstance(instance.id);
       const response = InstanceDetailResponseSchema.parse({ instance, logs });
       return Response.json(response, { status: 200 });
-    }),
+    },
     PUT: withAuth(async (req: BunRequest<"/api/instances/:id">, user) => {
       const id = req.params.id;
       if (id === "") {
@@ -358,6 +363,40 @@ export const INSTANCES_ROUTES = {
         const updated = await updateInstance(id, (inst) => ({
           ...inst,
           locked: parsed.data.locked,
+        }));
+
+        if (updated === undefined) {
+          return Response.json({ error: "Not found" }, { status: 404 });
+        }
+
+        return Response.json(updated, { status: 200 });
+      },
+    ),
+  },
+  "/api/instances/:id/public": {
+    PATCH: withAuth(
+      async (req: BunRequest<"/api/instances/:id/public">, user) => {
+        const id = req.params.id;
+        if (id === "") {
+          return Response.json({ error: "Invalid id" }, { status: 400 });
+        }
+
+        const current = await getInstanceById(id);
+        if (current === undefined) {
+          return Response.json({ error: "Not found" }, { status: 404 });
+        }
+        if (current.ownerId !== user.id) {
+          return Response.json({ error: "Forbidden" }, { status: 403 });
+        }
+
+        const parsed = await parseJsonRequest(req, SetInstancePublicSchema);
+        if (parsed.kind === "error") {
+          return parsed.response;
+        }
+
+        const updated = await updateInstance(id, (inst) => ({
+          ...inst,
+          public: parsed.data.public,
         }));
 
         if (updated === undefined) {

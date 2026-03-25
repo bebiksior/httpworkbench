@@ -12,7 +12,8 @@ import {
   USER_ROUTES,
   WEBHOOKS_ROUTES,
 } from "./api";
-import { authenticateRequest } from "./auth";
+import { authenticateOptionalRequest } from "./auth";
+import { canReadInstance } from "./instances/access";
 import {
   createInstancesServer,
   type LogStreamSocketData,
@@ -55,16 +56,17 @@ export const initServer = () => {
             return new Response("Upgrade Required", { status: 426 });
           }
 
-          const auth = await authenticateRequest(req);
           const instance = await getInstanceById(req.params.id);
           if (instance === undefined) {
-            if (auth.kind === "error") {
-              return new Response("Unauthorized", { status: auth.status });
-            }
             return Response.json({ error: "Not found" }, { status: 404 });
           }
 
-          if (instance.ownerId === GUEST_OWNER_ID) {
+          const user = await authenticateOptionalRequest(req);
+          if (!canReadInstance({ instance, user })) {
+            return new Response("Not Found", { status: 404 });
+          }
+
+          if (instance.ownerId === GUEST_OWNER_ID || user === undefined) {
             const upgraded = server.upgrade(req, {
               data: {
                 instanceId: instance.id,
@@ -78,18 +80,10 @@ export const initServer = () => {
             return;
           }
 
-          if (auth.kind === "error") {
-            return new Response("Unauthorized", { status: auth.status });
-          }
-
-          if (instance.ownerId !== auth.user.id) {
-            return new Response("Forbidden", { status: 403 });
-          }
-
           const upgraded = server.upgrade(req, {
             data: {
               instanceId: instance.id,
-              userId: auth.user.id,
+              userId: user.id,
             },
           });
 

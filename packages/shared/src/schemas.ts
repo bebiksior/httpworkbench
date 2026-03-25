@@ -30,6 +30,7 @@ const InstanceBaseSchema = z.object({
   expiresAt: z.number().optional(),
   webhookIds: z.array(z.string()),
   label: z.string().optional(),
+  public: z.boolean().optional().default(false),
   locked: z.boolean().optional().default(false),
 });
 

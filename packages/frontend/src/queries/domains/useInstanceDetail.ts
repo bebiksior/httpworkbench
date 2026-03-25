@@ -11,21 +11,24 @@ export const useInstanceDetail = (instanceId: MaybeRefOrGetter<string>) => {
   const authStore = useAuthStore();
   const guestInstancesStore = useGuestInstancesStore();
   const { isGuest } = storeToRefs(authStore);
+  const { ids } = storeToRefs(guestInstancesStore);
 
   return useQuery({
     queryKey: computed(() => [
       ...queryKeys.instances.detail(toValue(instanceId)),
       isGuest.value ? "guest" : "user",
+      ids.value.join(","),
     ]),
     queryFn: async () => {
       const id = toValue(instanceId);
+      const useGuestApi = isGuest.value && ids.value.includes(id);
       try {
-        if (isGuest.value) {
+        if (useGuestApi) {
           return await guestInstancesApi.getById(id);
         }
         return await instancesApi.getById(id);
       } catch (error) {
-        if (isGuest.value && error instanceof NotFoundError) {
+        if (useGuestApi && error instanceof NotFoundError) {
           guestInstancesStore.forgetInstance(id);
         }
         throw error;

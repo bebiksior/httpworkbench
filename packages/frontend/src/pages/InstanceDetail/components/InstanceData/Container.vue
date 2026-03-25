@@ -3,8 +3,9 @@ import Button from "primevue/button";
 import InputText from "primevue/inputtext";
 import ConfirmDialog from "primevue/confirmdialog";
 import MultiSelect from "primevue/multiselect";
+import Tag from "primevue/tag";
 import { HttpEditor } from "@/components/HttpEditor";
-import type { Instance } from "shared";
+import { GUEST_OWNER_ID, type Instance } from "shared";
 import {
   toRefs,
   computed,
@@ -51,6 +52,7 @@ const {
   isExtending,
   handleExtend,
   isGuest,
+  canManageInstance,
   handleOpenBuilder,
   displayName,
   isEditingLabel,
@@ -59,6 +61,9 @@ const {
   startEditingLabel,
   saveLabel,
   handleLabelKeydown,
+  isPublic,
+  isSettingPublic,
+  handleTogglePublic,
 } = useInstanceDataLogic(instance);
 
 const { data: webhooks } = useWebhooks({
@@ -101,6 +106,26 @@ const formattedDate = computed(() => {
     minute: "2-digit",
   });
 });
+
+const visibilityLabel = computed(() => {
+  return isPublic.value ? "Public" : "Private";
+});
+
+const visibilitySeverity = computed(() => {
+  return isPublic.value ? "success" : "secondary";
+});
+
+const visibilityDescription = computed(() => {
+  if (isPublic.value) {
+    return "Anyone with this instance ID can open this page and view the logs and response.";
+  }
+
+  return "Only the owner can open this instance detail page.";
+});
+
+const showVisibility = computed(() => {
+  return instance.value.ownerId !== GUEST_OWNER_ID;
+});
 </script>
 
 <template>
@@ -129,8 +154,14 @@ const formattedDate = computed(() => {
                 {{ displayName }}
               </h2>
               <i v-if="isLocked" class="pi pi-lock text-surface-500 shrink-0" />
+              <Tag
+                v-if="showVisibility"
+                :value="visibilityLabel"
+                :severity="visibilitySeverity"
+                rounded
+              />
               <Button
-                v-if="!isGuest"
+                v-if="canManageInstance"
                 icon="pi pi-pencil"
                 severity="secondary"
                 text
@@ -191,7 +222,7 @@ const formattedDate = computed(() => {
         <span class="text-sm text-surface-500">{{ formattedDate }}</span>
       </div>
 
-      <div class="flex flex-col gap-2">
+      <div v-if="showVisibility" class="flex flex-col gap-2">
         <label
           class="text-sm font-medium text-surface-700 dark:text-surface-300"
         >
@@ -216,7 +247,47 @@ const formattedDate = computed(() => {
         </p>
       </div>
 
-      <div class="flex flex-col gap-2" v-if="!isGuest">
+      <div class="flex flex-col gap-2">
+        <label
+          class="text-sm font-medium text-surface-700 dark:text-surface-300"
+        >
+          Visibility
+        </label>
+        <div
+          class="flex flex-col gap-3 rounded-lg border border-surface-200 bg-surface-50 p-3 dark:border-surface-700 dark:bg-surface-800"
+        >
+          <div class="flex items-center justify-between gap-3">
+            <div class="flex items-center gap-2">
+              <Tag
+                :value="visibilityLabel"
+                :severity="visibilitySeverity"
+                rounded
+              />
+              <span class="text-sm text-surface-700 dark:text-surface-200">
+                {{ visibilityDescription }}
+              </span>
+            </div>
+            <Button
+              v-if="canManageInstance && !isGuest"
+              :label="isPublic ? 'Make Private' : 'Make Public'"
+              :icon="isPublic ? 'pi pi-lock' : 'pi pi-globe'"
+              size="small"
+              severity="secondary"
+              outlined
+              :loading="isSettingPublic"
+              @click="handleTogglePublic"
+            />
+          </div>
+          <p
+            v-if="!canManageInstance"
+            class="text-xs text-surface-500 dark:text-surface-400"
+          >
+            This instance is read-only for you.
+          </p>
+        </div>
+      </div>
+
+      <div class="flex flex-col gap-2" v-if="!isGuest && canManageInstance">
         <label
           class="text-sm font-medium text-surface-700 dark:text-surface-300"
         >
@@ -281,6 +352,7 @@ const formattedDate = computed(() => {
 
       <div class="flex gap-2 mb-2">
         <input
+          v-if="canManageInstance"
           :ref="setFileInputRef"
           type="file"
           class="hidden"
@@ -288,6 +360,7 @@ const formattedDate = computed(() => {
           @change="handleFileUpload"
         />
         <Button
+          v-if="canManageInstance"
           label="Upload"
           icon="pi pi-upload"
           severity="secondary"
@@ -297,6 +370,7 @@ const formattedDate = computed(() => {
           @click="triggerFileUpload"
         />
         <Button
+          v-if="canManageInstance"
           label="Builder"
           icon="pi pi-wrench"
           size="small"
@@ -305,6 +379,7 @@ const formattedDate = computed(() => {
           @click="handleOpenBuilder"
         />
         <Button
+          v-if="canManageInstance"
           label="Save"
           icon="pi pi-save"
           size="small"
@@ -319,6 +394,7 @@ const formattedDate = computed(() => {
         <HttpEditor
           :model-value="rawContent"
           :is-dirty="isDirty"
+          :readonly="!canManageInstance"
           max-height="500px"
           @update:modelValue="handleEditorChange"
           @save="handleSave"
@@ -326,7 +402,7 @@ const formattedDate = computed(() => {
       </div>
     </div>
 
-    <div class="flex flex-col gap-3 mt-auto">
+    <div v-if="canManageInstance" class="flex flex-col gap-3 mt-auto">
       <h3
         class="font-semibold text-surface-900 dark:text-surface-0 border-b border-surface-200 dark:border-surface-700 pb-2"
       >

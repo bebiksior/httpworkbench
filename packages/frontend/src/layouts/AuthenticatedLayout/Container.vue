@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import Button from "primevue/button";
 import Menu from "primevue/menu";
-import { ref } from "vue";
+import { computed, ref } from "vue";
 import { useRouter } from "vue-router";
 import { useAuthStore } from "../../stores/auth";
 import { useThemeStore } from "../../stores/theme";
@@ -13,9 +13,9 @@ const themeStore = useThemeStore();
 const router = useRouter();
 const menu = ref();
 
-const items = ref([
+const items = computed(() => [
   {
-    label: "Logout",
+    label: authStore.isGuest ? "Exit Guest Mode" : "Logout",
     icon: "pi pi-sign-out",
     command: () => {
       authStore.logout();
@@ -35,10 +35,14 @@ const goHome = (event: MouseEvent) => {
     router.push({ name: "home" });
   }
 };
+
+const goLogin = () => {
+  router.push({ name: "login" });
+};
 </script>
 
 <template>
-  <CommandPalette />
+  <CommandPalette v-if="authStore.hasSession" />
   <div class="h-screen flex flex-col bg-surface-0 dark:bg-surface-800">
     <nav class="bg-surface-0 dark:bg-surface-800 shrink-0">
       <div class="mx-auto px-6">
@@ -95,15 +99,26 @@ const goHome = (event: MouseEvent) => {
             >
               {{ authStore.user.googleId }}
             </span>
+            <template v-if="authStore.hasSession">
+              <Button
+                type="button"
+                icon="pi pi-user"
+                rounded
+                text
+                aria-label="User"
+                @mousedown="toggle"
+              />
+              <Menu ref="menu" :model="items" popup />
+            </template>
             <Button
+              v-else
               type="button"
-              icon="pi pi-user"
-              rounded
-              text
-              aria-label="User"
-              @mousedown="toggle"
+              label="Login"
+              icon="pi pi-sign-in"
+              outlined
+              size="small"
+              @click="goLogin"
             />
-            <Menu ref="menu" :model="items" popup />
           </div>
         </div>
       </div>
