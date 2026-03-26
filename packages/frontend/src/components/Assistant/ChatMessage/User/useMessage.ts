@@ -37,8 +37,18 @@ export const useUserMessage = () => {
     agentStore.inputMessage = text;
   };
 
+  const hasSnapshot = (messageId: string) => {
+    return agentStore.hasSnapshot(messageId);
+  };
+
+  const revertToSnapshot = (messageId: string) => {
+    agentStore.revertToSnapshot(messageId);
+  };
+
   return {
     isGenerating,
+    hasSnapshot,
     handleMessageClick,
+    revertToSnapshot,
   };
 };
