@@ -11,16 +11,11 @@ useAutoScroll(scrollContainer, [messages, agentStatus]);
 </script>
 
 <template>
-  <div class="flex flex-col h-full relative overflow-auto">
-    <div
-      ref="scrollContainer"
-      class="flex-1 overflow-y-auto px-2 pb-2 flex flex-col gap-2"
-    >
-      <ChatMessage
-        v-for="message in messages"
-        :key="message.id"
-        :message="message"
-      />
-    </div>
+  <div ref="scrollContainer" class="h-full overflow-y-auto px-2 pb-2 space-y-2">
+    <ChatMessage
+      v-for="message in messages"
+      :key="message.id"
+      :message="message"
+    />
   </div>
 </template>
