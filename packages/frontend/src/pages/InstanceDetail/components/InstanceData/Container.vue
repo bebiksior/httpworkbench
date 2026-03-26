@@ -107,22 +107,6 @@ const formattedDate = computed(() => {
   });
 });
 
-const visibilityLabel = computed(() => {
-  return isPublic.value ? "Public" : "Private";
-});
-
-const visibilitySeverity = computed(() => {
-  return isPublic.value ? "success" : "secondary";
-});
-
-const visibilityDescription = computed(() => {
-  if (isPublic.value) {
-    return "Anyone with this instance ID can open this page and view the logs and response.";
-  }
-
-  return "Only the owner can open this instance detail page.";
-});
-
 const showVisibility = computed(() => {
   return instance.value.ownerId !== GUEST_OWNER_ID;
 });
@@ -156,8 +140,8 @@ const showVisibility = computed(() => {
               <i v-if="isLocked" class="pi pi-lock text-surface-500 shrink-0" />
               <Tag
                 v-if="showVisibility"
-                :value="visibilityLabel"
-                :severity="visibilitySeverity"
+                :value="isPublic ? 'Public' : 'Private'"
+                :severity="isPublic ? 'success' : 'secondary'"
                 rounded
               />
               <Button
@@ -222,7 +206,7 @@ const showVisibility = computed(() => {
         <span class="text-sm text-surface-500">{{ formattedDate }}</span>
       </div>
 
-      <div v-if="showVisibility" class="flex flex-col gap-2">
+      <div class="flex flex-col gap-2">
         <label
           class="text-sm font-medium text-surface-700 dark:text-surface-300"
         >
@@ -245,46 +229,6 @@ const showVisibility = computed(() => {
           Send HTTP requests to this subdomain to see them appear in the logs.
           Supports HTTP and HTTPS protocols.
         </p>
-      </div>
-
-      <div class="flex flex-col gap-2">
-        <label
-          class="text-sm font-medium text-surface-700 dark:text-surface-300"
-        >
-          Visibility
-        </label>
-        <div
-          class="flex flex-col gap-3 rounded-lg border border-surface-200 bg-surface-50 p-3 dark:border-surface-700 dark:bg-surface-800"
-        >
-          <div class="flex items-center justify-between gap-3">
-            <div class="flex items-center gap-2">
-              <Tag
-                :value="visibilityLabel"
-                :severity="visibilitySeverity"
-                rounded
-              />
-              <span class="text-sm text-surface-700 dark:text-surface-200">
-                {{ visibilityDescription }}
-              </span>
-            </div>
-            <Button
-              v-if="canManageInstance && !isGuest"
-              :label="isPublic ? 'Make Private' : 'Make Public'"
-              :icon="isPublic ? 'pi pi-lock' : 'pi pi-globe'"
-              size="small"
-              severity="secondary"
-              outlined
-              :loading="isSettingPublic"
-              @click="handleTogglePublic"
-            />
-          </div>
-          <p
-            v-if="!canManageInstance"
-            class="text-xs text-surface-500 dark:text-surface-400"
-          >
-            This instance is read-only for you.
-          </p>
-        </div>
       </div>
 
       <div class="flex flex-col gap-2" v-if="!isGuest && canManageInstance">
@@ -436,6 +380,21 @@ const showVisibility = computed(() => {
           :loading="isSettingLocked"
           @click="handleToggleLock"
           v-tooltip.top="lockTooltip"
+        />
+        <Button
+          v-if="showVisibility"
+          :label="isPublic ? 'Make Private' : 'Make Public'"
+          :icon="isPublic ? 'pi pi-lock' : 'pi pi-globe'"
+          severity="secondary"
+          outlined
+          class="w-full justify-center"
+          :loading="isSettingPublic"
+          @click="handleTogglePublic"
+          v-tooltip.top="
+            isPublic
+              ? 'Revoke public access to this instance'
+              : 'Allow anyone with the ID to view this instance'
+          "
         />
         <Button
           label="Delete Instance"
