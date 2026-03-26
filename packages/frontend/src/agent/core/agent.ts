@@ -59,10 +59,14 @@ const sanitizeAgentMessages = (messages: CustomUIMessage[]) => {
   }));
 };
 
-const createAgent = (modelId: string, getEditorContent: () => string) => {
+const createAgent = (
+  modelId: string,
+  initialEditorContent: string,
+  getEditorContent: () => string,
+) => {
   return new ToolLoopAgent({
     model: createModel(modelId),
-    instructions: buildAgentInstructions(getEditorContent()),
+    instructions: buildAgentInstructions(initialEditorContent),
     tools: agentTools,
     stopWhen: stepCountIs(10),
     prepareStep: ({ messages, ...settings }) => ({
@@ -154,8 +158,15 @@ class LocalAgentTransport implements ChatTransport<CustomUIMessage> {
     if (isAbsent(abortSignal)) {
       throw new Error("Abort signal is required.");
     }
+
+    const editorContentAtSendTime = this.getEditorContent();
+
     const result = await createAgentUIStream({
-      agent: createAgent(modelId, this.getEditorContent),
+      agent: createAgent(
+        modelId,
+        editorContentAtSendTime,
+        this.getEditorContent,
+      ),
       uiMessages: sanitizeAgentMessages(messages),
       originalMessages: messages as AgentUIMessage[],
       abortSignal,
