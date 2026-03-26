@@ -281,9 +281,7 @@ const showVisibility = computed(() => {
     </div>
 
     <div v-if="instance.kind === 'static'" class="flex flex-col gap-3 flex-1">
-      <div
-        class="flex justify-between items-end border-b border-surface-200 dark:border-surface-700 pb-2"
-      >
+      <div class="flex justify-between items-end">
         <div>
           <h3 class="font-semibold text-surface-900 dark:text-surface-0">
             Response Body
@@ -347,9 +345,7 @@ const showVisibility = computed(() => {
     </div>
 
     <div v-if="canManageInstance" class="flex flex-col gap-3 mt-auto">
-      <h3
-        class="font-semibold text-surface-900 dark:text-surface-0 border-b border-surface-200 dark:border-surface-700 pb-2"
-      >
+      <h3 class="font-semibold text-surface-900 dark:text-surface-0">
         Actions
       </h3>
       <div class="flex flex-col gap-2">
