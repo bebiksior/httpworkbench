@@ -68,6 +68,34 @@ export const WebhookSchema = z.object({
 
 export type Webhook = z.infer<typeof WebhookSchema>;
 
+export const InstanceModerationSchema = z.object({
+  instanceId: z.string(),
+  window5mStartMs: z.number(),
+  requestsInWindow5m: z.number(),
+  strikeCommittedForWindow: z.boolean(),
+  strikeTimestampsMs: z.array(z.number()),
+  discordMutedUntilMs: z.number().optional(),
+  window15mStartMs: z.number(),
+  requestsInWindow15m: z.number(),
+  lastMinuteBucketStartMs: z.number(),
+  requestsInCurrentMinute: z.number(),
+});
+
+export type InstanceModeration = z.infer<typeof InstanceModerationSchema>;
+
+export const UserNoticeKindSchema = z.literal("instance_removed_noise");
+
+export const UserNoticeSchema = z.object({
+  id: z.string(),
+  userId: z.string(),
+  kind: UserNoticeKindSchema,
+  instanceId: z.string(),
+  createdAt: z.number(),
+  acknowledgedAt: z.number().optional(),
+});
+
+export type UserNotice = z.infer<typeof UserNoticeSchema>;
+
 export const ConfigSchema = z.object({
   isHosted: z.boolean(),
   allowGuest: z.boolean(),

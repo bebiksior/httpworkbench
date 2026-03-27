@@ -6,6 +6,7 @@ import { useRouter } from "vue-router";
 import { useAuthStore } from "../../stores/auth";
 import { useThemeStore } from "../../stores/theme";
 import { CommandPalette } from "@/components/CommandPalette";
+import { UserNoticeDialog } from "@/components/UserNoticeDialog";
 import { config } from "@/config";
 
 const authStore = useAuthStore();
@@ -42,6 +43,7 @@ const goLogin = () => {
 </script>
 
 <template>
+  <UserNoticeDialog />
   <CommandPalette v-if="authStore.hasSession" />
   <div class="h-screen flex flex-col bg-surface-0 dark:bg-surface-800">
     <nav class="bg-surface-0 dark:bg-surface-800 shrink-0">

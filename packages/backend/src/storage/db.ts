@@ -4,8 +4,10 @@ import { gunzipSync, gzipSync } from "node:zlib";
 import { Low } from "lowdb";
 import { DataFile } from "lowdb/node";
 import {
+  InstanceModerationSchema,
   InstanceSchema,
   LogSchema,
+  UserNoticeSchema,
   UserRecordSchema,
   WebhookSchema,
 } from "shared";
@@ -21,6 +23,8 @@ const DBDataSchema = z.object({
   instances: z.array(InstanceSchema),
   logs: z.array(LogSchema),
   webhooks: z.array(WebhookSchema),
+  instanceModerations: z.array(InstanceModerationSchema).default([]),
+  userNotices: z.array(UserNoticeSchema).default([]),
 });
 
 type DBData = z.infer<typeof DBDataSchema>;
@@ -46,6 +50,8 @@ export const db = new Low<DBData>(adapter, {
   instances: [],
   logs: [],
   webhooks: [],
+  instanceModerations: [],
+  userNotices: [],
 });
 
 export async function initDb() {

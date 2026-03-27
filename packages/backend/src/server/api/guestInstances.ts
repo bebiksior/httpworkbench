@@ -18,6 +18,7 @@ import {
 } from "../../storage";
 import {
   ensureStaticResponseWithinLimit,
+  ensureValidStaticHttpRaw,
   generateInstanceID,
   parseJsonRequest,
 } from "../utils";
@@ -60,6 +61,10 @@ export const GUEST_INSTANCES_ROUTES = {
         const limitCheck = ensureStaticResponseWithinLimit(parsed.data.raw);
         if (limitCheck.kind === "error") {
           return limitCheck.response;
+        }
+        const httpCheck = ensureValidStaticHttpRaw(parsed.data.raw);
+        if (httpCheck.kind === "error") {
+          return httpCheck.response;
         }
       }
 
@@ -130,6 +135,10 @@ export const GUEST_INSTANCES_ROUTES = {
         const limitCheck = ensureStaticResponseWithinLimit(parsed.data.raw);
         if (limitCheck.kind === "error") {
           return limitCheck.response;
+        }
+        const httpCheck = ensureValidStaticHttpRaw(parsed.data.raw);
+        if (httpCheck.kind === "error") {
+          return httpCheck.response;
         }
       }
 

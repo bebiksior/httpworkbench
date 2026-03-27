@@ -1,8 +1,12 @@
 import type { Log } from "shared";
 import { LogSchema } from "shared";
 import { db } from "../db";
-import { sendDiscordNotification } from "../../server/webhooks";
+import { sendDiscordNotificationThrottled } from "../../server/webhooks";
 import { getInstanceById } from "./instances";
+import {
+  isDiscordMutedForInstance,
+  recordRequestAndMaybeTombstone,
+} from "./moderation";
 import { getWebhooksByIds } from "./webhooks";
 
 export async function addLog(log: Log): Promise<Log> {
@@ -10,19 +14,30 @@ export async function addLog(log: Log): Promise<Log> {
   db.data.logs.push(log);
   await db.write();
 
-  Promise.resolve().then(async () => {
-    try {
-      const instance = await getInstanceById(log.instanceId);
-      if (instance !== undefined && instance.webhookIds.length > 0) {
-        const webhooks = await getWebhooksByIds(instance.webhookIds);
-        await Promise.all(
-          webhooks.map((webhook) => sendDiscordNotification(webhook, log)),
-        );
-      }
-    } catch (error) {
-      console.error("Error sending webhook notifications:", error);
+  const now = Date.now();
+  const { tombstoned } = await recordRequestAndMaybeTombstone(
+    log.instanceId,
+    now,
+  );
+  if (tombstoned) {
+    return log;
+  }
+
+  try {
+    const instance = await getInstanceById(log.instanceId);
+    if (instance === undefined || instance.webhookIds.length === 0) {
+      return log;
     }
-  });
+    if (isDiscordMutedForInstance(log.instanceId, now)) {
+      return log;
+    }
+    const webhooks = await getWebhooksByIds(instance.webhookIds);
+    await Promise.all(
+      webhooks.map((webhook) => sendDiscordNotificationThrottled(webhook, log)),
+    );
+  } catch (error) {
+    console.error("Error sending webhook notifications:", error);
+  }
 
   return log;
 }

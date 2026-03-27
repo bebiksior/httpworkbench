@@ -1,6 +1,33 @@
 import { describe, expect, test } from "vitest";
 import { z } from "zod";
-import { ensureStaticResponseWithinLimit, parseJsonRequest } from "./utils";
+import {
+  ensureStaticResponseWithinLimit,
+  ensureValidStaticHttpRaw,
+  parseJsonRequest,
+} from "./utils";
+
+describe("ensureValidStaticHttpRaw", () => {
+  test("accepts a minimal valid HTTP response", () => {
+    expect(ensureValidStaticHttpRaw("HTTP/1.1 200 OK\r\n\r\n")).toEqual({
+      kind: "ok",
+    });
+  });
+
+  test("rejects body-only content", () => {
+    const r = ensureValidStaticHttpRaw("<script></script>");
+    expect(r.kind).toBe("error");
+  });
+
+  test("rejects missing header/body separator", () => {
+    const r = ensureValidStaticHttpRaw("HTTP/1.1 200 OK\r\n");
+    expect(r.kind).toBe("error");
+  });
+
+  test("rejects invalid status line", () => {
+    const r = ensureValidStaticHttpRaw("HTTP/1.1 OK\r\n\r\n");
+    expect(r.kind).toBe("error");
+  });
+});
 
 describe("ensureStaticResponseWithinLimit", () => {
   test("returns ok when the response is below the limit", () => {

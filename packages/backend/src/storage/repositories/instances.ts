@@ -61,6 +61,10 @@ export async function deleteInstance(id: string): Promise<void> {
     return;
   }
   db.data.instances.splice(index, 1);
+  db.data.logs = db.data.logs.filter((l) => l.instanceId !== id);
+  db.data.instanceModerations = db.data.instanceModerations.filter(
+    (m) => m.instanceId !== id,
+  );
   await db.write();
 }
 
@@ -74,6 +78,10 @@ export async function removeExpiredInstances(now: number): Promise<string[]> {
     return true;
   });
   if (removed.length > 0) {
+    const removedSet = new Set(removed);
+    db.data.instanceModerations = db.data.instanceModerations.filter(
+      (m) => !removedSet.has(m.instanceId),
+    );
     await db.write();
   }
   return removed;
