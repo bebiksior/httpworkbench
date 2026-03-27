@@ -1,0 +1,461 @@
+import { createServer, type Server as TcpServer, type Socket } from "node:net";
+import dgram, { type RemoteInfo, type Socket as UdpSocket } from "node:dgram";
+import type { Packet } from "dns-packet";
+import type { Instance, Log } from "shared";
+import { dnsConfig, type DnsConfig } from "../../config";
+import {
+  buildDnsAcmeChallengeAnswers,
+  buildDnsInstanceAnswers,
+  buildDnsResponse,
+  buildDnsZoneAnswers,
+  decodeTcpQuery,
+  decodeUdpQuery,
+  DNS_RCODE,
+  encodeTcpResponse,
+  encodeUdpResponse,
+  formatDnsLogSummary,
+  normalizeDnsName,
+  parseInstanceIdFromDnsName,
+  type DnsQuestion,
+  type DnsRuntimeConfig,
+} from "./utils";
+
+type DnsTransport = "udp" | "tcp";
+
+const dnsTcpIdleTimeoutMs = 10_000;
+const maxDnsTcpMessageBytes = 4 * 1024;
+const maxDnsTcpBufferedBytes = maxDnsTcpMessageBytes + 2;
+const dnsLogWindowMs = 60_000;
+const maxDnsLogsPerWindow = 120;
+const maxDnsLogRateLimitEntries = 10_000;
+
+type DnsLogRateLimitEntry = {
+  windowStartedAt: number;
+  count: number;
+};
+
+const dnsLogRateLimit = new Map<string, DnsLogRateLimitEntry>();
+
+export type DnsServerDependencies = {
+  getInstanceById: (id: string) => Promise<Instance | undefined>;
+  addLog: (log: Log) => Promise<Log>;
+  broadcastLog: (log: Log) => void;
+  createId: () => string;
+  now: () => number;
+};
+
+type DnsRequestParams = {
+  payload: Uint8Array;
+  transport: DnsTransport;
+  clientAddress: string;
+  config: DnsRuntimeConfig;
+  deps: DnsServerDependencies;
+};
+
+type RunningDnsServer = {
+  udpPort: number;
+  tcpPort: number;
+  stop: () => Promise<void>;
+};
+
+const toRuntimeDnsConfig = (config: DnsConfig): DnsRuntimeConfig => {
+  if (!config.dnsEnabled) {
+    throw new Error("DNS is not enabled");
+  }
+
+  if (config.instancesDomain === "") {
+    throw new Error("Instances domain is not configured");
+  }
+
+  if (config.dnsPort === undefined) {
+    throw new Error("DNS port is not configured");
+  }
+
+  if (config.instancesAcmeChallengeDomain === "") {
+    throw new Error("DNS ACME challenge domain is not configured");
+  }
+
+  if (
+    config.dnsNameservers === undefined ||
+    config.dnsNameservers.length === 0
+  ) {
+    throw new Error("DNS nameservers are not configured");
+  }
+
+  if (config.publicIp === undefined || config.publicIp === "") {
+    throw new Error("DNS public IP is not configured");
+  }
+
+  return {
+    instancesDomain: config.instancesDomain,
+    instancesAcmeChallengeDomain: config.instancesAcmeChallengeDomain,
+    dnsPort: config.dnsPort,
+    dnsNameservers: config.dnsNameservers,
+    publicIp: config.publicIp,
+  };
+};
+
+const getFirstQuestion = (request: {
+  questions?: DnsQuestion[];
+}): DnsQuestion | undefined => {
+  return request.questions?.[0];
+};
+
+const pruneDnsLogRateLimit = (now: number): void => {
+  for (const [key, entry] of dnsLogRateLimit) {
+    if (now - entry.windowStartedAt >= dnsLogWindowMs) {
+      dnsLogRateLimit.delete(key);
+    }
+  }
+
+  while (dnsLogRateLimit.size > maxDnsLogRateLimitEntries) {
+    const oldestKey = dnsLogRateLimit.keys().next().value;
+    if (oldestKey === undefined) {
+      break;
+    }
+
+    dnsLogRateLimit.delete(oldestKey);
+  }
+};
+
+const shouldPersistDnsLog = (params: {
+  instanceId: string;
+  clientAddress: string;
+  now: number;
+}): boolean => {
+  if (dnsLogRateLimit.size >= maxDnsLogRateLimitEntries) {
+    pruneDnsLogRateLimit(params.now);
+  }
+
+  const key = `${params.instanceId}:${params.clientAddress}`;
+  const entry = dnsLogRateLimit.get(key);
+  if (
+    entry === undefined ||
+    params.now - entry.windowStartedAt >= dnsLogWindowMs
+  ) {
+    dnsLogRateLimit.set(key, {
+      windowStartedAt: params.now,
+      count: 1,
+    });
+    return true;
+  }
+
+  if (entry.count >= maxDnsLogsPerWindow) {
+    return false;
+  }
+
+  entry.count += 1;
+  return true;
+};
+
+const encodeDnsResponse = (
+  transport: DnsTransport,
+  response: Packet,
+): Buffer => {
+  return transport === "udp"
+    ? encodeUdpResponse(response)
+    : encodeTcpResponse(response);
+};
+
+const matchesInstancesAcmeChallenge = (
+  question: DnsQuestion,
+  config: DnsRuntimeConfig,
+): boolean => {
+  return (
+    normalizeDnsName(question.name) ===
+    `_acme-challenge.${normalizeDnsName(config.instancesDomain)}`
+  );
+};
+
+export const handleDnsRequest = async ({
+  payload,
+  transport,
+  clientAddress,
+  config,
+  deps,
+}: DnsRequestParams): Promise<Buffer | undefined> => {
+  try {
+    const request =
+      transport === "udp" ? decodeUdpQuery(payload) : decodeTcpQuery(payload);
+    const question = getFirstQuestion(request);
+
+    if (question === undefined) {
+      const response = buildDnsResponse({
+        request,
+        code: DNS_RCODE.FORMERR,
+      });
+
+      return encodeDnsResponse(transport, response);
+    }
+
+    if (matchesInstancesAcmeChallenge(question, config)) {
+      const response = buildDnsResponse({
+        request,
+        code: DNS_RCODE.NOERROR,
+        answers: buildDnsAcmeChallengeAnswers(question, config).answers,
+      });
+
+      return encodeDnsResponse(transport, response);
+    }
+
+    const resolution = parseInstanceIdFromDnsName(
+      question.name,
+      config.instancesDomain,
+    );
+    switch (resolution.kind) {
+      case "zone": {
+        const response = buildDnsResponse({
+          request,
+          code: DNS_RCODE.NOERROR,
+          answers: buildDnsZoneAnswers(question, config).answers,
+        });
+
+        return encodeDnsResponse(transport, response);
+      }
+      case "out_of_zone": {
+        const response = buildDnsResponse({
+          request,
+          code: DNS_RCODE.REFUSED,
+        });
+
+        return encodeDnsResponse(transport, response);
+      }
+      case "missing_instance": {
+        const response = buildDnsResponse({
+          request,
+          code: DNS_RCODE.FORMERR,
+        });
+
+        return encodeDnsResponse(transport, response);
+      }
+      case "instance": {
+        const instance = await deps.getInstanceById(resolution.instanceId);
+        if (instance === undefined) {
+          const response = buildDnsResponse({
+            request,
+            code: DNS_RCODE.NXDOMAIN,
+          });
+
+          return encodeDnsResponse(transport, response);
+        }
+
+        const response = buildDnsResponse({
+          request,
+          code: DNS_RCODE.NOERROR,
+          answers: buildDnsInstanceAnswers(question, config).answers,
+        });
+
+        const timestamp = deps.now();
+        if (
+          shouldPersistDnsLog({
+            instanceId: instance.id,
+            clientAddress,
+            now: timestamp,
+          })
+        ) {
+          const log = {
+            id: deps.createId(),
+            instanceId: instance.id,
+            type: "dns",
+            timestamp,
+            address: clientAddress,
+            addressVerified: transport === "tcp",
+            raw: formatDnsLogSummary({
+              question,
+              transport,
+              instancesDomain: config.instancesDomain,
+            }),
+          } satisfies Log;
+
+          try {
+            await deps.addLog(log);
+            deps.broadcastLog(log);
+          } catch (error) {
+            console.error("Failed to persist DNS log", error);
+          }
+        }
+
+        return encodeDnsResponse(transport, response);
+      }
+    }
+  } catch (error) {
+    console.error("Failed to handle DNS request", error);
+    return undefined;
+  }
+};
+
+const waitForListening = async (
+  udpServer: UdpSocket,
+  tcpServer: TcpServer,
+  port: number,
+) => {
+  await Promise.all([
+    new Promise<void>((resolve, reject) => {
+      udpServer.once("listening", resolve);
+      udpServer.once("error", reject);
+      udpServer.bind(port, "0.0.0.0");
+    }),
+    new Promise<void>((resolve, reject) => {
+      tcpServer.once("listening", resolve);
+      tcpServer.once("error", reject);
+      tcpServer.listen(port, "0.0.0.0");
+    }),
+  ]);
+};
+
+const closeServer = async (server: TcpServer | UdpSocket): Promise<void> => {
+  await new Promise<void>((resolve, reject) => {
+    server.close((error?: Error) => {
+      if (error !== undefined) {
+        reject(error);
+        return;
+      }
+      resolve();
+    });
+  });
+};
+
+const getBoundPort = (server: TcpServer | UdpSocket): number => {
+  const addressInfo = server.address();
+  if (addressInfo === null || typeof addressInfo === "string") {
+    throw new Error("Failed to determine bound DNS port");
+  }
+
+  return addressInfo.port;
+};
+
+const createTcpServer = (
+  config: DnsRuntimeConfig,
+  deps: DnsServerDependencies,
+): TcpServer => {
+  return createServer((socket: Socket) => {
+    let pending = Buffer.alloc(0);
+    let processing = false;
+
+    socket.setTimeout(dnsTcpIdleTimeoutMs);
+    socket.on("timeout", () => {
+      socket.destroy();
+    });
+
+    const flush = async () => {
+      if (processing) {
+        return;
+      }
+
+      processing = true;
+
+      try {
+        while (pending.length >= 2) {
+          const length = pending.readUInt16BE(0);
+          if (length === 0 || length > maxDnsTcpMessageBytes) {
+            socket.destroy();
+            return;
+          }
+
+          if (pending.length < length + 2) {
+            break;
+          }
+
+          const message = pending.subarray(0, length + 2);
+          pending = pending.subarray(length + 2);
+
+          const response = await handleDnsRequest({
+            payload: message,
+            transport: "tcp",
+            clientAddress: socket.remoteAddress ?? "",
+            config,
+            deps,
+          });
+
+          if (response !== undefined) {
+            socket.write(response);
+          }
+        }
+      } finally {
+        processing = false;
+        if (pending.length >= 2) {
+          void flush();
+        }
+      }
+    };
+
+    socket.on("data", (chunk: Buffer) => {
+      if (pending.length + chunk.length > maxDnsTcpBufferedBytes) {
+        socket.destroy();
+        return;
+      }
+
+      pending = Buffer.concat([pending, chunk]);
+      void flush();
+    });
+
+    socket.on("error", (error) => {
+      console.error("DNS TCP socket error", error);
+    });
+  });
+};
+
+const createUdpServer = (
+  config: DnsRuntimeConfig,
+  deps: DnsServerDependencies,
+): UdpSocket => {
+  const udpServer = dgram.createSocket("udp4");
+
+  udpServer.on("message", (message: Buffer, remote: RemoteInfo) => {
+    void (async () => {
+      const response = await handleDnsRequest({
+        payload: message,
+        transport: "udp",
+        clientAddress: remote.address,
+        config,
+        deps,
+      });
+
+      if (response === undefined) {
+        return;
+      }
+
+      udpServer.send(response, remote.port, remote.address, (error) => {
+        if (error !== undefined && error !== null) {
+          console.error("Failed to send DNS UDP response", error);
+        }
+      });
+    })();
+  });
+
+  udpServer.on("error", (error) => {
+    console.error("DNS UDP socket error", error);
+  });
+
+  return udpServer;
+};
+
+export const createDnsServer = async ({
+  config = dnsConfig,
+  deps,
+}: {
+  config?: DnsConfig;
+  deps: DnsServerDependencies;
+}): Promise<RunningDnsServer> => {
+  const runtimeConfig = toRuntimeDnsConfig(config);
+
+  const udpServer = createUdpServer(runtimeConfig, deps);
+  const tcpServer = createTcpServer(runtimeConfig, deps);
+
+  await waitForListening(udpServer, tcpServer, runtimeConfig.dnsPort);
+
+  const udpPort = getBoundPort(udpServer);
+  const tcpPort = getBoundPort(tcpServer);
+
+  console.log(
+    `DNS server running on port ${udpPort} (UDP) and ${tcpPort} (TCP) for ${runtimeConfig.instancesDomain}`,
+  );
+
+  return {
+    udpPort,
+    tcpPort,
+    stop: async () => {
+      await Promise.all([closeServer(udpServer), closeServer(tcpServer)]);
+    },
+  };
+};

@@ -53,6 +53,7 @@ export const LogSchema = z.object({
   type: z.union([z.literal("dns"), z.literal("http")]),
   timestamp: z.number(),
   address: z.string(),
+  addressVerified: z.boolean().optional(),
   raw: z.string(),
 });
 
@@ -102,6 +103,8 @@ export const ConfigSchema = z.object({
   ttlMs: z.number().optional(),
   maxInstancesPerOwner: z.number().optional(),
   rawLimitBytes: z.number(),
+  dnsEnabled: z.boolean(),
+  instancesDomain: z.string(),
 });
 
 export type Config = z.infer<typeof ConfigSchema>;

@@ -19,3 +19,4 @@ logs
 !.env.example
 !.env.dev.example
 .docker/
+.httpworkbench/

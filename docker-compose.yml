@@ -5,9 +5,9 @@ services:
       dockerfile: packages/backend/Dockerfile
     user: root
     restart: unless-stopped
-    ports:
-      - "8081:8081"
-      - "8082:8082"
+    expose:
+      - "8081"
+      - "8082"
     environment:
       - NODE_ENV=production
       - API_PORT=8081
@@ -20,6 +20,12 @@ services:
       - FRONTEND_URL=${FRONTEND_URL}
       - IS_HOSTED=${IS_HOSTED:-false}
       - ALLOW_GUEST=${ALLOW_GUEST:-false}
+      - DNS_ENABLED=${DNS_ENABLED:-false}
+      - INSTANCES_DOMAIN=${INSTANCES_DOMAIN:-}
+      - INSTANCES_ACME_CHALLENGE_DOMAIN=${INSTANCES_ACME_CHALLENGE_DOMAIN:-}
+      - DNS_PORT=${DNS_PORT:-53}
+      - DNS_NAMESERVERS=${DNS_NAMESERVERS:-}
+      - PUBLIC_IP=${PUBLIC_IP:-}
     volumes:
       - backend_data:/app/data
 
@@ -29,12 +35,15 @@ services:
       dockerfile: packages/frontend/Dockerfile
       args:
         - VITE_DOMAIN=${DOMAIN:-localhost}
+        - VITE_INSTANCES_DOMAIN=${INSTANCES_DOMAIN:-}
     restart: unless-stopped
     ports:
       - "80:80"
       - "443:443"
     environment:
       - DOMAIN=${DOMAIN:-localhost}
+      - INSTANCES_DOMAIN=${INSTANCES_DOMAIN:-}
+      - INSTANCES_ACME_CHALLENGE_DOMAIN=${INSTANCES_ACME_CHALLENGE_DOMAIN:-}
       - CLOUDFLARE_API_TOKEN=${CLOUDFLARE_API_TOKEN}
     volumes:
       - caddy_data:/data

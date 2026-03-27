@@ -53,6 +53,7 @@ One thing stays the same: it will be as easy as before to create new instances. 
 - Domain with Cloudflare DNS
 - Google OAuth credentials ([setup guide](https://developers.google.com/identity/protocols/oauth2))
 - Cloudflare API token with DNS permissions
+- Optional for DNS query logging: ability to delegate a DNS subdomain and expose public UDP/TCP port 53
 
 ### Quick Start
 
@@ -63,35 +64,70 @@ git clone https://github.com/bebiksior/httpworkbench.git
 cd httpworkbench
 ```
 
-2. Run the setup script:
+2. Run the setup wizard:
 
 ```bash
 ./scripts/setup.sh
 ```
 
-The script will guide you through:
+You can also run it with Bun:
+
+```bash
+bun run setup
+```
+
+The wizard will:
 
 - Domain configuration
 - Google OAuth setup
 - Cloudflare API token setup
+- Write `.env` for you
+- Show the exact DNS records to create
+- Pause while you make changes
+- Re-check DNS and health endpoints before moving on
 
-3. Configure DNS in Cloudflare:
+3. Follow the guided steps in the wizard.
 
-- Add A record: `yourdomain.com` → Your server IP
-- Add A record: `*.instances.yourdomain.com` → Your server IP
+The base setup will have you create:
 
-4. Add Google OAuth redirect URI:
+- `A yourdomain.com` → Your server IP
+- `A ns1.yourdomain.com` → Your server IP
+- `A ns2.yourdomain.com` → Your server IP
+- `NS instances.yourdomain.com` → `ns1.yourdomain.com`
+- `NS instances.yourdomain.com` → `ns2.yourdomain.com`
+- Google OAuth redirect URI: `https://yourdomain.com/api/auth/google/callback`
 
-- Go to Google Cloud Console
-- Add `https://yourdomain.com/api/auth/google/callback` to authorized redirect URIs
+Cloudflare proxy settings:
 
-5. Start the services:
+- `yourdomain.com`: `Proxied` is fine and usually preferred for the main app, but `DNS only` also works
+- `ns1.yourdomain.com`: `DNS only`
+- `ns2.yourdomain.com`: `DNS only`
+- `NS` records are just `NS` records; there is no proxy toggle for them
+
+The wizard can start the stack for you, or you can run the compose command yourself at the end. The first startup may take a few minutes to build images and provision SSL certificates.
+
+### Interaction Hostnames
+
+HTTP Workbench uses a delegated child zone, which defaults to `instances.yourdomain.com`, for both HTTP and DNS interaction logging.
+
+That means a hostname like `abc.instances.yourdomain.com` is used for:
+
+- HTTP/HTTPS interaction logging
+- DNS interaction logging
+
+To make that work:
+
+- Keep your main app domain on Cloudflare
+- Delegate `instances.yourdomain.com` to `ns1.yourdomain.com` and `ns2.yourdomain.com`
+- Open public UDP and TCP port `53`
+- Make sure public `80` and `443` also reach the VPS directly for the delegated interaction zone
+- Start with:
 
 ```bash
-docker compose up -d --build
+docker compose -f docker-compose.yml -f docker-compose.dns.yml up -d --build
 ```
 
-The first startup may take a few minutes to build images and provision SSL certificates.
+The main app certificate still uses Cloudflare DNS challenge. Instance subdomains under the delegated interaction zone are issued directly with on-demand TLS by Caddy the first time they are requested, stored in Caddy's persistent data volume, and renewed automatically.
 
 ## Your Data
 

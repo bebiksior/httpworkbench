@@ -9,6 +9,7 @@
 http://{$DOMAIN}, https://{$DOMAIN} {
 	tls {
 		dns cloudflare {env.CLOUDFLARE_API_TOKEN}
+		resolvers 1.1.1.1 1.0.0.1
 	}
 
 	encode gzip zstd
@@ -29,9 +30,11 @@ http://{$DOMAIN}, https://{$DOMAIN} {
 	}
 }
 
-http://*.instances.{$DOMAIN}, https://*.instances.{$DOMAIN} {
+http://*.{$INSTANCES_DOMAIN}, https://*.{$INSTANCES_DOMAIN} {
 	tls {
 		dns cloudflare {env.CLOUDFLARE_API_TOKEN}
+		dns_challenge_override_domain {$INSTANCES_ACME_CHALLENGE_DOMAIN}
+		resolvers 1.1.1.1 1.0.0.1
 	}
 
 	reverse_proxy backend:8082 {

@@ -210,7 +210,7 @@ const showVisibility = computed(() => {
         <label
           class="text-sm font-medium text-surface-700 dark:text-surface-300"
         >
-          Subdomain
+          Interaction Host
         </label>
         <div class="flex gap-2">
           <InputText
@@ -226,8 +226,8 @@ const showVisibility = computed(() => {
           />
         </div>
         <p class="text-xs text-surface-500">
-          Send HTTP requests to this subdomain to see them appear in the logs.
-          Supports HTTP and HTTPS protocols.
+          Send HTTP, HTTPS, and DNS requests to this host to see them appear in
+          the logs.
         </p>
       </div>
 
