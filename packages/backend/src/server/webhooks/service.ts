@@ -4,6 +4,9 @@ import {
   validateDiscordWebhookUrl,
 } from "./discord";
 
+const webhookMinIntervalMs = 1000;
+const lastDiscordSendByWebhookId = new Map<string, number>();
+
 export async function sendDiscordNotification(
   webhook: Webhook,
   log: Log,
@@ -37,4 +40,17 @@ export async function sendDiscordNotification(
       error,
     );
   }
+}
+
+export async function sendDiscordNotificationThrottled(
+  webhook: Webhook,
+  log: Log,
+): Promise<void> {
+  const now = Date.now();
+  const last = lastDiscordSendByWebhookId.get(webhook.id) ?? 0;
+  if (now - last < webhookMinIntervalMs) {
+    return;
+  }
+  lastDiscordSendByWebhookId.set(webhook.id, now);
+  await sendDiscordNotification(webhook, log);
 }

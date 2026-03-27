@@ -72,3 +72,58 @@ export const ensureStaticResponseWithinLimit = (
   }
   return { kind: "ok" };
 };
+
+type StaticHttpValidationResult =
+  | { kind: "ok" }
+  | { kind: "error"; response: Response };
+
+export const ensureValidStaticHttpRaw = (
+  raw: string,
+): StaticHttpValidationResult => {
+  const trimmedStart = raw.trimStart();
+  if (!trimmedStart.startsWith("HTTP/")) {
+    return {
+      kind: "error",
+      response: Response.json(
+        {
+          error:
+            "Static response must start with an HTTP status line (e.g. HTTP/1.1 200 OK)",
+        },
+        { status: 400 },
+      ),
+    };
+  }
+  const headerEnd = raw.indexOf("\r\n\r\n");
+  if (headerEnd === -1) {
+    return {
+      kind: "error",
+      response: Response.json(
+        {
+          error:
+            "Static response must include a blank line between headers and body (\\r\\n\\r\\n)",
+        },
+        { status: 400 },
+      ),
+    };
+  }
+  const firstLine = raw.split("\r\n")[0];
+  if (firstLine === undefined || firstLine === "") {
+    return {
+      kind: "error",
+      response: Response.json(
+        { error: "Invalid HTTP status line" },
+        { status: 400 },
+      ),
+    };
+  }
+  if (!/^HTTP\/\d+\.\d+\s+\d{3}/.test(firstLine)) {
+    return {
+      kind: "error",
+      response: Response.json(
+        { error: "Invalid HTTP status line" },
+        { status: 400 },
+      ),
+    };
+  }
+  return { kind: "ok" };
+};

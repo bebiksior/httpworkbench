@@ -1,2 +1,2 @@
 export { validateDiscordWebhookUrl } from "./discord";
-export { sendDiscordNotification } from "./service";
+export { sendDiscordNotificationThrottled } from "./service";

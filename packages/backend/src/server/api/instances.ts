@@ -23,6 +23,7 @@ import { authenticateOptionalRequest, withAuth } from "../auth";
 import { canReadInstance } from "../instances/access";
 import {
   ensureStaticResponseWithinLimit,
+  ensureValidStaticHttpRaw,
   generateInstanceID,
   parseJsonRequest,
 } from "../utils";
@@ -77,6 +78,10 @@ export const INSTANCES_ROUTES = {
         const limitCheck = ensureStaticResponseWithinLimit(parsed.data.raw);
         if (limitCheck.kind === "error") {
           return limitCheck.response;
+        }
+        const httpCheck = ensureValidStaticHttpRaw(parsed.data.raw);
+        if (httpCheck.kind === "error") {
+          return httpCheck.response;
         }
       }
 
@@ -177,6 +182,10 @@ export const INSTANCES_ROUTES = {
         const limitCheck = ensureStaticResponseWithinLimit(parsed.data.raw);
         if (limitCheck.kind === "error") {
           return limitCheck.response;
+        }
+        const httpCheck = ensureValidStaticHttpRaw(parsed.data.raw);
+        if (httpCheck.kind === "error") {
+          return httpCheck.response;
         }
       }
 
