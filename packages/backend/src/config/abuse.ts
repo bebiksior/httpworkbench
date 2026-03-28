@@ -5,6 +5,7 @@ const thirtyMinMs = 30 * minuteMs;
 
 export const abusePolicy = {
   discordMuteThresholdPerMinute: 20,
+  discordWebhookLimitPerMinutePerInstance: 5,
   discordMuteDurationMs: 5 * minuteMs,
   strikeRequestThreshold5m: 100,
   strikesForTombstone: 3,
