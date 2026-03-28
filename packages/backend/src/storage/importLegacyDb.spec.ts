@@ -3,7 +3,14 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { gzipSync } from "node:zlib";
-import type { Instance, Log, UserNotice, UserRecord, Webhook } from "shared";
+import type {
+  Instance,
+  InstanceModeration,
+  Log,
+  UserNotice,
+  UserRecord,
+  Webhook,
+} from "shared";
 import { closeDb, initDb, replaceData } from "./db";
 import { maybeAutoImportLegacyDb, runImportLegacyDb } from "./importLegacyDb";
 
@@ -49,7 +56,14 @@ const createNotice = (): UserNotice => ({
   createdAt: 5,
 });
 
-const createLegacyData = () => ({
+const createLegacyData = (): {
+  users: UserRecord[];
+  instances: Instance[];
+  logs: Log[];
+  webhooks: Webhook[];
+  instanceModerations: InstanceModeration[];
+  userNotices: UserNotice[];
+} => ({
   users: [createUser()],
   instances: [createInstance()],
   logs: [createLog()],
@@ -176,13 +190,13 @@ describe("runImportLegacyDb", () => {
     });
   });
 
-  test("drops orphan logs, orphan moderations, and missing webhook references", async () => {
+  test("drops invalid and duplicate legacy references", async () => {
     await writeLegacyJson(dataDir, {
       ...createLegacyData(),
       instances: [
         {
           ...createInstance(),
-          webhookIds: ["webhook-1", "webhook-missing"],
+          webhookIds: ["webhook-1", "webhook-1", "webhook-missing"],
         },
       ],
       logs: [
@@ -204,6 +218,17 @@ describe("runImportLegacyDb", () => {
           requestsInWindow15m: 1,
           lastMinuteBucketStartMs: 10,
           requestsInCurrentMinute: 1,
+        },
+        {
+          instanceId: "inst-1",
+          window5mStartMs: 20,
+          requestsInWindow5m: 2,
+          strikeCommittedForWindow: true,
+          strikeTimestampsMs: Array.of(20),
+          window15mStartMs: 20,
+          requestsInWindow15m: 2,
+          lastMinuteBucketStartMs: 20,
+          requestsInCurrentMinute: 2,
         },
         {
           instanceId: "inst-missing",

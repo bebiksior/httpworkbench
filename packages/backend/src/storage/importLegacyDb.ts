@@ -142,6 +142,8 @@ const readImportedUserNotices = () => {
 };
 
 type DroppedLegacyRecords = {
+  duplicateInstanceWebhookReferences: number;
+  duplicateModerations: number;
   missingWebhookReferences: number;
   orphanLogs: number;
   orphanModerations: number;
@@ -149,10 +151,34 @@ type DroppedLegacyRecords = {
 
 const hasDroppedLegacyRecords = (dropped: DroppedLegacyRecords) => {
   return (
+    dropped.duplicateInstanceWebhookReferences > 0 ||
+    dropped.duplicateModerations > 0 ||
     dropped.missingWebhookReferences > 0 ||
     dropped.orphanLogs > 0 ||
     dropped.orphanModerations > 0
   );
+};
+
+const dedupeByKey = <T>(values: T[], getKey: (value: T) => string) => {
+  const seen = new Set<string>();
+  const deduped: T[] = [];
+
+  for (let index = values.length - 1; index >= 0; index -= 1) {
+    const value = values[index];
+    if (value === undefined) {
+      continue;
+    }
+
+    const key = getKey(value);
+    if (seen.has(key)) {
+      continue;
+    }
+
+    seen.add(key);
+    deduped.unshift(value);
+  }
+
+  return deduped;
 };
 
 const sanitizeLegacyStorageData = (
@@ -169,14 +195,22 @@ const sanitizeLegacyStorageData = (
   );
 
   let missingWebhookReferences = 0;
+  let duplicateInstanceWebhookReferences = 0;
   const instances = data.instances.map((instance) => {
+    const seenWebhookIds = new Set<string>();
     const webhookIds = instance.webhookIds.filter((webhookId) => {
-      if (existingWebhookIds.has(webhookId)) {
-        return true;
+      if (!existingWebhookIds.has(webhookId)) {
+        missingWebhookReferences += 1;
+        return false;
       }
 
-      missingWebhookReferences += 1;
-      return false;
+      if (seenWebhookIds.has(webhookId)) {
+        duplicateInstanceWebhookReferences += 1;
+        return false;
+      }
+
+      seenWebhookIds.add(webhookId);
+      return true;
     });
 
     if (webhookIds.length === instance.webhookIds.length) {
@@ -192,8 +226,12 @@ const sanitizeLegacyStorageData = (
   const logs = data.logs.filter((log) =>
     existingInstanceIds.has(log.instanceId),
   );
-  const instanceModerations = data.instanceModerations.filter((moderation) =>
+  const validModerations = data.instanceModerations.filter((moderation) =>
     existingInstanceIds.has(moderation.instanceId),
+  );
+  const instanceModerations = dedupeByKey(
+    validModerations,
+    (moderation) => moderation.instanceId,
   );
 
   return {
@@ -204,10 +242,13 @@ const sanitizeLegacyStorageData = (
       instanceModerations,
     },
     dropped: {
+      duplicateInstanceWebhookReferences,
+      duplicateModerations:
+        validModerations.length - instanceModerations.length,
       missingWebhookReferences,
       orphanLogs: data.logs.length - logs.length,
       orphanModerations:
-        data.instanceModerations.length - instanceModerations.length,
+        data.instanceModerations.length - validModerations.length,
     },
   };
 };
