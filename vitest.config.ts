@@ -13,6 +13,7 @@ export default defineConfig({
   test: {
     include: ["packages/**/*.spec.ts"],
     exclude: [
+      "packages/backend/**",
       "**/node_modules/**",
       "**/dist/**",
       "**/build/**",

@@ -28,6 +28,7 @@ const DBDataSchema = z.object({
 });
 
 type DBData = z.infer<typeof DBDataSchema>;
+const LOG_WRITE_DEBOUNCE_MS = 250;
 
 const USE_COMPRESSION = Bun.env.NODE_ENV === "production";
 const adapter = new DataFile<DBData>(
@@ -53,6 +54,57 @@ export const db = new Low<DBData>(adapter, {
   instanceModerations: [],
   userNotices: [],
 });
+
+let scheduledWriteTimeout: ReturnType<typeof setTimeout> | undefined;
+let writeRequested = false;
+let writeInFlight: Promise<void> | undefined;
+
+const runScheduledWrite = () => {
+  if (!writeRequested || writeInFlight !== undefined) {
+    return;
+  }
+
+  writeRequested = false;
+  writeInFlight = db.write().finally(() => {
+    writeInFlight = undefined;
+    if (writeRequested) {
+      scheduleDbWrite(0);
+    }
+  });
+};
+
+export function scheduleDbWrite(delayMs = LOG_WRITE_DEBOUNCE_MS): void {
+  writeRequested = true;
+  if (scheduledWriteTimeout !== undefined || writeInFlight !== undefined) {
+    return;
+  }
+  if (delayMs === 0) {
+    runScheduledWrite();
+    return;
+  }
+  scheduledWriteTimeout = setTimeout(() => {
+    scheduledWriteTimeout = undefined;
+    runScheduledWrite();
+  }, delayMs);
+}
+
+export async function flushScheduledDbWrite(): Promise<void> {
+  if (scheduledWriteTimeout !== undefined) {
+    clearTimeout(scheduledWriteTimeout);
+    scheduledWriteTimeout = undefined;
+    runScheduledWrite();
+  } else if (writeRequested && writeInFlight === undefined) {
+    runScheduledWrite();
+  }
+
+  if (writeInFlight !== undefined) {
+    await writeInFlight;
+  }
+
+  if (writeRequested || scheduledWriteTimeout !== undefined) {
+    await flushScheduledDbWrite();
+  }
+}
 
 export async function initDb() {
   await db.read();

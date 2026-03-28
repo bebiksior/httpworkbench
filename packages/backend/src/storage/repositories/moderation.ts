@@ -5,8 +5,8 @@ import {
 } from "shared";
 import { InstanceModerationSchema } from "shared";
 import { abusePolicy } from "../../config/abuse";
-import { db } from "../db";
-import { getInstanceById } from "./instances";
+import { db, scheduleDbWrite } from "../db";
+import { getInstanceByIdSync } from "./instances";
 
 const pruneStrikeTimestamps = (timestamps: number[], now: number) => {
   const cutoff = now - abusePolicy.strikeTimestampsMaxAgeMs;
@@ -31,16 +31,16 @@ const defaultModeration = (
   requestsInCurrentMinute: 0,
 });
 
-export async function recordRequestAndMaybeTombstone(
+export function recordRequestAndMaybeTombstone(
   instanceId: string,
   now: number,
-): Promise<{ tombstoned: boolean }> {
+): { tombstoned: boolean } {
   const index = findModerationIndex(instanceId);
-  const instance = await getInstanceById(instanceId);
+  const instance = getInstanceByIdSync(instanceId);
   if (instance === undefined) {
     if (index !== -1) {
       db.data.instanceModerations.splice(index, 1);
-      await db.write();
+      scheduleDbWrite();
     }
     return { tombstoned: false };
   }
@@ -159,7 +159,7 @@ export async function recordRequestAndMaybeTombstone(
       UserNoticeSchema.parse(notice);
       db.data.userNotices.push(notice);
     }
-    await db.write();
+    scheduleDbWrite(0);
     return { tombstoned: true };
   }
 
@@ -169,7 +169,7 @@ export async function recordRequestAndMaybeTombstone(
   } else {
     db.data.instanceModerations[index] = moderation;
   }
-  await db.write();
+  scheduleDbWrite();
   return { tombstoned: false };
 }
 

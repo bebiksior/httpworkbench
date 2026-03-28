@@ -6,6 +6,17 @@ const isInstanceExpired = (instance: Instance, now: number) => {
   return instance.expiresAt !== undefined && instance.expiresAt <= now;
 };
 
+const getActiveInstanceById = (
+  id: string,
+  now: number,
+): Instance | undefined => {
+  const instance = db.data.instances.find((i) => i.id === id);
+  if (instance === undefined) {
+    return undefined;
+  }
+  return isInstanceExpired(instance, now) ? undefined : instance;
+};
+
 export async function addInstance(instance: Instance): Promise<Instance> {
   const parsed = InstanceSchema.parse(instance);
   db.data.instances.push(parsed);
@@ -25,11 +36,11 @@ export async function getInstancesByOwner(
 export async function getInstanceById(
   id: string,
 ): Promise<Instance | undefined> {
-  const instance = db.data.instances.find((i) => i.id === id);
-  if (instance === undefined) {
-    return undefined;
-  }
-  return isInstanceExpired(instance, Date.now()) ? undefined : instance;
+  return getActiveInstanceById(id, Date.now());
+}
+
+export function getInstanceByIdSync(id: string): Instance | undefined {
+  return getActiveInstanceById(id, Date.now());
 }
 
 export async function updateInstance(

@@ -92,13 +92,13 @@ export const createInstancesServer = (port: number) => {
             raw: rawWithoutInternalHeaders,
           } satisfies Log;
 
-          await addLog(log);
-          broadcastLog(log);
+          addLog(log);
 
           switch (instance.kind) {
             case "static": {
               const adjustedResponse = adjustContentLength(instance.raw);
               respond(socket, new TextEncoder().encode(adjustedResponse));
+              broadcastLog(log);
               break;
             }
             case "dynamic":

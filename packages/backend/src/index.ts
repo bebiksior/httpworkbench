@@ -16,7 +16,8 @@ async function init() {
     process.exit(1);
   }
 
-  const { apiServer, instancesServer, stopMaintenance } = initServer();
+  const { apiServer, instancesServer, stopMaintenance, drainBackgroundWork } =
+    initServer();
 
   console.log("Database initialized", result.stats);
 
@@ -26,6 +27,7 @@ async function init() {
       apiServer.stop();
       instancesServer.stop();
       stopMaintenance();
+      await drainBackgroundWork();
       console.log("Servers stopped");
       process.exit(0);
     } catch (error) {

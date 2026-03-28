@@ -1,4 +1,4 @@
-import { describe, expect, test, vi, afterEach } from "vitest";
+import { afterEach, describe, expect, mock, test } from "bun:test";
 import type { Log, Webhook } from "shared";
 import {
   sendDiscordNotificationThrottled,
@@ -22,17 +22,19 @@ const log: Log = {
   raw: "GET / HTTP/1.1",
 };
 
+const originalFetch = globalThis.fetch;
+
 describe("sendDiscordNotificationThrottled", () => {
   afterEach(() => {
-    vi.unstubAllGlobals();
-    vi.restoreAllMocks();
+    globalThis.fetch = originalFetch;
+    mock.restore();
   });
 
   test("skips a second send to the same webhook within 1 second", async () => {
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValue(new Response(null, { status: 204 }));
-    vi.stubGlobal("fetch", fetchMock);
+    const fetchMock = mock(() =>
+      Promise.resolve(new Response(null, { status: 204 })),
+    );
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
 
     await sendDiscordNotificationThrottled(webhook, log);
     await sendDiscordNotificationThrottled(webhook, log);
@@ -43,15 +45,15 @@ describe("sendDiscordNotificationThrottled", () => {
 
 describe("sendDiscordNotification", () => {
   afterEach(() => {
-    vi.unstubAllGlobals();
-    vi.restoreAllMocks();
+    globalThis.fetch = originalFetch;
+    mock.restore();
   });
 
   test("calls fetch for valid discord webhook url", async () => {
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValue(new Response(null, { status: 204 }));
-    vi.stubGlobal("fetch", fetchMock);
+    const fetchMock = mock(() =>
+      Promise.resolve(new Response(null, { status: 204 })),
+    );
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
 
     await sendDiscordNotification(webhook, log);
 
