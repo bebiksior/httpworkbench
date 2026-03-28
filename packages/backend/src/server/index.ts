@@ -1,7 +1,7 @@
 import type { BunRequest, Server, ServerWebSocket } from "bun";
 import { serve } from "bun";
 import { GUEST_OWNER_ID } from "shared";
-import { getInstanceById } from "../storage/repositories/instances";
+import { flushScheduledDbWrite, getInstanceById } from "../storage";
 import { instancePolicies } from "../config";
 import { cleanupExpiredInstances } from "../storage/maintenance";
 import {
@@ -132,5 +132,9 @@ export const initServer = () => {
     }
   };
 
-  return { apiServer, instancesServer, stopMaintenance };
+  const drainBackgroundWork = async () => {
+    await flushScheduledDbWrite();
+  };
+
+  return { apiServer, instancesServer, stopMaintenance, drainBackgroundWork };
 };
