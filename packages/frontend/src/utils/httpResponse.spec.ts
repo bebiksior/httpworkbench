@@ -44,7 +44,7 @@ describe("formatStaticHttpResponse", () => {
         "Access-Control-Allow-Headers: *",
         "",
         "<h1>Hello</h1>",
-      ].join("\n"),
+      ].join("\r\n"),
     );
   });
 });

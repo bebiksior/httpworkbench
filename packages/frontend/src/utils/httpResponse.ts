@@ -32,7 +32,7 @@ export const formatStaticHttpResponse = (params: {
     "Access-Control-Allow-Headers: *",
     "",
     body,
-  ].join("\n");
+  ].join("\r\n");
 };
 
 export const extractHttpBody = (raw: string | undefined): string => {

@@ -26,6 +26,7 @@ import {
   ensureValidStaticHttpRaw,
   generateInstanceID,
   parseJsonRequest,
+  normalizeStaticHttpRaw,
 } from "../utils";
 
 type WebhookValidationSuccess = {
@@ -75,11 +76,12 @@ export const INSTANCES_ROUTES = {
       }
 
       if (parsed.data.kind === "static") {
-        const limitCheck = ensureStaticResponseWithinLimit(parsed.data.raw);
+        const normalizedStaticRaw = normalizeStaticHttpRaw(parsed.data.raw);
+        const limitCheck = ensureStaticResponseWithinLimit(normalizedStaticRaw);
         if (limitCheck.kind === "error") {
           return limitCheck.response;
         }
-        const httpCheck = ensureValidStaticHttpRaw(parsed.data.raw);
+        const httpCheck = ensureValidStaticHttpRaw(normalizedStaticRaw);
         if (httpCheck.kind === "error") {
           return httpCheck.response;
         }
@@ -118,10 +120,11 @@ export const INSTANCES_ROUTES = {
 
       switch (parsed.data.kind) {
         case "static": {
+          const normalizedStaticRaw = normalizeStaticHttpRaw(parsed.data.raw);
           const created = await addInstance({
             kind: "static",
             ...base,
-            raw: parsed.data.raw,
+            raw: normalizedStaticRaw,
             webhookIds: validation.ids,
           });
           return Response.json(created, { status: 201 });
@@ -179,11 +182,12 @@ export const INSTANCES_ROUTES = {
       }
 
       if (parsed.data.kind === "static") {
-        const limitCheck = ensureStaticResponseWithinLimit(parsed.data.raw);
+        const normalizedStaticRaw = normalizeStaticHttpRaw(parsed.data.raw);
+        const limitCheck = ensureStaticResponseWithinLimit(normalizedStaticRaw);
         if (limitCheck.kind === "error") {
           return limitCheck.response;
         }
-        const httpCheck = ensureValidStaticHttpRaw(parsed.data.raw);
+        const httpCheck = ensureValidStaticHttpRaw(normalizedStaticRaw);
         if (httpCheck.kind === "error") {
           return httpCheck.response;
         }
@@ -207,9 +211,10 @@ export const INSTANCES_ROUTES = {
 
       const updated = await updateInstance(id, (inst) => {
         if (inst.kind === "static" && parsed.data.kind === "static") {
+          const normalizedStaticRaw = normalizeStaticHttpRaw(parsed.data.raw);
           return {
             ...inst,
-            raw: parsed.data.raw,
+            raw: normalizedStaticRaw,
             webhookIds: nextWebhookIds ?? inst.webhookIds,
           };
         }

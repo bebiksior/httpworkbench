@@ -77,6 +77,21 @@ type StaticHttpValidationResult =
   | { kind: "ok" }
   | { kind: "error"; response: Response };
 
+const staticHttpLineBreakPattern = /\r?\n/;
+const staticHttpHeaderSeparatorPattern = /\r?\n\r?\n/;
+
+export const normalizeStaticHttpRaw = (raw: string): string => {
+  const separatorMatch = staticHttpHeaderSeparatorPattern.exec(raw);
+  if (separatorMatch?.index === undefined) {
+    return raw;
+  }
+
+  const headerBlock = raw.slice(0, separatorMatch.index);
+  const body = raw.slice(separatorMatch.index + separatorMatch[0].length);
+
+  return `${headerBlock.split(staticHttpLineBreakPattern).join("\r\n")}\r\n\r\n${body}`;
+};
+
 export const ensureValidStaticHttpRaw = (
   raw: string,
 ): StaticHttpValidationResult => {
@@ -93,8 +108,8 @@ export const ensureValidStaticHttpRaw = (
       ),
     };
   }
-  const headerEnd = raw.indexOf("\r\n\r\n");
-  if (headerEnd === -1) {
+  const headerSeparatorMatch = staticHttpHeaderSeparatorPattern.exec(raw);
+  if (headerSeparatorMatch === null) {
     return {
       kind: "error",
       response: Response.json(
@@ -106,7 +121,7 @@ export const ensureValidStaticHttpRaw = (
       ),
     };
   }
-  const firstLine = raw.split("\r\n")[0];
+  const firstLine = raw.split(staticHttpLineBreakPattern)[0];
   if (firstLine === undefined || firstLine === "") {
     return {
       kind: "error",

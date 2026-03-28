@@ -3,12 +3,19 @@ import { z } from "zod";
 import {
   ensureStaticResponseWithinLimit,
   ensureValidStaticHttpRaw,
+  normalizeStaticHttpRaw,
   parseJsonRequest,
 } from "./utils";
 
 describe("ensureValidStaticHttpRaw", () => {
   test("accepts a minimal valid HTTP response", () => {
     expect(ensureValidStaticHttpRaw("HTTP/1.1 200 OK\r\n\r\n")).toEqual({
+      kind: "ok",
+    });
+  });
+
+  test("accepts an LF-delimited HTTP response", () => {
+    expect(ensureValidStaticHttpRaw("HTTP/1.1 200 OK\n\nhello")).toEqual({
       kind: "ok",
     });
   });
@@ -26,6 +33,16 @@ describe("ensureValidStaticHttpRaw", () => {
   test("rejects invalid status line", () => {
     const r = ensureValidStaticHttpRaw("HTTP/1.1 OK\r\n\r\n");
     expect(r.kind).toBe("error");
+  });
+});
+
+describe("normalizeStaticHttpRaw", () => {
+  test("normalizes header line endings to CRLF and preserves the body", () => {
+    expect(
+      normalizeStaticHttpRaw(
+        "HTTP/1.1 200 OK\nContent-Type: text/plain\n\nhello\nworld",
+      ),
+    ).toBe("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\nhello\nworld");
   });
 });
 
