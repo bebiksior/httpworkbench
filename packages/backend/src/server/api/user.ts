@@ -10,7 +10,7 @@ export const USER_ROUTES = {
   },
   "/api/user/notices": {
     GET: withAuth(async (_req, user) => {
-      const notices = await getPendingNoticesForUser(user.id);
+      const notices = getPendingNoticesForUser(user.id);
       return Response.json({ notices }, { status: 200 });
     }),
   },
@@ -21,7 +21,7 @@ export const USER_ROUTES = {
         if (id === "") {
           return Response.json({ error: "Invalid id" }, { status: 400 });
         }
-        const updated = await acknowledgeUserNotice(id, user.id);
+        const updated = acknowledgeUserNotice(id, user.id);
         if (updated === undefined) {
           return Response.json({ error: "Not found" }, { status: 404 });
         }

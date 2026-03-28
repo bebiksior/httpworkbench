@@ -1,130 +1,199 @@
-import fs from "node:fs";
-import path from "node:path";
-import { gunzipSync, gzipSync } from "node:zlib";
-import { Low } from "lowdb";
-import { DataFile } from "lowdb/node";
+import { existsSync, mkdirSync, rmSync } from "node:fs";
+import { Database } from "bun:sqlite";
+import { count } from "drizzle-orm";
+import { drizzle } from "drizzle-orm/bun-sqlite";
+import { migrate } from "drizzle-orm/bun-sqlite/migrator";
+import type { LegacyStorageData } from "./legacyData";
+import { resolveDataDir } from "./legacyData";
 import {
-  InstanceModerationSchema,
-  InstanceSchema,
-  LogSchema,
-  UserNoticeSchema,
-  UserRecordSchema,
-  WebhookSchema,
-} from "shared";
-import z from "zod";
+  instanceWebhooks,
+  instanceModerations,
+  instances,
+  logs,
+  schema,
+  userNotices,
+  users,
+  webhooks,
+} from "./schema";
+import { toInstanceRow, toModerationRow, toUserNoticeRow } from "./records";
 
-const DATA_DIR = Bun.env.DATA_DIR ?? path.join(process.cwd(), "data");
-if (!fs.existsSync(DATA_DIR)) {
-  fs.mkdirSync(DATA_DIR, { recursive: true });
-}
+const SQLITE_DB_FILENAME = "db.sqlite";
+const MIGRATIONS_FOLDER = `${import.meta.dir}/../../drizzle`;
 
-const DBDataSchema = z.object({
-  users: z.array(UserRecordSchema),
-  instances: z.array(InstanceSchema),
-  logs: z.array(LogSchema),
-  webhooks: z.array(WebhookSchema),
-  instanceModerations: z.array(InstanceModerationSchema).default([]),
-  userNotices: z.array(UserNoticeSchema).default([]),
-});
-
-type DBData = z.infer<typeof DBDataSchema>;
-const LOG_WRITE_DEBOUNCE_MS = 250;
-
-const USE_COMPRESSION = Bun.env.NODE_ENV === "production";
-const adapter = new DataFile<DBData>(
-  path.join(DATA_DIR, USE_COMPRESSION ? "db.json.gz" : "db.json"),
-  USE_COMPRESSION
-    ? {
-        parse: (data: string) =>
-          JSON.parse(gunzipSync(Buffer.from(data, "base64")).toString()),
-        stringify: (obj: DBData) =>
-          gzipSync(JSON.stringify(obj)).toString("base64"),
-      }
-    : {
-        parse: JSON.parse,
-        stringify: JSON.stringify,
-      },
-);
-
-export const db = new Low<DBData>(adapter, {
-  users: [],
-  instances: [],
-  logs: [],
-  webhooks: [],
-  instanceModerations: [],
-  userNotices: [],
-});
-
-let scheduledWriteTimeout: ReturnType<typeof setTimeout> | undefined;
-let writeRequested = false;
-let writeInFlight: Promise<void> | undefined;
-
-const runScheduledWrite = () => {
-  if (!writeRequested || writeInFlight !== undefined) {
-    return;
-  }
-
-  writeRequested = false;
-  writeInFlight = db.write().finally(() => {
-    writeInFlight = undefined;
-    if (writeRequested) {
-      scheduleDbWrite(0);
-    }
-  });
+type InitDbOptions = {
+  dataDir?: string;
+  reset?: boolean;
 };
 
-export function scheduleDbWrite(delayMs = LOG_WRITE_DEBOUNCE_MS): void {
-  writeRequested = true;
-  if (scheduledWriteTimeout !== undefined || writeInFlight !== undefined) {
-    return;
-  }
-  if (delayMs === 0) {
-    runScheduledWrite();
-    return;
-  }
-  scheduledWriteTimeout = setTimeout(() => {
-    scheduledWriteTimeout = undefined;
-    runScheduledWrite();
-  }, delayMs);
-}
+const createDrizzleDb = (sqlite: Database) => {
+  return drizzle({ client: sqlite, schema });
+};
 
-export async function flushScheduledDbWrite(): Promise<void> {
-  if (scheduledWriteTimeout !== undefined) {
-    clearTimeout(scheduledWriteTimeout);
-    scheduledWriteTimeout = undefined;
-    runScheduledWrite();
-  } else if (writeRequested && writeInFlight === undefined) {
-    runScheduledWrite();
-  }
+type DrizzleDb = ReturnType<typeof createDrizzleDb>;
 
-  if (writeInFlight !== undefined) {
-    await writeInFlight;
-  }
+type DbState = {
+  sqlite: Database;
+  db: DrizzleDb;
+  dataDir: string;
+  dbPath: string;
+};
 
-  if (writeRequested || scheduledWriteTimeout !== undefined) {
-    await flushScheduledDbWrite();
-  }
-}
+let dbState: DbState | undefined;
 
-export async function initDb() {
-  await db.read();
-  const parsed = DBDataSchema.safeParse(db.data);
-  if (!parsed.success) {
-    return {
-      kind: "error",
-      error: new Error(`Invalid db.json format: ${parsed.error.message}`),
-    };
-  }
+const openDatabase = (dbPath: string) => {
+  const sqlite = new Database(dbPath, { strict: true });
+  sqlite.run("PRAGMA foreign_keys = ON");
+  sqlite.run("PRAGMA journal_mode = WAL");
+  sqlite.run("PRAGMA synchronous = NORMAL");
+  sqlite.run("PRAGMA busy_timeout = 5000");
+  const db = createDrizzleDb(sqlite);
+  migrate(db, { migrationsFolder: MIGRATIONS_FOLDER });
+  return { sqlite, db };
+};
 
-  db.data = parsed.data;
+const getStats = (db: DrizzleDb) => {
+  const usersCount = db.select({ count: count() }).from(users).get();
+  const instancesCount = db.select({ count: count() }).from(instances).get();
+  const logsCount = db.select({ count: count() }).from(logs).get();
+  const webhooksCount = db.select({ count: count() }).from(webhooks).get();
+  const userNoticesCount = db
+    .select({ count: count() })
+    .from(userNotices)
+    .get();
 
   return {
-    kind: "ok",
-    stats: {
-      instancesLength: db.data.instances.length,
-      logsLength: db.data.logs.length,
-      usersLength: db.data.users.length,
-      webhooksLength: db.data.webhooks.length,
-    },
+    instancesLength: instancesCount?.count ?? 0,
+    logsLength: logsCount?.count ?? 0,
+    userNoticesLength: userNoticesCount?.count ?? 0,
+    usersLength: usersCount?.count ?? 0,
+    webhooksLength: webhooksCount?.count ?? 0,
   };
-}
+};
+
+export const resolveSqliteDbPath = (dataDir?: string) => {
+  return `${resolveDataDir(dataDir)}/${SQLITE_DB_FILENAME}`;
+};
+
+const initializeState = (options: InitDbOptions = {}) => {
+  const dataDir = resolveDataDir(options.dataDir);
+  mkdirSync(dataDir, { recursive: true });
+
+  const dbPath = resolveSqliteDbPath(dataDir);
+  if (options.reset === true && existsSync(dbPath)) {
+    rmSync(dbPath, { force: true });
+    rmSync(`${dbPath}-shm`, { force: true });
+    rmSync(`${dbPath}-wal`, { force: true });
+  }
+
+  const existingState = dbState;
+  if (existingState?.dbPath === dbPath && options.reset !== true) {
+    return existingState;
+  }
+
+  if (existingState !== undefined) {
+    existingState.sqlite.close();
+  }
+
+  const { sqlite, db } = openDatabase(dbPath);
+  const nextState = { sqlite, db, dataDir, dbPath };
+  dbState = nextState;
+  return nextState;
+};
+
+export const initDb = (options: InitDbOptions = {}) => {
+  try {
+    const { db } = initializeState(options);
+    return {
+      kind: "ok" as const,
+      stats: getStats(db),
+    };
+  } catch (error) {
+    return {
+      kind: "error" as const,
+      error:
+        error instanceof Error ? error : new Error("Failed to initialize db"),
+    };
+  }
+};
+
+export const closeDb = () => {
+  const currentState = dbState;
+  if (currentState === undefined) {
+    return;
+  }
+
+  currentState.sqlite.close();
+  dbState = undefined;
+};
+
+export const getDb = () => {
+  const initialized =
+    dbState ??
+    (() => {
+      const result = initDb();
+      if (result.kind === "error") {
+        throw result.error;
+      }
+      const currentState = dbState;
+      if (currentState === undefined) {
+        throw new Error("Database did not initialize");
+      }
+      return currentState;
+    })();
+
+  return initialized.db;
+};
+
+export const replaceData = (data: LegacyStorageData) => {
+  const db = getDb();
+
+  db.transaction(
+    (tx) => {
+      tx.delete(logs).run();
+      tx.delete(instanceWebhooks).run();
+      tx.delete(instanceModerations).run();
+      tx.delete(userNotices).run();
+      tx.delete(webhooks).run();
+      tx.delete(instances).run();
+      tx.delete(users).run();
+
+      for (const user of data.users) {
+        tx.insert(users).values(user).run();
+      }
+
+      for (const webhook of data.webhooks) {
+        tx.insert(webhooks).values(webhook).run();
+      }
+
+      for (const instance of data.instances) {
+        tx.insert(instances).values(toInstanceRow(instance)).run();
+        instance.webhookIds.forEach((webhookId, position) => {
+          tx.insert(instanceWebhooks)
+            .values({
+              instanceId: instance.id,
+              webhookId,
+              position,
+            })
+            .run();
+        });
+      }
+
+      for (const log of data.logs) {
+        tx.insert(logs).values(log).run();
+      }
+
+      for (const moderation of data.instanceModerations) {
+        tx.insert(instanceModerations)
+          .values(toModerationRow(moderation))
+          .run();
+      }
+
+      for (const notice of data.userNotices) {
+        tx.insert(userNotices).values(toUserNoticeRow(notice)).run();
+      }
+    },
+    {
+      behavior: "immediate",
+    },
+  );
+};

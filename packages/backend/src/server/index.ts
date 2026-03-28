@@ -1,9 +1,12 @@
 import type { BunRequest, Server, ServerWebSocket } from "bun";
 import { serve } from "bun";
 import { GUEST_OWNER_ID } from "shared";
-import { flushScheduledDbWrite, getInstanceById } from "../storage";
+import {
+  flushPendingWebhookNotifications,
+  getInstanceById,
+  removeExpiredInstances,
+} from "../storage";
 import { instancePolicies } from "../config";
-import { cleanupExpiredInstances } from "../storage/maintenance";
 import {
   CONFIG_ROUTES,
   GUEST_INSTANCES_ROUTES,
@@ -56,7 +59,7 @@ export const initServer = () => {
             return new Response("Upgrade Required", { status: 426 });
           }
 
-          const instance = await getInstanceById(req.params.id);
+          const instance = getInstanceById(req.params.id);
           if (instance === undefined) {
             return Response.json({ error: "Not found" }, { status: 404 });
           }
@@ -117,9 +120,11 @@ export const initServer = () => {
   if (ttlMs !== undefined) {
     const intervalMs = Math.min(ttlMs, 60 * 60 * 1000);
     const runCleanup = () => {
-      cleanupExpiredInstances().catch((error) => {
+      try {
+        removeExpiredInstances(Date.now());
+      } catch (error) {
         console.error("Failed to cleanup expired instances", error);
-      });
+      }
     };
     runCleanup();
     cleanupInterval = setInterval(runCleanup, intervalMs);
@@ -133,7 +138,7 @@ export const initServer = () => {
   };
 
   const drainBackgroundWork = async () => {
-    await flushScheduledDbWrite();
+    await flushPendingWebhookNotifications();
   };
 
   return { apiServer, instancesServer, stopMaintenance, drainBackgroundWork };

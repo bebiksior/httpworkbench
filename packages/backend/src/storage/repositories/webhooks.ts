@@ -1,51 +1,75 @@
 import type { Webhook } from "shared";
 import { WebhookSchema } from "shared";
-import { db } from "../db";
+import { asc, eq, inArray } from "drizzle-orm";
+import { getDb } from "../db";
+import { webhooks } from "../schema";
 
-export async function addWebhook(webhook: Webhook): Promise<Webhook> {
-  WebhookSchema.parse(webhook);
-  db.data.webhooks.push(webhook);
-  await db.write();
-  return webhook;
+export function addWebhook(webhook: Webhook): Webhook {
+  const parsed = WebhookSchema.parse(webhook);
+  getDb().insert(webhooks).values(parsed).run();
+  return parsed;
 }
 
-export async function getWebhooksByOwner(ownerId: string): Promise<Webhook[]> {
-  return db.data.webhooks.filter((w) => w.ownerId === ownerId);
+export function getWebhooksByOwner(ownerId: string): Webhook[] {
+  return getDb()
+    .select()
+    .from(webhooks)
+    .where(eq(webhooks.ownerId, ownerId))
+    .orderBy(asc(webhooks.createdAt), asc(webhooks.id))
+    .all();
 }
 
-export async function getWebhookById(id: string): Promise<Webhook | undefined> {
-  return db.data.webhooks.find((w) => w.id === id);
+export function getWebhookById(id: string): Webhook | undefined {
+  return getDb().select().from(webhooks).where(eq(webhooks.id, id)).get();
 }
 
-export async function updateWebhook(
+export function updateWebhook(
   id: string,
   updates: { name: string; url: string },
-): Promise<Webhook | undefined> {
-  const webhook = db.data.webhooks.find((w) => w.id === id);
-  if (webhook === undefined) {
+): Webhook | undefined {
+  const current = getWebhookById(id);
+  if (current === undefined) {
     return undefined;
   }
-  webhook.name = updates.name;
-  webhook.url = updates.url;
-  await db.write();
-  return webhook;
+
+  const next = {
+    ...current,
+    name: updates.name,
+    url: updates.url,
+  };
+
+  getDb()
+    .update(webhooks)
+    .set({ name: next.name, url: next.url })
+    .where(eq(webhooks.id, id))
+    .run();
+
+  return next;
 }
 
-export async function deleteWebhook(id: string): Promise<void> {
-  const index = db.data.webhooks.findIndex((w) => w.id === id);
-  if (index === -1) {
-    return;
+export function deleteWebhook(id: string): void {
+  getDb().delete(webhooks).where(eq(webhooks.id, id)).run();
+}
+
+export function getWebhooksByIds(ids: string[]): Webhook[] {
+  if (ids.length === 0) {
+    return [];
   }
-  db.data.webhooks.splice(index, 1);
 
-  db.data.instances = db.data.instances.map((instance) => ({
-    ...instance,
-    webhookIds: instance.webhookIds.filter((webhookId) => webhookId !== id),
-  }));
+  const rows = getDb()
+    .select()
+    .from(webhooks)
+    .where(inArray(webhooks.id, ids))
+    .all();
 
-  await db.write();
-}
+  const webhooksById = new Map(
+    rows.map((row) => {
+      return [row.id, row] as const;
+    }),
+  );
 
-export async function getWebhooksByIds(ids: string[]): Promise<Webhook[]> {
-  return db.data.webhooks.filter((w) => ids.includes(w.id));
+  return ids.flatMap((id) => {
+    const webhook = webhooksById.get(id);
+    return webhook === undefined ? [] : [webhook];
+  });
 }

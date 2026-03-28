@@ -4,17 +4,20 @@ import {
   UserNoticeSchema,
 } from "shared";
 import { InstanceModerationSchema } from "shared";
+import { eq } from "drizzle-orm";
 import { abusePolicy } from "../../config/abuse";
-import { db, scheduleDbWrite } from "../db";
-import { getInstanceByIdSync } from "./instances";
+import { getDb } from "../db";
+import {
+  toDomainModeration,
+  toModerationRow,
+  toUserNoticeRow,
+} from "../records";
+import { instanceModerations, instances, userNotices } from "../schema";
 
 const pruneStrikeTimestamps = (timestamps: number[], now: number) => {
   const cutoff = now - abusePolicy.strikeTimestampsMaxAgeMs;
   return timestamps.filter((t) => t >= cutoff);
 };
-
-const findModerationIndex = (instanceId: string) =>
-  db.data.instanceModerations.findIndex((m) => m.instanceId === instanceId);
 
 const defaultModeration = (
   instanceId: string,
@@ -31,30 +34,68 @@ const defaultModeration = (
   requestsInCurrentMinute: 0,
 });
 
-export function recordRequestAndMaybeTombstone(
+const getModerationByInstanceId = (
+  store: Pick<ReturnType<typeof getDb>, "select">,
+  instanceId: string,
+): InstanceModeration | undefined => {
+  const row = store
+    .select()
+    .from(instanceModerations)
+    .where(eq(instanceModerations.instanceId, instanceId))
+    .get();
+
+  if (row === undefined) {
+    return undefined;
+  }
+
+  return toDomainModeration(row);
+};
+
+const getActiveInstanceState = (
+  store: Pick<ReturnType<typeof getDb>, "select">,
   instanceId: string,
   now: number,
-): { tombstoned: boolean } {
-  const index = findModerationIndex(instanceId);
-  const instance = getInstanceByIdSync(instanceId);
+) => {
+  const row = store
+    .select({
+      ownerId: instances.ownerId,
+      expiresAt: instances.expiresAt,
+    })
+    .from(instances)
+    .where(eq(instances.id, instanceId))
+    .get();
+
+  if (row === undefined) {
+    return undefined;
+  }
+
+  if (row.expiresAt !== null && row.expiresAt <= now) {
+    return undefined;
+  }
+
+  return row;
+};
+
+type DbTransaction = Parameters<
+  Parameters<ReturnType<typeof getDb>["transaction"]>[0]
+>[0];
+
+export const recordRequestAndMaybeTombstoneInTransaction = (
+  tx: DbTransaction,
+  instanceId: string,
+  now: number,
+): { tombstoned: boolean } => {
+  const instance = getActiveInstanceState(tx, instanceId, now);
   if (instance === undefined) {
-    if (index !== -1) {
-      db.data.instanceModerations.splice(index, 1);
-      scheduleDbWrite();
-    }
+    tx.delete(instanceModerations)
+      .where(eq(instanceModerations.instanceId, instanceId))
+      .run();
     return { tombstoned: false };
   }
 
-  let moderation: InstanceModeration =
-    index === -1
-      ? defaultModeration(instanceId, now)
-      : (() => {
-          const existing = db.data.instanceModerations[index];
-          if (existing === undefined) {
-            return defaultModeration(instanceId, now);
-          }
-          return existing;
-        })();
+  let moderation =
+    getModerationByInstanceId(tx, instanceId) ??
+    defaultModeration(instanceId, now);
 
   if (now >= moderation.lastMinuteBucketStartMs + abusePolicy.minuteBucketMs) {
     moderation = {
@@ -139,47 +180,49 @@ export function recordRequestAndMaybeTombstone(
   }
 
   if (shouldTombstone) {
-    const ownerId = instance.ownerId;
-    db.data.logs = db.data.logs.filter((l) => l.instanceId !== instanceId);
-    const instIdx = db.data.instances.findIndex((i) => i.id === instanceId);
-    if (instIdx !== -1) {
-      db.data.instances.splice(instIdx, 1);
-    }
-    db.data.instanceModerations = db.data.instanceModerations.filter(
-      (m) => m.instanceId !== instanceId,
-    );
-    if (ownerId !== GUEST_OWNER_ID) {
-      const notice = {
+    if (instance.ownerId !== GUEST_OWNER_ID) {
+      const notice = UserNoticeSchema.parse({
         id: crypto.randomUUID(),
-        userId: ownerId,
-        kind: "instance_removed_noise" as const,
+        userId: instance.ownerId,
+        kind: "instance_removed_noise",
         instanceId,
         createdAt: now,
-      };
-      UserNoticeSchema.parse(notice);
-      db.data.userNotices.push(notice);
+      });
+      tx.insert(userNotices).values(toUserNoticeRow(notice)).run();
     }
-    scheduleDbWrite(0);
+
+    tx.delete(instances).where(eq(instances.id, instanceId)).run();
     return { tombstoned: true };
   }
 
-  InstanceModerationSchema.parse(moderation);
-  if (index === -1) {
-    db.data.instanceModerations.push(moderation);
-  } else {
-    db.data.instanceModerations[index] = moderation;
-  }
-  scheduleDbWrite();
+  const moderationRow = toModerationRow(
+    InstanceModerationSchema.parse(moderation),
+  );
+  tx.insert(instanceModerations)
+    .values(moderationRow)
+    .onConflictDoUpdate({
+      target: instanceModerations.instanceId,
+      set: {
+        window5mStartMs: moderationRow.window5mStartMs,
+        requestsInWindow5m: moderationRow.requestsInWindow5m,
+        strikeCommittedForWindow: moderationRow.strikeCommittedForWindow,
+        strikeTimestampsJson: moderationRow.strikeTimestampsJson,
+        discordMutedUntilMs: moderationRow.discordMutedUntilMs,
+        window15mStartMs: moderationRow.window15mStartMs,
+        requestsInWindow15m: moderationRow.requestsInWindow15m,
+        lastMinuteBucketStartMs: moderationRow.lastMinuteBucketStartMs,
+        requestsInCurrentMinute: moderationRow.requestsInCurrentMinute,
+      },
+    })
+    .run();
   return { tombstoned: false };
-}
+};
 
 export function isDiscordMutedForInstance(
   instanceId: string,
   now: number,
 ): boolean {
-  const moderation = db.data.instanceModerations.find(
-    (m) => m.instanceId === instanceId,
-  );
+  const moderation = getModerationByInstanceId(getDb(), instanceId);
   if (moderation?.discordMutedUntilMs === undefined) {
     return false;
   }

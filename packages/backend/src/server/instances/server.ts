@@ -65,7 +65,7 @@ export const createInstancesServer = (port: number) => {
             return;
           }
 
-          const instance = await getInstanceById(result.instanceId);
+          const instance = getInstanceById(result.instanceId);
           if (!instance) {
             respond(
               socket,

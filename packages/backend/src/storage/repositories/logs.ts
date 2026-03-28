@@ -1,24 +1,28 @@
 import type { Log } from "shared";
 import { LogSchema } from "shared";
-import { db, scheduleDbWrite } from "../db";
+import { asc, eq } from "drizzle-orm";
+import { getDb } from "../db";
 import { sendDiscordNotificationThrottled } from "../../server/webhooks";
-import { getInstanceByIdSync } from "./instances";
+import { getInstanceById } from "./instances";
 import {
   isDiscordMutedForInstance,
-  recordRequestAndMaybeTombstone,
+  recordRequestAndMaybeTombstoneInTransaction,
 } from "./moderation";
+import { logs } from "../schema";
 import { getWebhooksByIds } from "./webhooks";
 
-const notifyWebhooks = async (log: Log, now: number) => {
+const pendingWebhookNotifications = new Set<Promise<void>>();
+
+const notifyWebhooks = async (log: Log, now: number): Promise<void> => {
   try {
-    const instance = getInstanceByIdSync(log.instanceId);
+    const instance = getInstanceById(log.instanceId);
     if (instance === undefined || instance.webhookIds.length === 0) {
       return;
     }
     if (isDiscordMutedForInstance(log.instanceId, now)) {
       return;
     }
-    const webhooks = await getWebhooksByIds(instance.webhookIds);
+    const webhooks = getWebhooksByIds(instance.webhookIds);
     await Promise.all(
       webhooks.map((webhook) => sendDiscordNotificationThrottled(webhook, log)),
     );
@@ -26,28 +30,58 @@ const notifyWebhooks = async (log: Log, now: number) => {
     console.error("Error sending webhook notifications:", error);
   }
 };
+const trackWebhookNotification = (pending: Promise<void>) => {
+  pendingWebhookNotifications.add(pending);
+  void pending.finally(() => {
+    pendingWebhookNotifications.delete(pending);
+  });
+};
 
 export function addLog(log: Log): Log {
-  LogSchema.parse(log);
-  db.data.logs.push(log);
-  const now = log.timestamp;
-
-  const { tombstoned } = recordRequestAndMaybeTombstone(log.instanceId, now);
-  scheduleDbWrite();
+  const parsed = LogSchema.parse(log);
+  const now = parsed.timestamp;
+  const { tombstoned } = getDb().transaction(
+    (tx) => {
+      tx.insert(logs).values(parsed).run();
+      return recordRequestAndMaybeTombstoneInTransaction(
+        tx,
+        parsed.instanceId,
+        now,
+      );
+    },
+    { behavior: "immediate" },
+  );
   if (tombstoned) {
-    return log;
+    return parsed;
   }
 
-  void notifyWebhooks(log, now);
+  trackWebhookNotification(notifyWebhooks(parsed, now));
 
-  return log;
+  return parsed;
 }
 
-export async function getLogsForInstance(instanceId: string): Promise<Log[]> {
-  return db.data.logs.filter((l) => l.instanceId === instanceId);
+export async function flushPendingWebhookNotifications(): Promise<void> {
+  while (pendingWebhookNotifications.size > 0) {
+    await Promise.allSettled(Array.from(pendingWebhookNotifications));
+  }
 }
 
-export async function clearLogsForInstance(instanceId: string): Promise<void> {
-  db.data.logs = db.data.logs.filter((l) => l.instanceId !== instanceId);
-  await db.write();
+export function getLogsForInstance(instanceId: string): Log[] {
+  return getDb()
+    .select({
+      id: logs.id,
+      instanceId: logs.instanceId,
+      type: logs.type,
+      timestamp: logs.timestamp,
+      address: logs.address,
+      raw: logs.raw,
+    })
+    .from(logs)
+    .where(eq(logs.instanceId, instanceId))
+    .orderBy(asc(logs.seq))
+    .all();
+}
+
+export function clearLogsForInstance(instanceId: string): void {
+  getDb().delete(logs).where(eq(logs.instanceId, instanceId)).run();
 }

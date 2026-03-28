@@ -75,7 +75,7 @@ const authenticateRequest = async (
     return { kind: "error", status: 401 };
   }
 
-  const userRecord = await getUserById(sub);
+  const userRecord = getUserById(sub);
   if (userRecord === undefined) {
     return { kind: "error", status: 401 };
   }

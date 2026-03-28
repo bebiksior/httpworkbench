@@ -14,7 +14,7 @@ import { validateDiscordWebhookUrl } from "../webhooks";
 export const WEBHOOKS_ROUTES = {
   "/api/webhooks": {
     GET: withAuth(async (_req: BunRequest<"/api/webhooks">, user) => {
-      const webhooks = await getWebhooksByOwner(user.id);
+      const webhooks = getWebhooksByOwner(user.id);
       return Response.json(webhooks, { status: 200 });
     }),
     POST: withAuth(async (req: BunRequest<"/api/webhooks">, user) => {
@@ -31,7 +31,7 @@ export const WEBHOOKS_ROUTES = {
         );
       }
 
-      const webhook = await addWebhook({
+      const webhook = addWebhook({
         id: crypto.randomUUID(),
         name: parsed.data.name,
         url: parsed.data.url,
@@ -49,7 +49,7 @@ export const WEBHOOKS_ROUTES = {
         return Response.json({ error: "Invalid id" }, { status: 400 });
       }
 
-      const webhook = await getWebhookById(id);
+      const webhook = getWebhookById(id);
       if (webhook === undefined) {
         return Response.json({ error: "Not found" }, { status: 404 });
       }
@@ -70,7 +70,7 @@ export const WEBHOOKS_ROUTES = {
         );
       }
 
-      const updatedWebhook = await updateWebhook(id, {
+      const updatedWebhook = updateWebhook(id, {
         name: parsed.data.name,
         url: parsed.data.url,
       });
@@ -83,7 +83,7 @@ export const WEBHOOKS_ROUTES = {
         return Response.json({ error: "Invalid id" }, { status: 400 });
       }
 
-      const webhook = await getWebhookById(id);
+      const webhook = getWebhookById(id);
       if (webhook === undefined) {
         return Response.json({ error: "Not found" }, { status: 404 });
       }
@@ -91,7 +91,7 @@ export const WEBHOOKS_ROUTES = {
         return Response.json({ error: "Forbidden" }, { status: 403 });
       }
 
-      await deleteWebhook(id);
+      deleteWebhook(id);
       return Response.json({ message: "Deleted" }, { status: 200 });
     }),
   },
