@@ -82,6 +82,35 @@ describe("adjustContentLength", () => {
     expect(adjusted).toContain(`Content-Length: ${expectedLength}`);
   });
 
+  test("preserves LF line endings inside the body", () => {
+    const body =
+      "<!doctype html>\n<html>\n<body>\nline1\nline2\n</body>\n</html>";
+    const raw = ["HTTP/1.1 200 OK", "Content-Type: text/html", "", body].join(
+      "\r\n",
+    );
+
+    const adjusted = adjustContentLength(raw);
+
+    expect(adjusted.endsWith(body)).toBe(true);
+    expect(adjusted).toContain(
+      `Content-Length: ${new TextEncoder().encode(body).length}`,
+    );
+  });
+
+  test("supports LF-delimited headers without rewriting the body", () => {
+    const body = "hello\nworld";
+    const raw = ["HTTP/1.1 200 OK", "Content-Type: text/plain", "", body].join(
+      "\n",
+    );
+
+    const adjusted = adjustContentLength(raw);
+
+    expect(adjusted.endsWith(body)).toBe(true);
+    expect(adjusted).toContain(
+      `Content-Length: ${new TextEncoder().encode(body).length}`,
+    );
+  });
+
   test("returns raw response unchanged if no body separator exists", () => {
     const raw = "HTTP/1.1 204 No Content\r\nContent-Length: 0";
     expect(adjustContentLength(raw)).toBe(raw);
