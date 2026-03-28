@@ -176,6 +176,62 @@ describe("runImportLegacyDb", () => {
     });
   });
 
+  test("drops orphan logs, orphan moderations, and missing webhook references", async () => {
+    await writeLegacyJson(dataDir, {
+      ...createLegacyData(),
+      instances: [
+        {
+          ...createInstance(),
+          webhookIds: ["webhook-1", "webhook-missing"],
+        },
+      ],
+      logs: [
+        createLog(),
+        {
+          ...createLog(),
+          id: "log-orphan",
+          instanceId: "inst-missing",
+        },
+      ],
+      instanceModerations: [
+        {
+          instanceId: "inst-1",
+          window5mStartMs: 10,
+          requestsInWindow5m: 1,
+          strikeCommittedForWindow: false,
+          strikeTimestampsMs: [],
+          window15mStartMs: 10,
+          requestsInWindow15m: 1,
+          lastMinuteBucketStartMs: 10,
+          requestsInCurrentMinute: 1,
+        },
+        {
+          instanceId: "inst-missing",
+          window5mStartMs: 10,
+          requestsInWindow5m: 1,
+          strikeCommittedForWindow: false,
+          strikeTimestampsMs: [],
+          window15mStartMs: 10,
+          requestsInWindow15m: 1,
+          lastMinuteBucketStartMs: 10,
+          requestsInCurrentMinute: 1,
+        },
+      ],
+    });
+
+    await expect(
+      runImportLegacyDb({ dataDir, resetTarget: true }),
+    ).resolves.toEqual({
+      sqlitePath: `${dataDir}/db.sqlite`,
+      users: 1,
+      instances: 1,
+      logs: 1,
+      webhooks: 1,
+      instanceModerations: 1,
+      userNotices: 1,
+    });
+  });
+
   test("auto-imports legacy data when sqlite is still empty", async () => {
     await writeLegacyJson(dataDir);
 

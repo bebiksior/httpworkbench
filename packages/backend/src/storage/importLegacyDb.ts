@@ -2,6 +2,7 @@ import { isDeepStrictEqual } from "node:util";
 import { asc } from "drizzle-orm";
 import { closeDb, getDb, initDb, replaceData, resolveSqliteDbPath } from "./db";
 import {
+  type LegacyStorageData,
   readLegacyStorageData,
   resolveDataDir,
   resolveLegacyDbPath,
@@ -140,8 +141,79 @@ const readImportedUserNotices = () => {
     .map((row) => toDomainUserNotice(row));
 };
 
+type DroppedLegacyRecords = {
+  missingWebhookReferences: number;
+  orphanLogs: number;
+  orphanModerations: number;
+};
+
+const hasDroppedLegacyRecords = (dropped: DroppedLegacyRecords) => {
+  return (
+    dropped.missingWebhookReferences > 0 ||
+    dropped.orphanLogs > 0 ||
+    dropped.orphanModerations > 0
+  );
+};
+
+const sanitizeLegacyStorageData = (
+  data: LegacyStorageData,
+): {
+  data: LegacyStorageData;
+  dropped: DroppedLegacyRecords;
+} => {
+  const existingWebhookIds = new Set(
+    data.webhooks.map((webhook) => webhook.id),
+  );
+  const existingInstanceIds = new Set(
+    data.instances.map((instance) => instance.id),
+  );
+
+  let missingWebhookReferences = 0;
+  const instances = data.instances.map((instance) => {
+    const webhookIds = instance.webhookIds.filter((webhookId) => {
+      if (existingWebhookIds.has(webhookId)) {
+        return true;
+      }
+
+      missingWebhookReferences += 1;
+      return false;
+    });
+
+    if (webhookIds.length === instance.webhookIds.length) {
+      return instance;
+    }
+
+    return {
+      ...instance,
+      webhookIds,
+    };
+  });
+
+  const logs = data.logs.filter((log) =>
+    existingInstanceIds.has(log.instanceId),
+  );
+  const instanceModerations = data.instanceModerations.filter((moderation) =>
+    existingInstanceIds.has(moderation.instanceId),
+  );
+
+  return {
+    data: {
+      ...data,
+      instances,
+      logs,
+      instanceModerations,
+    },
+    dropped: {
+      missingWebhookReferences,
+      orphanLogs: data.logs.length - logs.length,
+      orphanModerations:
+        data.instanceModerations.length - instanceModerations.length,
+    },
+  };
+};
+
 export const verifyImportedData = (
-  data: Awaited<ReturnType<typeof readLegacyStorageData>>,
+  data: LegacyStorageData,
   dataDir?: string,
 ) => {
   const statsResult = initDb({ dataDir });
@@ -221,22 +293,30 @@ export const runImportLegacyDb = async ({
   }
 
   const legacyData = await readLegacyStorageData(dataDir);
+  const sanitized = sanitizeLegacyStorageData(legacyData);
   const initResult = initDb({ dataDir, reset: resetTarget });
   if (initResult.kind === "error") {
     throw initResult.error;
   }
 
-  replaceData(legacyData);
-  verifyImportedData(legacyData, dataDir);
+  replaceData(sanitized.data);
+  verifyImportedData(sanitized.data, dataDir);
+
+  if (hasDroppedLegacyRecords(sanitized.dropped)) {
+    console.warn(
+      "Skipped invalid legacy references during import",
+      sanitized.dropped,
+    );
+  }
 
   return {
     sqlitePath,
-    users: legacyData.users.length,
-    instances: legacyData.instances.length,
-    logs: legacyData.logs.length,
-    webhooks: legacyData.webhooks.length,
-    instanceModerations: legacyData.instanceModerations.length,
-    userNotices: legacyData.userNotices.length,
+    users: sanitized.data.users.length,
+    instances: sanitized.data.instances.length,
+    logs: sanitized.data.logs.length,
+    webhooks: sanitized.data.webhooks.length,
+    instanceModerations: sanitized.data.instanceModerations.length,
+    userNotices: sanitized.data.userNotices.length,
   };
 };
 
