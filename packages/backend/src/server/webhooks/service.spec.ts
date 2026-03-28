@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, mock, test } from "bun:test";
 import type { Log, Webhook } from "shared";
 import {
+  resetDiscordNotificationThrottleStateForTests,
   sendDiscordNotificationThrottled,
   sendDiscordNotification,
 } from "./service";
@@ -26,6 +27,7 @@ const originalFetch = globalThis.fetch;
 
 describe("sendDiscordNotificationThrottled", () => {
   afterEach(() => {
+    resetDiscordNotificationThrottleStateForTests();
     globalThis.fetch = originalFetch;
     mock.restore();
   });
@@ -41,10 +43,40 @@ describe("sendDiscordNotificationThrottled", () => {
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
+
+  test("allows at most five Discord sends per instance per minute", async () => {
+    const fetchMock = mock(() =>
+      Promise.resolve(new Response(null, { status: 204 })),
+    );
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+    const fixedNow = 1_700_000_000_000;
+    const originalDateNow = Date.now;
+    Date.now = () => fixedNow;
+    try {
+      for (let i = 0; i < 5; i += 1) {
+        await sendDiscordNotificationThrottled(
+          {
+            ...webhook,
+            id: `webhook-${i}`,
+          },
+          log,
+        );
+      }
+      await sendDiscordNotificationThrottled(
+        { ...webhook, id: "webhook-extra" },
+        log,
+      );
+
+      expect(fetchMock).toHaveBeenCalledTimes(5);
+    } finally {
+      Date.now = originalDateNow;
+    }
+  });
 });
 
 describe("sendDiscordNotification", () => {
   afterEach(() => {
+    resetDiscordNotificationThrottleStateForTests();
     globalThis.fetch = originalFetch;
     mock.restore();
   });
