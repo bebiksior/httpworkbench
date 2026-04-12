@@ -3,7 +3,7 @@ import { AnthropicIcon, GoogleIcon, OpenAIIcon, XAIIcon } from "./icons";
 import UnknownIcon from "./icons/Unknown.vue";
 import { availableModels } from "@/agent/models";
 import { type ModelItem } from "@/agent/types/config";
-import { useConfigStore } from "@/stores";
+import { useAssistantModelStore } from "@/stores";
 
 type AugmentedModelItem = ModelItem & { icon: Component };
 
@@ -23,14 +23,14 @@ const getIcon = (model: ModelItem) => {
 };
 
 export const useSelector = () => {
-  const configStore = useConfigStore();
+  const assistantModelStore = useAssistantModelStore();
 
   const modelId = computed<string>({
     get() {
-      return configStore.agentsModel;
+      return assistantModelStore.agentsModel;
     },
     set(value: string) {
-      configStore.agentsModel = value;
+      assistantModelStore.agentsModel = value;
     },
   });
 

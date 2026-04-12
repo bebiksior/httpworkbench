@@ -3,7 +3,7 @@ import { defineStore } from "pinia";
 import { computed, ref, shallowRef, triggerRef, watch } from "vue";
 import { createLocalAgentTransport } from "@/agent/core/agent";
 import type { CustomUIMessage } from "@/agent/types";
-import { useConfigStore } from "./config";
+import { useAssistantModelStore } from "./assistantModel";
 import { useResponseEditorStore } from "./responseEditor";
 import { getErrorMessage } from "@/utils/error";
 import { isAbsent } from "@/utils/types";
@@ -14,7 +14,7 @@ type EditorSnapshot = {
 };
 
 export const useAgentsStore = defineStore("agents", () => {
-  const configStore = useConfigStore();
+  const assistantModelStore = useAssistantModelStore();
   const responseEditorStore = useResponseEditorStore();
 
   const activeInstanceId = ref<string | undefined>(undefined);
@@ -30,7 +30,7 @@ export const useAgentsStore = defineStore("agents", () => {
     const chat = new Chat<CustomUIMessage>({
       id: `poc-assistant-${instanceId}`,
       transport: createLocalAgentTransport({
-        getModelId: () => configStore.agentsModel,
+        getModelId: () => assistantModelStore.agentsModel,
         getEditorContent: () => responseEditorStore.content,
         onBeforeSend: (messages) => {
           const lastUserMessage = [...messages]
@@ -81,7 +81,7 @@ export const useAgentsStore = defineStore("agents", () => {
   };
 
   watch(
-    () => configStore.agentsModel,
+    () => assistantModelStore.agentsModel,
     () => {
       const id = activeInstanceId.value;
       if (id !== undefined) {

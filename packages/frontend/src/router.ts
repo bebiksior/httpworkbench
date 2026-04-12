@@ -6,7 +6,7 @@ import { Login } from "@/pages/Login";
 import { NotFound } from "@/pages/NotFound";
 import { Settings } from "@/pages/Settings";
 import { PoCBuilder } from "@/pages/PoCBuilder";
-import { useAuthStore, useConfigStore } from "@/stores";
+import { useAuthStore } from "@/stores";
 
 const router = createRouter({
   history: createWebHistory(),
@@ -56,11 +56,6 @@ const router = createRouter({
 
 router.beforeEach(async (to) => {
   const authStore = useAuthStore();
-  const configStore = useConfigStore();
-
-  if (!configStore.isInitialized) {
-    await configStore.fetchConfig();
-  }
 
   if (!authStore.isInitialized) {
     await authStore.fetchUser();

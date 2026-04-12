@@ -8,7 +8,8 @@ import InputText from "primevue/inputtext";
 import Message from "primevue/message";
 import { computed } from "vue";
 import { storeToRefs } from "pinia";
-import { useAuthStore, useConfigStore } from "@/stores";
+import { config } from "@/config";
+import { useAuthStore } from "@/stores";
 import { EmptyState } from "./Empty";
 import { InstanceItem } from "./InstanceItem";
 import { useHomeLogic } from "./useLogic";
@@ -26,12 +27,10 @@ const {
 
 const hasSearchQuery = computed(() => searchQuery.value.trim() !== "");
 
-const configStore = useConfigStore();
 const instanceCount = computed(() => instances.value?.length ?? 0);
-const instanceLimit = computed(() => configStore.config?.maxInstancesPerOwner);
+const instanceLimit = computed(() => config.maxInstancesPerOwner);
 const showInstanceLimit = computed(
-  () =>
-    configStore.config?.isHosted === true && instanceLimit.value !== undefined,
+  () => config.isHosted === true && instanceLimit.value !== undefined,
 );
 
 const authStore = useAuthStore();

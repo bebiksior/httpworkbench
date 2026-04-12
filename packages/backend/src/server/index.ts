@@ -9,7 +9,6 @@ import {
 } from "../storage";
 import { dnsConfig, instancePolicies } from "../config";
 import {
-  CONFIG_ROUTES,
   GUEST_INSTANCES_ROUTES,
   INSTANCES_ROUTES,
   OAUTH_ROUTES,
@@ -46,7 +45,6 @@ export const initServer = async () => {
       },
     },
     routes: {
-      ...CONFIG_ROUTES,
       ...OAUTH_ROUTES,
       ...USER_ROUTES,
       ...INSTANCES_ROUTES,
