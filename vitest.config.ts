@@ -13,7 +13,10 @@ export default defineConfig({
   test: {
     include: ["packages/**/*.spec.ts"],
     exclude: [
-      "packages/backend/**",
+      "packages/backend/src/server/webhooks/service.spec.ts",
+      "packages/backend/src/storage/db.spec.ts",
+      "packages/backend/src/storage/importLegacyDb.spec.ts",
+      "packages/backend/src/storage/repositories/logs.spec.ts",
       "**/node_modules/**",
       "**/dist/**",
       "**/build/**",

@@ -2,11 +2,18 @@ import {
   InstanceModerationSchema,
   InstanceSchema,
   UserNoticeSchema,
+  WebhookSchema,
   type Instance,
   type InstanceModeration,
   type UserNotice,
+  type Webhook,
 } from "shared";
-import { instanceModerations, instances, userNotices } from "./schema";
+import {
+  instanceModerations,
+  instances,
+  userNotices,
+  webhooks,
+} from "./schema";
 
 type InstanceRow = typeof instances.$inferSelect;
 type InstanceInsertRow = typeof instances.$inferInsert;
@@ -14,6 +21,8 @@ type ModerationRow = typeof instanceModerations.$inferSelect;
 type ModerationInsertRow = typeof instanceModerations.$inferInsert;
 type UserNoticeInsertRow = typeof userNotices.$inferInsert;
 type UserNoticeRow = typeof userNotices.$inferSelect;
+type WebhookInsertRow = typeof webhooks.$inferInsert;
+type WebhookRow = typeof webhooks.$inferSelect;
 
 export const toDomainInstance = (
   row: InstanceRow,
@@ -61,6 +70,29 @@ export const toInstanceRow = (instance: Instance): InstanceInsertRow => {
     kind: parsed.kind,
     raw: parsed.kind === "static" ? parsed.raw : null,
     processorsJson: parsed.kind === "dynamic" ? parsed.processors : null,
+  };
+};
+
+export const toDomainWebhook = (row: WebhookRow): Webhook => {
+  return WebhookSchema.parse({
+    id: row.id,
+    name: row.name,
+    url: row.url,
+    message: row.message ?? undefined,
+    ownerId: row.ownerId,
+    createdAt: row.createdAt,
+  });
+};
+
+export const toWebhookRow = (webhook: Webhook): WebhookInsertRow => {
+  const parsed = WebhookSchema.parse(webhook);
+  return {
+    id: parsed.id,
+    name: parsed.name,
+    url: parsed.url,
+    message: parsed.message ?? null,
+    ownerId: parsed.ownerId,
+    createdAt: parsed.createdAt,
   };
 };
 

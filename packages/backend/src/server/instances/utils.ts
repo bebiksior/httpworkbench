@@ -1,6 +1,7 @@
 import type { Socket } from "bun";
 
 const encoder = new TextEncoder();
+const requestLineBreakPattern = /\r?\n/;
 const responseLineBreakPattern = /\r?\n/;
 const responseHeaderSeparatorPattern = /\r?\n\r?\n/;
 
@@ -79,6 +80,25 @@ export const getInstanceIDFromHost = (host: string): InstanceHostResult => {
 export const respond = <T>(socket: Socket<T>, raw: Uint8Array) => {
   socket.write(raw);
   socket.end();
+};
+
+export const getHeaderValue = (
+  rawRequest: string,
+  headerName: string,
+): string | undefined => {
+  const lowerHeaderName = `${headerName.toLowerCase()}:`;
+
+  for (const line of rawRequest.split(requestLineBreakPattern)) {
+    if (line === "") {
+      break;
+    }
+
+    if (line.toLowerCase().startsWith(lowerHeaderName)) {
+      return line.slice(line.indexOf(":") + 1).trim();
+    }
+  }
+
+  return undefined;
 };
 
 export const stripInternalHeaders = (

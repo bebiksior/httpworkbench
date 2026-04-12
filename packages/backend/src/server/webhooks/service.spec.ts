@@ -4,6 +4,7 @@ import {
   resetDiscordNotificationThrottleStateForTests,
   sendDiscordNotificationThrottled,
   sendDiscordNotification,
+  sendDiscordTestNotification,
 } from "./service";
 
 const webhook: Webhook = {
@@ -90,5 +91,60 @@ describe("sendDiscordNotification", () => {
     await sendDiscordNotification(webhook, log);
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  test("includes custom webhook message content when configured", async () => {
+    let requestBody = "";
+    const fetchMock = mock(
+      (_input: string | URL | Request, init?: { body?: unknown }) => {
+        requestBody = String(init?.body ?? "");
+        return Promise.resolve(new Response(null, { status: 204 }));
+      },
+    );
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    await sendDiscordNotification(
+      {
+        ...webhook,
+        message: "<@123456> {{ text }}",
+      },
+      log,
+    );
+
+    expect(requestBody).not.toBe("");
+    expect(JSON.parse(requestBody)).toMatchObject({
+      content: "<@123456> GET / HTTP/1.1",
+    });
+  });
+});
+
+describe("sendDiscordTestNotification", () => {
+  afterEach(() => {
+    resetDiscordNotificationThrottleStateForTests();
+    globalThis.fetch = originalFetch;
+    mock.restore();
+  });
+
+  test("sends a sample notification using the provided draft webhook data", async () => {
+    let requestBody = "";
+    const fetchMock = mock(
+      (_input: string | URL | Request, init?: { body?: unknown }) => {
+        requestBody = String(init?.body ?? "");
+        return Promise.resolve(new Response(null, { status: 204 }));
+      },
+    );
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    await sendDiscordTestNotification({
+      url: webhook.url,
+      message:
+        "Test {{ type }} {{ address }} {{ instanceId }} {{ timestamp }} {{ text }}",
+    });
+
+    expect(requestBody).not.toBe("");
+    expect(JSON.parse(requestBody)).toMatchObject({
+      content:
+        "Test HTTP 203.0.113.10 example-instance 2026-04-12T12:00:00.000Z GET /example HTTP/1.1\nHost: example.httpworkbench.dev\nUser-Agent: webhook-test-button\nX-Test: true",
+    });
   });
 });

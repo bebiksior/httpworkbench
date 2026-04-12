@@ -1,5 +1,9 @@
 import type { BunRequest } from "bun";
-import { CreateWebhookSchema, UpdateWebhookSchema } from "shared";
+import {
+  CreateWebhookSchema,
+  TestWebhookSchema,
+  UpdateWebhookSchema,
+} from "shared";
 import {
   addWebhook,
   deleteWebhook,
@@ -9,7 +13,19 @@ import {
 } from "../../storage";
 import { withAuth } from "../auth";
 import { parseJsonRequest } from "../utils";
-import { validateDiscordWebhookUrl } from "../webhooks";
+import {
+  sendDiscordTestNotification,
+  validateDiscordWebhookUrl,
+} from "../webhooks";
+
+const normalizeWebhookMessage = (message?: string) => {
+  if (message === undefined) {
+    return undefined;
+  }
+
+  const normalized = message.trim();
+  return normalized === "" ? undefined : normalized;
+};
 
 export const WEBHOOKS_ROUTES = {
   "/api/webhooks": {
@@ -35,11 +51,48 @@ export const WEBHOOKS_ROUTES = {
         id: crypto.randomUUID(),
         name: parsed.data.name,
         url: parsed.data.url,
+        message: normalizeWebhookMessage(parsed.data.message),
         ownerId: user.id,
         createdAt: Date.now(),
       });
 
       return Response.json(webhook, { status: 201 });
+    }),
+  },
+  "/api/webhooks/test": {
+    POST: withAuth(async (req: BunRequest<"/api/webhooks/test">, _user) => {
+      const parsed = await parseJsonRequest(req, TestWebhookSchema);
+      if (parsed.kind === "error") {
+        return parsed.response;
+      }
+
+      const normalizedMessage = normalizeWebhookMessage(parsed.data.message);
+      const validation = validateDiscordWebhookUrl(parsed.data.url);
+      if (!validation.valid) {
+        return Response.json(
+          { error: validation.error ?? "Invalid webhook URL" },
+          { status: 400 },
+        );
+      }
+
+      try {
+        await sendDiscordTestNotification({
+          url: parsed.data.url,
+          message: normalizedMessage,
+        });
+      } catch (error) {
+        return Response.json(
+          {
+            error:
+              error instanceof Error
+                ? error.message
+                : "Failed to send test webhook notification",
+          },
+          { status: 502 },
+        );
+      }
+
+      return new Response(null, { status: 204 });
     }),
   },
   "/api/webhooks/:id": {
@@ -73,6 +126,7 @@ export const WEBHOOKS_ROUTES = {
       const updatedWebhook = updateWebhook(id, {
         name: parsed.data.name,
         url: parsed.data.url,
+        message: normalizeWebhookMessage(parsed.data.message),
       });
 
       return Response.json(updatedWebhook, { status: 200 });

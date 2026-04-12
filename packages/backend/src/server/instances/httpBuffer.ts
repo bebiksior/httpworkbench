@@ -1,6 +1,7 @@
 const HEADERS_SEPARATOR = new Uint8Array([13, 10, 13, 10]);
 const MAX_HEADER_SIZE = 8 * 1024;
 const MAX_BODY_SIZE = 32 * 1024 * 1024;
+const MAX_REQUEST_SIZE = MAX_HEADER_SIZE + MAX_BODY_SIZE;
 
 export class HttpRequestBuffer {
   private buffer: Uint8Array = new Uint8Array(0);
@@ -13,15 +14,17 @@ export class HttpRequestBuffer {
 
     const newLength = this.buffer.length + data.length;
 
-    if (newLength > MAX_HEADER_SIZE + MAX_BODY_SIZE) {
+    const nextLength = Math.min(newLength, MAX_REQUEST_SIZE);
+    const appendedLength = Math.max(0, nextLength - this.buffer.length);
+    const result = new Uint8Array(nextLength);
+    result.set(this.buffer, 0);
+    result.set(data.slice(0, appendedLength), this.buffer.length);
+    this.buffer = result;
+
+    if (newLength > MAX_REQUEST_SIZE) {
       this.error = "Request too large";
       return;
     }
-
-    const result = new Uint8Array(newLength);
-    result.set(this.buffer, 0);
-    result.set(data, this.buffer.length);
-    this.buffer = result;
 
     if (this.headersEndIndex === undefined) {
       const headersEnd = this.findHeadersEnd();

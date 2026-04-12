@@ -1,4 +1,4 @@
-import { listen } from "bun";
+import { listen, type Socket } from "bun";
 import { parse } from "http-z";
 import { type Log } from "shared";
 import { addLog } from "../../storage";
@@ -8,6 +8,7 @@ import { HttpRequestBuffer } from "./httpBuffer";
 import {
   adjustContentLength,
   createResponse,
+  getHeaderValue,
   getInstanceIDFromHost,
   respond,
   stripInternalHeaders,
@@ -15,6 +16,64 @@ import {
 
 type SocketData = {
   buffer: HttpRequestBuffer;
+};
+
+const INTERNAL_HEADER_NAMES = ["x-internal-real-ip"];
+
+const createHttpLog = (
+  instanceId: string,
+  address: string,
+  rawRequest: string,
+) => {
+  return {
+    id: crypto.randomUUID(),
+    instanceId,
+    type: "http",
+    timestamp: Date.now(),
+    address,
+    raw: rawRequest,
+  } satisfies Log;
+};
+
+const tryLogInteraction = <T>(
+  socket: Socket<T>,
+  rawRequest: string,
+): boolean => {
+  try {
+    const host = getHeaderValue(rawRequest, "host");
+    if (host === undefined || host === "") {
+      return false;
+    }
+
+    const result = getInstanceIDFromHost(host);
+    if (result.kind === "error") {
+      return false;
+    }
+
+    const instance = getInstanceById(result.instanceId);
+    if (instance === undefined) {
+      return false;
+    }
+
+    const clientAddress =
+      getHeaderValue(rawRequest, "x-internal-real-ip") ?? socket.remoteAddress;
+    const rawWithoutInternalHeaders = stripInternalHeaders(
+      rawRequest,
+      INTERNAL_HEADER_NAMES,
+    );
+    const log = createHttpLog(
+      instance.id,
+      clientAddress,
+      rawWithoutInternalHeaders,
+    );
+
+    addLog(log);
+    broadcastLog(log);
+    return true;
+  } catch (error) {
+    console.error(error);
+    return false;
+  }
 };
 
 export const createInstancesServer = (port: number) => {
@@ -29,10 +88,13 @@ export const createInstancesServer = (port: number) => {
         socket.timeout(30);
       },
       async data(socket, data) {
+        let didLog = false;
+
         try {
           socket.data.buffer.append(new Uint8Array(data));
 
           if (socket.data.buffer.hasError()) {
+            didLog = tryLogInteraction(socket, socket.data.buffer.getRaw());
             respond(
               socket,
               createResponse("400 Bad Request", socket.data.buffer.getError()),
@@ -74,31 +136,27 @@ export const createInstancesServer = (port: number) => {
             return;
           }
 
-          const realIpHeader = request.headers.find(
-            (header) => header.name.toLowerCase() === "x-internal-real-ip",
-          )?.value;
-          const clientAddress = realIpHeader ?? socket.remoteAddress;
-
-          const rawWithoutInternalHeaders = stripInternalHeaders(rawRequest, [
-            "x-internal-real-ip",
-          ]);
-
-          const log = {
-            id: crypto.randomUUID(),
-            instanceId: instance.id,
-            type: "http",
-            timestamp: Date.now(),
-            address: clientAddress,
-            raw: rawWithoutInternalHeaders,
-          } satisfies Log;
+          const clientAddress =
+            getHeaderValue(rawRequest, "x-internal-real-ip") ??
+            socket.remoteAddress;
+          const rawWithoutInternalHeaders = stripInternalHeaders(
+            rawRequest,
+            INTERNAL_HEADER_NAMES,
+          );
+          const log = createHttpLog(
+            instance.id,
+            clientAddress,
+            rawWithoutInternalHeaders,
+          );
 
           addLog(log);
+          broadcastLog(log);
+          didLog = true;
 
           switch (instance.kind) {
             case "static": {
               const adjustedResponse = adjustContentLength(instance.raw);
               respond(socket, new TextEncoder().encode(adjustedResponse));
-              broadcastLog(log);
               break;
             }
             case "dynamic":
@@ -106,6 +164,9 @@ export const createInstancesServer = (port: number) => {
           }
         } catch (error) {
           console.error(error);
+          if (!didLog) {
+            didLog = tryLogInteraction(socket, socket.data.buffer.getRaw());
+          }
           respond(
             socket,
             createResponse("500 Internal Server Error", "Something went wrong"),

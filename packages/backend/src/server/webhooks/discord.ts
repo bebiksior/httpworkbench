@@ -2,9 +2,12 @@ import type { Log } from "shared";
 
 const DISCORD_HTTP_COLOR = 0x3b82f6;
 const DISCORD_DNS_COLOR = 0x10b981;
+const MAX_MESSAGE_CONTENT_LENGTH = 2000;
 const MAX_RAW_CONTENT_LENGTH = 1024 - 8;
 const MAX_ADDRESS_LENGTH = 1024;
 const MAX_FOOTER_LENGTH = 2048;
+const DISCORD_MESSAGE_PLACEHOLDER_PATTERN = /\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g;
+const DISCORD_MENTION_BREAK = "\u200B";
 
 export function validateDiscordWebhookUrl(url: string): {
   valid: boolean;
@@ -45,7 +48,35 @@ export const truncateDiscordField = (
   return `${value.substring(0, maxLength - 3)}...`;
 };
 
-export const buildDiscordNotificationPayload = (log: Log) => {
+const sanitizeDiscordPlaceholderValue = (value: string): string => {
+  return value
+    .replaceAll("@everyone", `@${DISCORD_MENTION_BREAK}everyone`)
+    .replaceAll("@here", `@${DISCORD_MENTION_BREAK}here`)
+    .replaceAll(/<@([!&]?)(\d+)>/g, `<@$1${DISCORD_MENTION_BREAK}$2>`)
+    .replaceAll(/<#(\d+)>/g, `<#${DISCORD_MENTION_BREAK}$1>`);
+};
+
+const renderDiscordMessageTemplate = (template: string, log: Log): string => {
+  const values = {
+    address: sanitizeDiscordPlaceholderValue(log.address),
+    instanceId: sanitizeDiscordPlaceholderValue(log.instanceId),
+    text: sanitizeDiscordPlaceholderValue(log.raw),
+    timestamp: sanitizeDiscordPlaceholderValue(
+      new Date(log.timestamp).toISOString(),
+    ),
+    type: sanitizeDiscordPlaceholderValue(log.type.toUpperCase()),
+  } as const;
+
+  return template.replace(DISCORD_MESSAGE_PLACEHOLDER_PATTERN, (match, key) => {
+    const placeholderKey = key as keyof typeof values;
+    return values[placeholderKey] ?? match;
+  });
+};
+
+export const buildDiscordNotificationPayload = (
+  log: Log,
+  messageTemplate?: string,
+) => {
   const color = log.type === "http" ? DISCORD_HTTP_COLOR : DISCORD_DNS_COLOR;
   const timestamp = new Date(log.timestamp).toISOString();
   const footerText = truncateDiscordField(
@@ -57,8 +88,16 @@ export const buildDiscordNotificationPayload = (log: Log) => {
     log.address,
     MAX_ADDRESS_LENGTH,
   );
+  const content =
+    messageTemplate === undefined
+      ? undefined
+      : truncateDiscordField(
+          renderDiscordMessageTemplate(messageTemplate, log),
+          MAX_MESSAGE_CONTENT_LENGTH,
+        );
 
   return {
+    content,
     embeds: [
       {
         title: `${log.type.toUpperCase()} Log Received`,

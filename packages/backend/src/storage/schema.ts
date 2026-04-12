@@ -48,6 +48,7 @@ export const webhooks = sqliteTable(
     id: text("id").primaryKey(),
     name: text("name").notNull(),
     url: text("url").notNull(),
+    message: text("message"),
     ownerId: text("ownerId").notNull(),
     createdAt: integer("createdAt", { mode: "number" }).notNull(),
   },
