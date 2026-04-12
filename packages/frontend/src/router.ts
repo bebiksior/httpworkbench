@@ -2,13 +2,19 @@ import { createRouter, createWebHistory } from "vue-router";
 import { useAuthStore } from "@/stores/auth";
 
 const AuthenticatedLayout = () =>
-  import("@/layouts/AuthenticatedLayout/Container.vue");
-const Home = () => import("@/pages/Home/Container.vue");
-const InstanceDetail = () => import("@/pages/InstanceDetail/Container.vue");
-const Login = () => import("@/pages/Login/Container.vue");
-const NotFound = () => import("@/pages/NotFound/Container.vue");
-const Settings = () => import("@/pages/Settings/Container.vue");
-const PoCBuilder = () => import("@/pages/PoCBuilder/Container.vue");
+  import("@/layouts/AuthenticatedLayout").then(
+    (module) => module.AuthenticatedLayout,
+  );
+const Home = () => import("@/pages/Home").then((module) => module.Home);
+const InstanceDetail = () =>
+  import("@/pages/InstanceDetail").then((module) => module.InstanceDetail);
+const Login = () => import("@/pages/Login").then((module) => module.Login);
+const NotFound = () =>
+  import("@/pages/NotFound").then((module) => module.NotFound);
+const Settings = () =>
+  import("@/pages/Settings").then((module) => module.Settings);
+const PoCBuilder = () =>
+  import("@/pages/PoCBuilder").then((module) => module.PoCBuilder);
 
 const router = createRouter({
   history: createWebHistory(),
