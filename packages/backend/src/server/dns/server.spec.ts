@@ -118,6 +118,75 @@ const sendTcpQueries = async (port: number, packets: Packet[]) => {
   });
 };
 
+const sendTcpQueryInChunks = async (
+  port: number,
+  packet: Packet,
+  splitAt: number,
+) => {
+  const payload = dnsPacket.streamEncode(packet);
+  if (splitAt <= 0 || splitAt >= payload.length) {
+    throw new Error("Expected splitAt to divide the TCP DNS frame");
+  }
+
+  return await new Promise<Buffer>((resolve, reject) => {
+    const socket = createConnection({ port, host: "127.0.0.1" });
+    let settled = false;
+    let secondChunkSent = false;
+
+    const timeout = setTimeout(() => {
+      if (settled) {
+        return;
+      }
+
+      settled = true;
+      socket.destroy();
+      reject(new Error("Timed out waiting for fragmented TCP DNS response"));
+    }, 1000);
+
+    const settle = (callback: () => void) => {
+      if (settled) {
+        return;
+      }
+
+      settled = true;
+      clearTimeout(timeout);
+      callback();
+    };
+
+    socket.once("error", (error) => {
+      settle(() => {
+        reject(error);
+      });
+    });
+
+    socket.once("connect", () => {
+      socket.write(payload.subarray(0, splitAt));
+
+      setTimeout(() => {
+        if (settled) {
+          return;
+        }
+
+        secondChunkSent = true;
+        socket.write(payload.subarray(splitAt));
+      }, 20);
+    });
+
+    socket.once("data", (chunk) => {
+      settle(() => {
+        if (!secondChunkSent) {
+          socket.destroy();
+          reject(new Error("Received TCP DNS response before full frame"));
+          return;
+        }
+
+        resolve(Buffer.from(chunk));
+        socket.end();
+      });
+    });
+  });
+};
+
 describe("createDnsServer", () => {
   test("creates a dns log for UDP queries to an existing instance", async () => {
     const logs: Array<{ instanceId: string; raw: string; address: string }> =
@@ -417,6 +486,40 @@ describe("createDnsServer", () => {
       expect(dnsPacket.streamDecode(secondResponse).id).toBe(11);
       expect(logs).toHaveLength(2);
       expect(logs[1]).toContain("QTYPE: TXT");
+    } finally {
+      await server.stop();
+    }
+  });
+
+  test("handles fragmented tcp queries without crashing", async () => {
+    const logs: string[] = [];
+    const server = await createDnsServer({
+      config: createTestDnsConfig(),
+      deps: {
+        ...createBaseDeps(),
+        getInstanceById: async (id) =>
+          id === "demo" ? createInstance("demo") : undefined,
+        addLog: async (log) => {
+          logs.push(log.raw);
+          return log;
+        },
+      },
+    });
+
+    try {
+      const response = await sendTcpQueryInChunks(
+        server.tcpPort,
+        {
+          type: "query",
+          id: 12,
+          questions: [{ name: "demo.instances.example.com", type: "A" }],
+        },
+        2,
+      );
+
+      expect(dnsPacket.streamDecode(response).id).toBe(12);
+      expect(logs).toHaveLength(1);
+      expect(logs[0]).toContain("TRANSPORT: TCP");
     } finally {
       await server.stop();
     }

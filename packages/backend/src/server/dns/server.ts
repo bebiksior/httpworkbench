@@ -373,9 +373,6 @@ const createTcpServer = (
         }
       } finally {
         processing = false;
-        if (pending.length >= 2) {
-          void flush();
-        }
       }
     };
 
