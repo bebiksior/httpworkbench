@@ -38,9 +38,7 @@ import type {
   VerificationResult,
 } from "./types";
 
-export const buildDnsRecordsInstructions = (
-  config: SetupConfig,
-): string => {
+export const buildDnsRecordsInstructions = (config: SetupConfig): string => {
   return [
     "Create these records in Cloudflare:",
     "",
@@ -135,11 +133,7 @@ export const buildServerIpInstructions = (
     return undefined;
   }
 
-  return [
-    "Detected public IPv4:",
-    "",
-    state.detectedServerIp,
-  ].join("\n");
+  return ["Detected public IPv4:", "", state.detectedServerIp].join("\n");
 };
 
 export const buildCloudflareTokenInstructions = (
@@ -180,11 +174,7 @@ export const buildInteractionDomainInstructions = (
 export const buildNameserverInstructions = (
   config: Pick<SetupConfig, "dnsNameservers">,
 ): string => {
-  return [
-    "Nameservers:",
-    "",
-    config.dnsNameservers.join(", "),
-  ].join("\n");
+  return ["Nameservers:", "", config.dnsNameservers.join(", ")].join("\n");
 };
 
 export const buildGoogleOauthClientSetupInstructions = (
@@ -424,9 +414,7 @@ export const collectConfig = async (
     });
 
     if (!confirmed) {
-      cancelled(
-        "Setup paused until the domain is active in Cloudflare DNS.",
-      );
+      cancelled("Setup paused until the domain is active in Cloudflare DNS.");
     }
   }
 

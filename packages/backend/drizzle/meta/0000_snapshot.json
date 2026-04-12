@@ -84,12 +84,8 @@
           "name": "instanceModerations_instanceId_instances_id_fk",
           "tableFrom": "instanceModerations",
           "tableTo": "instances",
-          "columnsFrom": [
-            "instanceId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["instanceId"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -126,18 +122,12 @@
       "indexes": {
         "instanceWebhooks_instance_webhook_unique": {
           "name": "instanceWebhooks_instance_webhook_unique",
-          "columns": [
-            "instanceId",
-            "webhookId"
-          ],
+          "columns": ["instanceId", "webhookId"],
           "isUnique": true
         },
         "instanceWebhooks_by_instance": {
           "name": "instanceWebhooks_by_instance",
-          "columns": [
-            "instanceId",
-            "position"
-          ],
+          "columns": ["instanceId", "position"],
           "isUnique": false
         }
       },
@@ -146,12 +136,8 @@
           "name": "instanceWebhooks_instanceId_instances_id_fk",
           "tableFrom": "instanceWebhooks",
           "tableTo": "instances",
-          "columnsFrom": [
-            "instanceId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["instanceId"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -159,22 +145,15 @@
           "name": "instanceWebhooks_webhookId_webhooks_id_fk",
           "tableFrom": "instanceWebhooks",
           "tableTo": "webhooks",
-          "columnsFrom": [
-            "webhookId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["webhookId"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {
         "instanceWebhooks_instanceId_position_pk": {
-          "columns": [
-            "instanceId",
-            "position"
-          ],
+          "columns": ["instanceId", "position"],
           "name": "instanceWebhooks_instanceId_position_pk"
         }
       },
@@ -258,16 +237,12 @@
       "indexes": {
         "instances_by_owner": {
           "name": "instances_by_owner",
-          "columns": [
-            "ownerId"
-          ],
+          "columns": ["ownerId"],
           "isUnique": false
         },
         "instances_by_expiration": {
           "name": "instances_by_expiration",
-          "columns": [
-            "expiresAt"
-          ],
+          "columns": ["expiresAt"],
           "isUnique": false
         }
       },
@@ -332,26 +307,17 @@
       "indexes": {
         "logs_id_unique": {
           "name": "logs_id_unique",
-          "columns": [
-            "id"
-          ],
+          "columns": ["id"],
           "isUnique": true
         },
         "logs_by_instance_timestamp_id": {
           "name": "logs_by_instance_timestamp_id",
-          "columns": [
-            "instanceId",
-            "timestamp",
-            "id"
-          ],
+          "columns": ["instanceId", "timestamp", "id"],
           "isUnique": false
         },
         "logs_by_instance_seq": {
           "name": "logs_by_instance_seq",
-          "columns": [
-            "instanceId",
-            "seq"
-          ],
+          "columns": ["instanceId", "seq"],
           "isUnique": false
         }
       },
@@ -360,12 +326,8 @@
           "name": "logs_instanceId_instances_id_fk",
           "tableFrom": "logs",
           "tableTo": "instances",
-          "columnsFrom": [
-            "instanceId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["instanceId"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -423,10 +385,7 @@
       "indexes": {
         "userNotices_by_user_createdAt": {
           "name": "userNotices_by_user_createdAt",
-          "columns": [
-            "userId",
-            "createdAt"
-          ],
+          "columns": ["userId", "createdAt"],
           "isUnique": false
         }
       },
@@ -463,9 +422,7 @@
       "indexes": {
         "users_googleId_unique": {
           "name": "users_googleId_unique",
-          "columns": [
-            "googleId"
-          ],
+          "columns": ["googleId"],
           "isUnique": true
         }
       },
@@ -516,9 +473,7 @@
       "indexes": {
         "webhooks_by_owner": {
           "name": "webhooks_by_owner",
-          "columns": [
-            "ownerId"
-          ],
+          "columns": ["ownerId"],
           "isUnique": false
         }
       },

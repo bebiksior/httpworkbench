@@ -45,7 +45,9 @@ describe("setup step helpers", () => {
     );
     expect(instructions).toContain("203.0.113.10");
     expect(instructions).toContain("Proxied or DNS only");
-    expect(instructions).toContain("Open public ports 53/tcp, 53/udp, 80, and 443");
+    expect(instructions).toContain(
+      "Open public ports 53/tcp, 53/udp, 80, and 443",
+    );
   });
 
   test("builds service startup and onboarding instructions", () => {
