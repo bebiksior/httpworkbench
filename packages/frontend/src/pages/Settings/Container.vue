@@ -9,7 +9,7 @@ import { storeToRefs } from "pinia";
 import { useRouter } from "vue-router";
 import type { Webhook } from "shared";
 import { useWebhooks } from "@/queries/domains/useWebhooks";
-import { useAuthStore } from "@/stores";
+import { useAuthStore } from "@/stores/auth";
 import { WebhookList } from "./WebhookList";
 import { WebhookForm } from "./WebhookForm";
 import { OpenrouterKey } from "./OpenrouterKey";

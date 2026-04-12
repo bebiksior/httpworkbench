@@ -13,7 +13,8 @@ import { guestInstancesApi } from "@/api/domains/guestInstances";
 import { instancesApi } from "@/api/domains/instances";
 import { ForbiddenError, NotFoundError } from "@/api/errors";
 import { queryKeys } from "@/queries/keys";
-import { useAuthStore, useGuestInstancesStore } from "@/stores";
+import { useAuthStore } from "@/stores/auth";
+import { useGuestInstancesStore } from "@/stores/guestInstances";
 
 export const useInstances = () => {
   const authStore = useAuthStore();

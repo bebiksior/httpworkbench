@@ -33,6 +33,9 @@ export default defineConfig(({ mode }) => {
     process.env[key] ?? env[key] ?? fallback;
 
   return {
+    build: {
+      target: "esnext",
+    },
     plugins: [vue(), tailwindcss(), updateFontDisplay()],
     resolve: {
       alias: {

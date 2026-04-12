@@ -9,7 +9,7 @@ import Message from "primevue/message";
 import { computed } from "vue";
 import { storeToRefs } from "pinia";
 import { config } from "@/config";
-import { useAuthStore } from "@/stores";
+import { useAuthStore } from "@/stores/auth";
 import { EmptyState } from "./Empty";
 import { InstanceItem } from "./InstanceItem";
 import { useHomeLogic } from "./useLogic";
