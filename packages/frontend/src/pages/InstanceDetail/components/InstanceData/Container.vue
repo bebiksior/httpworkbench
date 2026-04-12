@@ -216,12 +216,14 @@ const showVisibility = computed(() => {
           <InputText
             :value="instanceHost"
             readonly
+            size="small"
             class="w-full font-mono text-sm bg-surface-50 dark:bg-surface-800"
           />
           <Button
             icon="pi pi-copy"
             severity="secondary"
             outlined
+            size="small"
             @click="handleCopy"
           />
         </div>
@@ -245,6 +247,7 @@ const showVisibility = computed(() => {
             option-value="value"
             placeholder="Select webhooks to notify"
             class="w-full"
+            size="small"
             display="chip"
           />
           <p class="text-xs text-surface-500">

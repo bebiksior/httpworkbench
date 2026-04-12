@@ -46,6 +46,7 @@ export const InstanceSchema = z.union([
 ]);
 
 export type Instance = z.infer<typeof InstanceSchema>;
+export type InstanceKind = Instance["kind"];
 
 export const LogSchema = z.object({
   id: z.string(),
@@ -58,6 +59,7 @@ export const LogSchema = z.object({
 });
 
 export type Log = z.infer<typeof LogSchema>;
+export type LogType = Log["type"];
 
 export const WebhookMessageSchema = z.string().max(2000).optional();
 
@@ -99,6 +101,7 @@ export const UserNoticeSchema = z.object({
 });
 
 export type UserNotice = z.infer<typeof UserNoticeSchema>;
+export type UserNoticeKind = UserNotice["kind"];
 
 export const ConfigSchema = z.object({
   isHosted: z.boolean(),
