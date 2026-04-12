@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 import {
   adjustContentLength,
+  getHeaderValue,
   parseInstanceIdFromHost,
   stripInternalHeaders,
 } from "./utils";
@@ -62,6 +63,32 @@ describe("stripInternalHeaders", () => {
     expect(stripped).not.toContain("X-Internal-Real-IP");
     expect(stripped).not.toContain("x-internal-debug-id");
     expect(stripped).toContain("Host: demo.instances.example.com");
+  });
+});
+
+describe("getHeaderValue", () => {
+  test("reads header values case-insensitively", () => {
+    const rawRequest = [
+      "GET / HTTP/1.1",
+      "HOST: demo.instances.example.com",
+      "X-Test: value",
+      "",
+      "",
+    ].join("\r\n");
+
+    expect(getHeaderValue(rawRequest, "host")).toBe(
+      "demo.instances.example.com",
+    );
+    expect(getHeaderValue(rawRequest, "x-test")).toBe("value");
+  });
+
+  test("reads headers from partial requests without a header terminator", () => {
+    const rawRequest =
+      "POST / HTTP/1.1\r\nHost: demo.instances.example.com\r\nContent-Length: 42";
+
+    expect(getHeaderValue(rawRequest, "host")).toBe(
+      "demo.instances.example.com",
+    );
   });
 });
 
