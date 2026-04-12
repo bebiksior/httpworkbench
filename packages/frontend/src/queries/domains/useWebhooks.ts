@@ -1,6 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/vue-query";
 import { computed, toValue, type MaybeRefOrGetter } from "vue";
-import type { CreateWebhookInput, UpdateWebhookInput } from "shared";
+import type {
+  CreateWebhookInput,
+  TestWebhookInput,
+  UpdateWebhookInput,
+} from "shared";
 import { webhooksApi } from "@/api/domains/webhooks";
 import { WEBHOOKS_QUERY_KEY } from "../keys";
 
@@ -24,6 +28,12 @@ export function useCreateWebhook() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [WEBHOOKS_QUERY_KEY] });
     },
+  });
+}
+
+export function useTestWebhook() {
+  return useMutation({
+    mutationFn: (input: TestWebhookInput) => webhooksApi.testWebhook(input),
   });
 }
 

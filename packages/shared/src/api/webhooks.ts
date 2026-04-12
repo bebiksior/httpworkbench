@@ -17,6 +17,13 @@ export const UpdateWebhookSchema = z.object({
 
 export type UpdateWebhookInput = z.infer<typeof UpdateWebhookSchema>;
 
+export const TestWebhookSchema = z.object({
+  url: z.string().url(),
+  message: WebhookMessageSchema,
+});
+
+export type TestWebhookInput = z.infer<typeof TestWebhookSchema>;
+
 export const WebhooksResponseSchema = z.array(WebhookSchema);
 
 export type WebhooksResponse = z.infer<typeof WebhooksResponseSchema>;
