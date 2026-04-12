@@ -58,10 +58,13 @@ export const LogSchema = z.object({
 
 export type Log = z.infer<typeof LogSchema>;
 
+export const WebhookMessageSchema = z.string().max(2000).optional();
+
 export const WebhookSchema = z.object({
   id: z.string(),
   name: z.string(),
   url: z.string(),
+  message: WebhookMessageSchema,
   ownerId: z.string(),
   createdAt: z.number(),
 });

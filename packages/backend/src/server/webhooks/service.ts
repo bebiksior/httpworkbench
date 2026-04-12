@@ -62,7 +62,9 @@ export async function sendDiscordNotification(
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify(buildDiscordNotificationPayload(log)),
+      body: JSON.stringify(
+        buildDiscordNotificationPayload(log, webhook.message),
+      ),
       redirect: "error",
     });
 

@@ -15,7 +15,12 @@ import {
   users,
   webhooks,
 } from "./schema";
-import { toInstanceRow, toModerationRow, toUserNoticeRow } from "./records";
+import {
+  toInstanceRow,
+  toModerationRow,
+  toUserNoticeRow,
+  toWebhookRow,
+} from "./records";
 
 const SQLITE_DB_FILENAME = "db.sqlite";
 const MIGRATIONS_FOLDER = `${import.meta.dir}/../../drizzle`;
@@ -162,7 +167,7 @@ export const replaceData = (data: LegacyStorageData) => {
       }
 
       for (const webhook of data.webhooks) {
-        tx.insert(webhooks).values(webhook).run();
+        tx.insert(webhooks).values(toWebhookRow(webhook)).run();
       }
 
       for (const instance of data.instances) {

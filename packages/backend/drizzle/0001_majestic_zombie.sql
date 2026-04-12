@@ -1,0 +1,1 @@
+ALTER TABLE `webhooks` ADD `message` text;

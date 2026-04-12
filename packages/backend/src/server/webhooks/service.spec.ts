@@ -91,4 +91,28 @@ describe("sendDiscordNotification", () => {
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
+
+  test("includes custom webhook message content when configured", async () => {
+    let requestBody = "";
+    const fetchMock = mock(
+      (_input: string | URL | Request, init?: { body?: unknown }) => {
+        requestBody = String(init?.body ?? "");
+        return Promise.resolve(new Response(null, { status: 204 }));
+      },
+    );
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    await sendDiscordNotification(
+      {
+        ...webhook,
+        message: "<@123456> {{ text }}",
+      },
+      log,
+    );
+
+    expect(requestBody).not.toBe("");
+    expect(JSON.parse(requestBody)).toMatchObject({
+      content: "<@123456> GET / HTTP/1.1",
+    });
+  });
 });

@@ -11,6 +11,7 @@ import {
   toDomainInstance,
   toDomainModeration,
   toDomainUserNotice,
+  toDomainWebhook,
 } from "./records";
 import {
   instanceModerations,
@@ -296,7 +297,13 @@ export const verifyImportedData = (
   );
   assertImportedSectionMatches(
     "webhooks",
-    sortById(getDb().select().from(webhooks).all()),
+    sortById(
+      getDb()
+        .select()
+        .from(webhooks)
+        .all()
+        .map((row) => toDomainWebhook(row)),
+    ),
     sortById(data.webhooks),
   );
   assertImportedSectionMatches(

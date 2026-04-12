@@ -61,24 +61,50 @@ const truncateUrl = (url: string, maxLength = 50) => {
   }
   return url.substring(0, maxLength) + "...";
 };
+
+const truncateMessage = (message?: string, maxLength = 45) => {
+  if (message === undefined || message === "") {
+    return "Default embed only";
+  }
+
+  if (message.length <= maxLength) {
+    return message;
+  }
+
+  return message.substring(0, maxLength) + "...";
+};
 </script>
 
 <template>
   <DataTable :value="webhooks" :loading="isLoading" striped-rows class="w-full">
-    <Column field="name" header="Name" style="width: 20%" />
-    <Column field="url" header="Webhook URL" style="width: 45%">
+    <Column field="name" header="Name" style="width: 18%" />
+    <Column field="url" header="Webhook URL" style="width: 32%">
       <template #body="{ data }">
         <span class="font-mono text-sm truncate block" :title="data.url">
           {{ truncateUrl(data.url, 60) }}
         </span>
       </template>
     </Column>
-    <Column field="createdAt" header="Created" style="width: 20%">
+    <Column field="message" header="Message" style="width: 25%">
+      <template #body="{ data }">
+        <span
+          class="text-sm truncate block"
+          :class="{
+            'font-mono': data.message !== undefined,
+            'text-surface-500': data.message === undefined,
+          }"
+          :title="data.message ?? 'Default embed only'"
+        >
+          {{ truncateMessage(data.message) }}
+        </span>
+      </template>
+    </Column>
+    <Column field="createdAt" header="Created" style="width: 15%">
       <template #body="{ data }">
         <span class="whitespace-nowrap">{{ formatDate(data.createdAt) }}</span>
       </template>
     </Column>
-    <Column header="Actions" style="width: 15%">
+    <Column header="Actions" style="width: 10%">
       <template #body="{ data }">
         <div class="flex gap-1">
           <Button
