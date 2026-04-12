@@ -6,7 +6,7 @@ import { useMagicKeys } from "@vueuse/core";
 import { useConfirm } from "primevue/useconfirm";
 import ConfirmDialog from "primevue/confirmdialog";
 import { storeToRefs } from "pinia";
-import { useBuilderStore } from "@/stores";
+import { useBuilderStore, useAgentsStore } from "@/stores";
 import { ThreePanelLayout, TwoPanelLayout, MobileLayout } from "./layouts";
 import { provideBuilderPage, useBuilderPage } from "./useBuilderPage";
 
@@ -16,7 +16,16 @@ const confirm = useConfirm();
 const instanceId = computed(() => route.params.id as string);
 
 const builderStore = useBuilderStore();
+const agentsStore = useAgentsStore();
 const { showPreview } = storeToRefs(builderStore);
+
+watch(
+  instanceId,
+  (id) => {
+    agentsStore.setActiveInstance(id);
+  },
+  { immediate: true },
+);
 
 const builderPage = useBuilderPage(instanceId);
 provideBuilderPage(builderPage);
@@ -53,6 +62,7 @@ onMounted(() => {
 
 onUnmounted(() => {
   mediaQuery.removeEventListener("change", updateScreenSize);
+  agentsStore.clearActiveInstance();
   builderStore.reset();
 });
 

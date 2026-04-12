@@ -20,12 +20,12 @@ const router = createRouter({
     {
       path: "/",
       component: AuthenticatedLayout,
-      meta: { requiresSession: true },
       children: [
         {
           path: "",
           name: "home",
           component: Home,
+          meta: { requiresSession: true },
         },
         {
           path: "settings",
@@ -42,6 +42,7 @@ const router = createRouter({
           path: "instances/:id/builder",
           name: "pocBuilder",
           component: PoCBuilder,
+          meta: { requiresSession: true },
         },
       ],
     },

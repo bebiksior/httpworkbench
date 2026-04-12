@@ -61,3 +61,9 @@ export const SetInstanceLockedSchema = z.object({
 });
 
 export type SetInstanceLockedInput = z.infer<typeof SetInstanceLockedSchema>;
+
+export const SetInstancePublicSchema = z.object({
+  public: z.boolean(),
+});
+
+export type SetInstancePublicInput = z.infer<typeof SetInstancePublicSchema>;

@@ -18,8 +18,10 @@ import {
 } from "../../storage";
 import {
   ensureStaticResponseWithinLimit,
+  ensureValidStaticHttpRaw,
   generateInstanceID,
   parseJsonRequest,
+  normalizeStaticHttpRaw,
 } from "../utils";
 
 const guestDisabledResponse = () =>
@@ -33,7 +35,7 @@ const loadGuestInstance = async (id: string) => {
     };
   }
 
-  const instance = await getInstanceById(id);
+  const instance = getInstanceById(id);
   if (instance?.ownerId !== GUEST_OWNER_ID) {
     return {
       kind: "error" as const,
@@ -57,9 +59,14 @@ export const GUEST_INSTANCES_ROUTES = {
       }
 
       if (parsed.data.kind === "static") {
-        const limitCheck = ensureStaticResponseWithinLimit(parsed.data.raw);
+        const normalizedStaticRaw = normalizeStaticHttpRaw(parsed.data.raw);
+        const limitCheck = ensureStaticResponseWithinLimit(normalizedStaticRaw);
         if (limitCheck.kind === "error") {
           return limitCheck.response;
+        }
+        const httpCheck = ensureValidStaticHttpRaw(normalizedStaticRaw);
+        if (httpCheck.kind === "error") {
+          return httpCheck.response;
         }
       }
 
@@ -70,20 +77,22 @@ export const GUEST_INSTANCES_ROUTES = {
         createdAt: now,
         expiresAt: now + GUEST_INSTANCE_TTL_MS,
         webhookIds: [] as string[],
+        public: false,
         locked: false,
       };
 
       switch (parsed.data.kind) {
         case "static": {
-          const created = await addInstance({
+          const normalizedStaticRaw = normalizeStaticHttpRaw(parsed.data.raw);
+          const created = addInstance({
             kind: "static",
             ...base,
-            raw: parsed.data.raw,
+            raw: normalizedStaticRaw,
           });
           return Response.json(created, { status: 201 });
         }
         case "dynamic": {
-          const created = await addInstance({
+          const created = addInstance({
             kind: "dynamic",
             ...base,
             processors: parsed.data.processors,
@@ -103,7 +112,7 @@ export const GUEST_INSTANCES_ROUTES = {
       if (loaded.kind === "error") {
         return loaded.response;
       }
-      const logs = await getLogsForInstance(loaded.instance.id);
+      const logs = getLogsForInstance(loaded.instance.id);
       const response = InstanceDetailResponseSchema.parse({
         instance: loaded.instance,
         logs,
@@ -126,9 +135,14 @@ export const GUEST_INSTANCES_ROUTES = {
       }
 
       if (parsed.data.kind === "static") {
-        const limitCheck = ensureStaticResponseWithinLimit(parsed.data.raw);
+        const normalizedStaticRaw = normalizeStaticHttpRaw(parsed.data.raw);
+        const limitCheck = ensureStaticResponseWithinLimit(normalizedStaticRaw);
         if (limitCheck.kind === "error") {
           return limitCheck.response;
+        }
+        const httpCheck = ensureValidStaticHttpRaw(normalizedStaticRaw);
+        if (httpCheck.kind === "error") {
+          return httpCheck.response;
         }
       }
 
@@ -136,11 +150,12 @@ export const GUEST_INSTANCES_ROUTES = {
         return Response.json({ error: "Kind mismatch" }, { status: 400 });
       }
 
-      const updated = await updateInstance(loaded.instance.id, (inst) => {
+      const updated = updateInstance(loaded.instance.id, (inst) => {
         if (inst.kind === "static" && parsed.data.kind === "static") {
+          const normalizedStaticRaw = normalizeStaticHttpRaw(parsed.data.raw);
           return {
             ...inst,
-            raw: parsed.data.raw,
+            raw: normalizedStaticRaw,
             webhookIds: [],
           };
         }
@@ -172,7 +187,7 @@ export const GUEST_INSTANCES_ROUTES = {
       if (loaded.instance.locked) {
         return Response.json({ error: "Instance is locked" }, { status: 409 });
       }
-      await deleteInstance(loaded.instance.id);
+      deleteInstance(loaded.instance.id);
       return Response.json({ message: "Deleted" }, { status: 200 });
     },
   },
@@ -192,7 +207,7 @@ export const GUEST_INSTANCES_ROUTES = {
         return parsed.response;
       }
 
-      const updated = await updateInstance(loaded.instance.id, (inst) => ({
+      const updated = updateInstance(loaded.instance.id, (inst) => ({
         ...inst,
         locked: parsed.data.locked,
       }));
@@ -214,7 +229,7 @@ export const GUEST_INSTANCES_ROUTES = {
       if (loaded.kind === "error") {
         return loaded.response;
       }
-      await clearLogsForInstance(loaded.instance.id);
+      clearLogsForInstance(loaded.instance.id);
       return Response.json({ message: "Logs cleared" }, { status: 200 });
     },
   },

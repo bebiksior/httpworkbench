@@ -1,10 +1,13 @@
 import type { BunRequest, Server, ServerWebSocket } from "bun";
 import { serve } from "bun";
 import { GUEST_OWNER_ID } from "shared";
-import { addLog } from "../storage";
-import { getInstanceById } from "../storage/repositories/instances";
+import {
+  addLog,
+  flushPendingWebhookNotifications,
+  getInstanceById,
+  removeExpiredInstances,
+} from "../storage";
 import { dnsConfig, instancePolicies } from "../config";
-import { cleanupExpiredInstances } from "../storage/maintenance";
 import {
   CONFIG_ROUTES,
   GUEST_INSTANCES_ROUTES,
@@ -13,7 +16,8 @@ import {
   USER_ROUTES,
   WEBHOOKS_ROUTES,
 } from "./api";
-import { authenticateRequest } from "./auth";
+import { authenticateOptionalRequest } from "./auth";
+import { canReadInstance } from "./instances/access";
 import {
   createInstancesServer,
   type LogStreamSocketData,
@@ -58,16 +62,17 @@ export const initServer = async () => {
             return new Response("Upgrade Required", { status: 426 });
           }
 
-          const auth = await authenticateRequest(req);
-          const instance = await getInstanceById(req.params.id);
+          const instance = getInstanceById(req.params.id);
           if (instance === undefined) {
-            if (auth.kind === "error") {
-              return new Response("Unauthorized", { status: auth.status });
-            }
             return Response.json({ error: "Not found" }, { status: 404 });
           }
 
-          if (instance.ownerId === GUEST_OWNER_ID) {
+          const user = await authenticateOptionalRequest(req);
+          if (!canReadInstance({ instance, user })) {
+            return new Response("Not Found", { status: 404 });
+          }
+
+          if (instance.ownerId === GUEST_OWNER_ID || user === undefined) {
             const upgraded = server.upgrade(req, {
               data: {
                 instanceId: instance.id,
@@ -81,18 +86,10 @@ export const initServer = async () => {
             return;
           }
 
-          if (auth.kind === "error") {
-            return new Response("Unauthorized", { status: auth.status });
-          }
-
-          if (instance.ownerId !== auth.user.id) {
-            return new Response("Forbidden", { status: 403 });
-          }
-
           const upgraded = server.upgrade(req, {
             data: {
               instanceId: instance.id,
-              userId: auth.user.id,
+              userId: user.id,
             },
           });
 
@@ -124,8 +121,8 @@ export const initServer = async () => {
     ? await createDnsServer({
         config: dnsConfig,
         deps: {
-          getInstanceById,
-          addLog,
+          getInstanceById: async (id) => getInstanceById(id),
+          addLog: async (log) => addLog(log),
           broadcastLog,
           createId: () => crypto.randomUUID(),
           now: () => Date.now(),
@@ -138,9 +135,11 @@ export const initServer = async () => {
   if (ttlMs !== undefined) {
     const intervalMs = Math.min(ttlMs, 60 * 60 * 1000);
     const runCleanup = () => {
-      cleanupExpiredInstances().catch((error) => {
+      try {
+        removeExpiredInstances(Date.now());
+      } catch (error) {
         console.error("Failed to cleanup expired instances", error);
-      });
+      }
     };
     runCleanup();
     cleanupInterval = setInterval(runCleanup, intervalMs);
@@ -153,5 +152,15 @@ export const initServer = async () => {
     }
   };
 
-  return { apiServer, instancesServer, dnsServer, stopMaintenance };
+  const drainBackgroundWork = async () => {
+    await flushPendingWebhookNotifications();
+  };
+
+  return {
+    apiServer,
+    instancesServer,
+    dnsServer,
+    stopMaintenance,
+    drainBackgroundWork,
+  };
 };

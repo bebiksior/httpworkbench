@@ -1,6 +1,6 @@
 import { join } from "node:path";
 import { initServer } from "./server";
-import { initDb } from "./storage";
+import { closeDb, initDb, maybeAutoImportLegacyDb } from "./storage";
 
 const rootPackageJson = await Bun.file(
   join(import.meta.dir, "../../../package.json"),
@@ -10,14 +10,27 @@ export const version: string = rootPackageJson.version;
 async function init() {
   console.log("init", version);
 
-  const result = await initDb();
+  const importResult = await maybeAutoImportLegacyDb();
+  if (importResult.kind === "imported") {
+    console.log(
+      "Imported legacy JSON database into SQLite",
+      importResult.result,
+    );
+  }
+
+  const result = initDb();
   if (result.kind === "error") {
     console.error("Failed to initialize database", result.error);
     process.exit(1);
   }
 
-  const { apiServer, instancesServer, dnsServer, stopMaintenance } =
-    await initServer();
+  const {
+    apiServer,
+    instancesServer,
+    dnsServer,
+    stopMaintenance,
+    drainBackgroundWork,
+  } = await initServer();
 
   console.log("Database initialized", result.stats);
 
@@ -28,6 +41,8 @@ async function init() {
       instancesServer.stop();
       await dnsServer?.stop();
       stopMaintenance();
+      await drainBackgroundWork();
+      closeDb();
       console.log("Servers stopped");
       process.exit(0);
     } catch (error) {
@@ -40,4 +55,8 @@ async function init() {
   process.on("SIGINT", shutdown);
 }
 
-init();
+init().catch((error) => {
+  closeDb();
+  console.error("Failed to initialize server", error);
+  process.exit(1);
+});

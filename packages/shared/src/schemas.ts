@@ -30,6 +30,7 @@ const InstanceBaseSchema = z.object({
   expiresAt: z.number().optional(),
   webhookIds: z.array(z.string()),
   label: z.string().optional(),
+  public: z.boolean().optional().default(false),
   locked: z.boolean().optional().default(false),
 });
 
@@ -58,15 +59,46 @@ export const LogSchema = z.object({
 
 export type Log = z.infer<typeof LogSchema>;
 
+export const WebhookMessageSchema = z.string().max(2000).optional();
+
 export const WebhookSchema = z.object({
   id: z.string(),
   name: z.string(),
   url: z.string(),
+  message: WebhookMessageSchema,
   ownerId: z.string(),
   createdAt: z.number(),
 });
 
 export type Webhook = z.infer<typeof WebhookSchema>;
+
+export const InstanceModerationSchema = z.object({
+  instanceId: z.string(),
+  window5mStartMs: z.number(),
+  requestsInWindow5m: z.number(),
+  strikeCommittedForWindow: z.boolean(),
+  strikeTimestampsMs: z.array(z.number()),
+  discordMutedUntilMs: z.number().optional(),
+  window15mStartMs: z.number(),
+  requestsInWindow15m: z.number(),
+  lastMinuteBucketStartMs: z.number(),
+  requestsInCurrentMinute: z.number(),
+});
+
+export type InstanceModeration = z.infer<typeof InstanceModerationSchema>;
+
+export const UserNoticeKindSchema = z.literal("instance_removed_noise");
+
+export const UserNoticeSchema = z.object({
+  id: z.string(),
+  userId: z.string(),
+  kind: UserNoticeKindSchema,
+  instanceId: z.string(),
+  createdAt: z.number(),
+  acknowledgedAt: z.number().optional(),
+});
+
+export type UserNotice = z.infer<typeof UserNoticeSchema>;
 
 export const ConfigSchema = z.object({
   isHosted: z.boolean(),

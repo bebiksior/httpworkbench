@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import Button from "primevue/button";
-import { computed } from "vue";
+import { computed, watch } from "vue";
 import { useRoute } from "vue-router";
 import { DynamicScroller, DynamicScrollerItem } from "vue-virtual-scroller";
 import { useInstanceDetailLogic } from "./useLogic";
@@ -16,6 +16,26 @@ const {
   isTransitioning: isSidePanelTransitioning,
   setHidden: setSidePanelHidden,
 } = useSidePanel();
+
+const viewQuery = computed(() => {
+  const raw = route.query.view;
+  if (Array.isArray(raw)) {
+    return raw[0];
+  }
+  return raw;
+});
+
+watch(
+  viewQuery,
+  (view) => {
+    if (view === "logs") {
+      setSidePanelHidden(true);
+    } else {
+      setSidePanelHidden(false);
+    }
+  },
+  { immediate: true },
+);
 </script>
 
 <template>

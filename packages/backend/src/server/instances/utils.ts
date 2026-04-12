@@ -1,9 +1,11 @@
 import type { Socket } from "bun";
-import { HttpForge } from "ts-http-forge";
 import { dnsConfig } from "../../config";
 import { resolveInstanceName } from "../nameResolution";
 
 const encoder = new TextEncoder();
+const requestLineBreakPattern = /\r?\n/;
+const responseLineBreakPattern = /\r?\n/;
+const responseHeaderSeparatorPattern = /\r?\n\r?\n/;
 
 export const createResponse = (status: string, message: string) => {
   return new TextEncoder().encode(
@@ -55,6 +57,25 @@ export const respond = <T>(socket: Socket<T>, raw: Uint8Array) => {
   socket.end();
 };
 
+export const getHeaderValue = (
+  rawRequest: string,
+  headerName: string,
+): string | undefined => {
+  const lowerHeaderName = `${headerName.toLowerCase()}:`;
+
+  for (const line of rawRequest.split(requestLineBreakPattern)) {
+    if (line === "") {
+      break;
+    }
+
+    if (line.toLowerCase().startsWith(lowerHeaderName)) {
+      return line.slice(line.indexOf(":") + 1).trim();
+    }
+  }
+
+  return undefined;
+};
+
 export const stripInternalHeaders = (
   rawRequest: string,
   headerNames: string[],
@@ -71,21 +92,25 @@ export const stripInternalHeaders = (
 };
 
 export const adjustContentLength = (raw: string): string => {
-  try {
-    const bodyStartMarker = "\r\n\r\n";
-    const bodyStartIndex = raw.indexOf(bodyStartMarker);
-
-    if (bodyStartIndex === -1) {
-      return raw;
-    }
-
-    const body = raw.substring(bodyStartIndex + bodyStartMarker.length);
-    const bodyLength = encoder.encode(body).length;
-
-    return HttpForge.create(raw)
-      .setHeader("Content-Length", bodyLength.toString())
-      .build();
-  } catch {
+  const separatorMatch = responseHeaderSeparatorPattern.exec(raw);
+  if (separatorMatch?.index === undefined) {
     return raw;
   }
+
+  const headerBlock = raw.slice(0, separatorMatch.index);
+  const body = raw.slice(separatorMatch.index + separatorMatch[0].length);
+  const contentLengthHeader = `Content-Length: ${encoder.encode(body).length}`;
+  const headerLines = headerBlock.split(responseLineBreakPattern);
+
+  const nextHeaderLines = headerLines.some((line) =>
+    line.toLowerCase().startsWith("content-length:"),
+  )
+    ? headerLines.map((line) =>
+        line.toLowerCase().startsWith("content-length:")
+          ? contentLengthHeader
+          : line,
+      )
+    : [...headerLines, contentLengthHeader];
+
+  return `${nextHeaderLines.join("\r\n")}\r\n\r\n${body}`;
 };

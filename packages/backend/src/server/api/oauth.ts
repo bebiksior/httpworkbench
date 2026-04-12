@@ -101,9 +101,9 @@ export const OAUTH_ROUTES = {
           return new Response("Invalid id_token", { status: 400 });
         }
 
-        let user = await getUserByGoogleId(googleId);
+        let user = getUserByGoogleId(googleId);
         if (!user) {
-          user = await addUser({
+          user = addUser({
             id: crypto.randomUUID(),
             googleId,
             createdAt: Date.now(),

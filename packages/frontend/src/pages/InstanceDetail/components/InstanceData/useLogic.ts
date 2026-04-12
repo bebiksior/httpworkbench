@@ -1,5 +1,5 @@
 import { useConfirm } from "primevue/useconfirm";
-import type { Instance } from "shared";
+import { GUEST_OWNER_ID, type Instance } from "shared";
 import { computed, ref, watch, type Ref } from "vue";
 import { useRouter } from "vue-router";
 import { storeToRefs } from "pinia";
@@ -14,9 +14,10 @@ import {
   useExtendInstance,
   useRenameInstance,
   useSetInstanceLocked,
+  useSetInstancePublic,
   useUpdateInstance,
 } from "@/queries/domains/useInstances";
-import { useAuthStore } from "@/stores";
+import { useAuthStore, useGuestInstancesStore } from "@/stores";
 import { isAbsent, isPresent } from "@/utils/types";
 import { useFileUpload } from "./useFileUpload";
 
@@ -38,14 +39,32 @@ export const useInstanceDataLogic = (instance: Ref<Instance>) => {
   const { mutateAsync: renameInstanceMutation } = useRenameInstance();
   const { mutateAsync: setInstanceLockedMutation, isPending: isSettingLocked } =
     useSetInstanceLocked();
+  const { mutateAsync: setInstancePublicMutation, isPending: isSettingPublic } =
+    useSetInstancePublic();
 
   const authStore = useAuthStore();
+  const guestInstancesStore = useGuestInstancesStore();
   const { isGuest } = storeToRefs(authStore);
+  const { ids: guestInstanceIds } = storeToRefs(guestInstancesStore);
 
   const instanceHost = computed(() =>
     config.getInstanceHost(instance.value.id),
   );
   const isLocked = computed(() => instance.value.locked);
+  const isPublic = computed(() => instance.value.public);
+  const canManageInstance = computed(() => {
+    if (instance.value.ownerId === GUEST_OWNER_ID) {
+      return (
+        isGuest.value && guestInstanceIds.value.includes(instance.value.id)
+      );
+    }
+
+    if (isGuest.value) {
+      return false;
+    }
+
+    return authStore.user?.id === instance.value.ownerId;
+  });
 
   const rawContent = ref("");
   const isDirty = ref(false);
@@ -107,7 +126,7 @@ export const useInstanceDataLogic = (instance: Ref<Instance>) => {
   );
 
   watch(selectedWebhookIds, async (newWebhookIds, oldWebhookIds) => {
-    if (isGuest.value || isAbsent(oldWebhookIds)) {
+    if (!canManageInstance.value || isAbsent(oldWebhookIds)) {
       return;
     }
 
@@ -143,6 +162,10 @@ export const useInstanceDataLogic = (instance: Ref<Instance>) => {
   };
 
   const handleSave = async () => {
+    if (!canManageInstance.value) {
+      return;
+    }
+
     if (instance.value?.kind === "static") {
       try {
         await updateInstanceMutation({
@@ -162,7 +185,7 @@ export const useInstanceDataLogic = (instance: Ref<Instance>) => {
   };
 
   const handleOpenBuilder = () => {
-    if (instance.value.kind !== "static") {
+    if (!canManageInstance.value || instance.value.kind !== "static") {
       return;
     }
     router.push({
@@ -172,6 +195,10 @@ export const useInstanceDataLogic = (instance: Ref<Instance>) => {
   };
 
   const handleDelete = async () => {
+    if (!canManageInstance.value) {
+      return;
+    }
+
     if (isLocked.value) {
       notify.error("Instance is locked");
       return;
@@ -202,6 +229,10 @@ export const useInstanceDataLogic = (instance: Ref<Instance>) => {
   };
 
   const handleClone = async () => {
+    if (!canManageInstance.value) {
+      return;
+    }
+
     try {
       const cloned = await cloneInstanceMutation(instance.value);
       notify.success("Instance cloned");
@@ -215,6 +246,10 @@ export const useInstanceDataLogic = (instance: Ref<Instance>) => {
   };
 
   const handleToggleLock = async () => {
+    if (!canManageInstance.value) {
+      return;
+    }
+
     const nextLocked = !isLocked.value;
     try {
       await setInstanceLockedMutation({
@@ -228,6 +263,10 @@ export const useInstanceDataLogic = (instance: Ref<Instance>) => {
   };
 
   const handleClearLogs = async () => {
+    if (!canManageInstance.value) {
+      return;
+    }
+
     confirm.require({
       message: "Are you sure you want to clear all logs for this instance?",
       header: "Clear Logs Confirmation",
@@ -253,6 +292,10 @@ export const useInstanceDataLogic = (instance: Ref<Instance>) => {
   };
 
   const handleEditorChange = (value: string) => {
+    if (!canManageInstance.value) {
+      return;
+    }
+
     rawContent.value = value;
     isDirty.value = true;
   };
@@ -262,6 +305,10 @@ export const useInstanceDataLogic = (instance: Ref<Instance>) => {
   };
 
   const handleFileUpload = async (event: Event) => {
+    if (!canManageInstance.value) {
+      return;
+    }
+
     const target = event.target as HTMLInputElement;
     const file = target.files?.[0];
     if (isAbsent(file)) return;
@@ -278,6 +325,10 @@ export const useInstanceDataLogic = (instance: Ref<Instance>) => {
   };
 
   const handleExtend = async () => {
+    if (!canManageInstance.value) {
+      return;
+    }
+
     try {
       await extendInstanceMutation(instance.value.id);
       notify.success("Instance extended");
@@ -287,6 +338,10 @@ export const useInstanceDataLogic = (instance: Ref<Instance>) => {
   };
 
   const startEditingLabel = () => {
+    if (!canManageInstance.value) {
+      return;
+    }
+
     editLabel.value = instance.value.label ?? "";
     isEditingLabel.value = true;
   };
@@ -353,6 +408,25 @@ export const useInstanceDataLogic = (instance: Ref<Instance>) => {
     }
   };
 
+  const handleTogglePublic = async () => {
+    if (!canManageInstance.value) {
+      return;
+    }
+
+    const nextPublic = !isPublic.value;
+    try {
+      await setInstancePublicMutation({
+        id: instance.value.id,
+        isPublic: nextPublic,
+      });
+      notify.success(
+        nextPublic ? "Instance is now public" : "Instance is now private",
+      );
+    } catch (e) {
+      notify.error("Failed to update visibility", e);
+    }
+  };
+
   return {
     instanceHost,
     rawContent,
@@ -363,7 +437,10 @@ export const useInstanceDataLogic = (instance: Ref<Instance>) => {
     isClearingLogs,
     isExtending,
     isLocked,
+    isPublic,
     isSettingLocked,
+    isSettingPublic,
+    canManageInstance,
     fileInputRef,
     selectedWebhookIds,
     showExpirationNotice,
@@ -381,6 +458,7 @@ export const useInstanceDataLogic = (instance: Ref<Instance>) => {
     handleClone,
     handleClearLogs,
     handleToggleLock,
+    handleTogglePublic,
     triggerFileUpload,
     handleFileUpload,
     handleExtend,

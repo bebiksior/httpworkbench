@@ -5,6 +5,7 @@ import {
   InstanceDetailResponseSchema,
   RenameInstanceSchema,
   SetInstanceLockedSchema,
+  SetInstancePublicSchema,
   UpdateInstanceSchema,
 } from "shared";
 import {
@@ -18,11 +19,14 @@ import {
   updateInstance,
 } from "../../storage";
 import { instancePolicies } from "../../config";
-import { withAuth } from "../auth";
+import { authenticateOptionalRequest, withAuth } from "../auth";
+import { canReadInstance } from "../instances/access";
 import {
   ensureStaticResponseWithinLimit,
+  ensureValidStaticHttpRaw,
   generateInstanceID,
   parseJsonRequest,
+  normalizeStaticHttpRaw,
 } from "../utils";
 
 type WebhookValidationSuccess = {
@@ -43,7 +47,7 @@ const ensureOwnedWebhookIds = async (
     return { kind: "ok", ids: [] };
   }
   const ownedIds = new Set(
-    (await getWebhooksByOwner(ownerId)).map((webhook) => webhook.id),
+    getWebhooksByOwner(ownerId).map((webhook) => webhook.id),
   );
   for (const webhookId of webhookIds) {
     if (!ownedIds.has(webhookId)) {
@@ -62,7 +66,7 @@ const ensureOwnedWebhookIds = async (
 export const INSTANCES_ROUTES = {
   "/api/instances": {
     GET: withAuth(async (_req: BunRequest<"/api/instances">, user) => {
-      const instances = await getInstancesByOwner(user.id);
+      const instances = getInstancesByOwner(user.id);
       return Response.json(instances, { status: 200 });
     }),
     POST: withAuth(async (req: BunRequest<"/api/instances">, user) => {
@@ -72,9 +76,14 @@ export const INSTANCES_ROUTES = {
       }
 
       if (parsed.data.kind === "static") {
-        const limitCheck = ensureStaticResponseWithinLimit(parsed.data.raw);
+        const normalizedStaticRaw = normalizeStaticHttpRaw(parsed.data.raw);
+        const limitCheck = ensureStaticResponseWithinLimit(normalizedStaticRaw);
         if (limitCheck.kind === "error") {
           return limitCheck.response;
+        }
+        const httpCheck = ensureValidStaticHttpRaw(normalizedStaticRaw);
+        if (httpCheck.kind === "error") {
+          return httpCheck.response;
         }
       }
 
@@ -87,7 +96,7 @@ export const INSTANCES_ROUTES = {
       }
 
       if (instancePolicies.maxInstancesPerOwner !== undefined) {
-        const ownedInstances = await getInstancesByOwner(user.id);
+        const ownedInstances = getInstancesByOwner(user.id);
         if (ownedInstances.length >= instancePolicies.maxInstancesPerOwner) {
           return Response.json(
             { error: "Instance limit reached" },
@@ -101,6 +110,7 @@ export const INSTANCES_ROUTES = {
         id: generateInstanceID(),
         ownerId: user.id,
         createdAt: now,
+        public: false,
         locked: false,
         expiresAt:
           instancePolicies.ttlMs === undefined
@@ -110,16 +120,17 @@ export const INSTANCES_ROUTES = {
 
       switch (parsed.data.kind) {
         case "static": {
-          const created = await addInstance({
+          const normalizedStaticRaw = normalizeStaticHttpRaw(parsed.data.raw);
+          const created = addInstance({
             kind: "static",
             ...base,
-            raw: parsed.data.raw,
+            raw: normalizedStaticRaw,
             webhookIds: validation.ids,
           });
           return Response.json(created, { status: 201 });
         }
         case "dynamic": {
-          const created = await addInstance({
+          const created = addInstance({
             kind: "dynamic",
             ...base,
             processors: parsed.data.processors,
@@ -131,31 +142,33 @@ export const INSTANCES_ROUTES = {
     }),
   },
   "/api/instances/:id": {
-    GET: withAuth(async (req: BunRequest<"/api/instances/:id">, user) => {
+    GET: async (req: BunRequest<"/api/instances/:id">) => {
       const id = req.params.id;
       if (id === "") {
         return Response.json({ error: "Invalid id" }, { status: 400 });
       }
 
-      const instance = await getInstanceById(id);
+      const instance = getInstanceById(id);
       if (instance === undefined) {
         return Response.json({ error: "Not found" }, { status: 404 });
       }
-      if (instance.ownerId !== user.id) {
-        return Response.json({ error: "Forbidden" }, { status: 403 });
+
+      const user = await authenticateOptionalRequest(req);
+      if (!canReadInstance({ instance, user })) {
+        return Response.json({ error: "Not found" }, { status: 404 });
       }
 
-      const logs = await getLogsForInstance(instance.id);
+      const logs = getLogsForInstance(instance.id);
       const response = InstanceDetailResponseSchema.parse({ instance, logs });
       return Response.json(response, { status: 200 });
-    }),
+    },
     PUT: withAuth(async (req: BunRequest<"/api/instances/:id">, user) => {
       const id = req.params.id;
       if (id === "") {
         return Response.json({ error: "Invalid id" }, { status: 400 });
       }
 
-      const current = await getInstanceById(id);
+      const current = getInstanceById(id);
       if (current === undefined) {
         return Response.json({ error: "Not found" }, { status: 404 });
       }
@@ -169,9 +182,14 @@ export const INSTANCES_ROUTES = {
       }
 
       if (parsed.data.kind === "static") {
-        const limitCheck = ensureStaticResponseWithinLimit(parsed.data.raw);
+        const normalizedStaticRaw = normalizeStaticHttpRaw(parsed.data.raw);
+        const limitCheck = ensureStaticResponseWithinLimit(normalizedStaticRaw);
         if (limitCheck.kind === "error") {
           return limitCheck.response;
+        }
+        const httpCheck = ensureValidStaticHttpRaw(normalizedStaticRaw);
+        if (httpCheck.kind === "error") {
+          return httpCheck.response;
         }
       }
 
@@ -191,11 +209,12 @@ export const INSTANCES_ROUTES = {
         nextWebhookIds = validation.ids;
       }
 
-      const updated = await updateInstance(id, (inst) => {
+      const updated = updateInstance(id, (inst) => {
         if (inst.kind === "static" && parsed.data.kind === "static") {
+          const normalizedStaticRaw = normalizeStaticHttpRaw(parsed.data.raw);
           return {
             ...inst,
-            raw: parsed.data.raw,
+            raw: normalizedStaticRaw,
             webhookIds: nextWebhookIds ?? inst.webhookIds,
           };
         }
@@ -221,7 +240,7 @@ export const INSTANCES_ROUTES = {
         return Response.json({ error: "Invalid id" }, { status: 400 });
       }
 
-      const current = await getInstanceById(id);
+      const current = getInstanceById(id);
       if (current === undefined) {
         return Response.json({ error: "Not found" }, { status: 404 });
       }
@@ -232,7 +251,7 @@ export const INSTANCES_ROUTES = {
         return Response.json({ error: "Instance is locked" }, { status: 409 });
       }
 
-      await deleteInstance(id);
+      deleteInstance(id);
       return Response.json({ message: "Deleted" }, { status: 200 });
     }),
   },
@@ -251,7 +270,7 @@ export const INSTANCES_ROUTES = {
           return Response.json({ error: "Invalid id" }, { status: 400 });
         }
 
-        const current = await getInstanceById(id);
+        const current = getInstanceById(id);
         if (current === undefined) {
           return Response.json({ error: "Not found" }, { status: 404 });
         }
@@ -266,7 +285,7 @@ export const INSTANCES_ROUTES = {
         }
 
         const nextExpiration = Date.now() + instancePolicies.ttlMs;
-        const extended = await updateInstance(id, (inst) => ({
+        const extended = updateInstance(id, (inst) => ({
           ...inst,
           expiresAt: nextExpiration,
         }));
@@ -287,7 +306,7 @@ export const INSTANCES_ROUTES = {
           return Response.json({ error: "Invalid id" }, { status: 400 });
         }
 
-        const current = await getInstanceById(id);
+        const current = getInstanceById(id);
         if (current === undefined) {
           return Response.json({ error: "Not found" }, { status: 404 });
         }
@@ -295,7 +314,7 @@ export const INSTANCES_ROUTES = {
           return Response.json({ error: "Forbidden" }, { status: 403 });
         }
 
-        await clearLogsForInstance(id);
+        clearLogsForInstance(id);
         return Response.json({ message: "Logs cleared" }, { status: 200 });
       },
     ),
@@ -308,7 +327,7 @@ export const INSTANCES_ROUTES = {
           return Response.json({ error: "Invalid id" }, { status: 400 });
         }
 
-        const current = await getInstanceById(id);
+        const current = getInstanceById(id);
         if (current === undefined) {
           return Response.json({ error: "Not found" }, { status: 404 });
         }
@@ -321,7 +340,7 @@ export const INSTANCES_ROUTES = {
           return parsed.response;
         }
 
-        const updated = await updateInstance(id, (inst) => ({
+        const updated = updateInstance(id, (inst) => ({
           ...inst,
           label: parsed.data.label,
         }));
@@ -342,7 +361,7 @@ export const INSTANCES_ROUTES = {
           return Response.json({ error: "Invalid id" }, { status: 400 });
         }
 
-        const current = await getInstanceById(id);
+        const current = getInstanceById(id);
         if (current === undefined) {
           return Response.json({ error: "Not found" }, { status: 404 });
         }
@@ -355,9 +374,43 @@ export const INSTANCES_ROUTES = {
           return parsed.response;
         }
 
-        const updated = await updateInstance(id, (inst) => ({
+        const updated = updateInstance(id, (inst) => ({
           ...inst,
           locked: parsed.data.locked,
+        }));
+
+        if (updated === undefined) {
+          return Response.json({ error: "Not found" }, { status: 404 });
+        }
+
+        return Response.json(updated, { status: 200 });
+      },
+    ),
+  },
+  "/api/instances/:id/public": {
+    PATCH: withAuth(
+      async (req: BunRequest<"/api/instances/:id/public">, user) => {
+        const id = req.params.id;
+        if (id === "") {
+          return Response.json({ error: "Invalid id" }, { status: 400 });
+        }
+
+        const current = getInstanceById(id);
+        if (current === undefined) {
+          return Response.json({ error: "Not found" }, { status: 404 });
+        }
+        if (current.ownerId !== user.id) {
+          return Response.json({ error: "Forbidden" }, { status: 403 });
+        }
+
+        const parsed = await parseJsonRequest(req, SetInstancePublicSchema);
+        if (parsed.kind === "error") {
+          return parsed.response;
+        }
+
+        const updated = updateInstance(id, (inst) => ({
+          ...inst,
+          public: parsed.data.public,
         }));
 
         if (updated === undefined) {

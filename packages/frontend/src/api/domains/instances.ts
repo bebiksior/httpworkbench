@@ -4,6 +4,7 @@ import type {
   InstanceDetailResponse,
   RenameInstanceInput,
   SetInstanceLockedInput,
+  SetInstancePublicInput,
   UpdateInstanceInput,
 } from "shared";
 import {
@@ -13,6 +14,7 @@ import {
   InstancesResponseSchema,
   RenameInstanceSchema,
   SetInstanceLockedSchema,
+  SetInstancePublicSchema,
   UpdateInstanceSchema,
 } from "shared";
 import { apiClient } from "../client";
@@ -134,6 +136,26 @@ export const instancesApi = {
     if (!result.success) {
       throw new ValidationError(
         `Invalid set locked response: ${result.error.message}`,
+      );
+    }
+
+    return result.data;
+  },
+
+  setPublic: async (
+    id: string,
+    input: SetInstancePublicInput,
+  ): Promise<Instance> => {
+    const validatedInput = SetInstancePublicSchema.parse(input);
+    const data = await apiClient.patch<unknown>(
+      `/api/instances/${id}/public`,
+      validatedInput,
+    );
+    const result = InstanceSchema.safeParse(data);
+
+    if (!result.success) {
+      throw new ValidationError(
+        `Invalid set public response: ${result.error.message}`,
       );
     }
 

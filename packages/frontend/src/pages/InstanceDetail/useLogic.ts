@@ -8,8 +8,10 @@ import {
   watch,
 } from "vue";
 import { useRouter } from "vue-router";
+import { NotFoundError } from "@/api/errors";
 import { useNotify } from "@/composables";
 import { useInstanceDetail } from "@/queries/domains/useInstanceDetail";
+import { useAuthStore } from "@/stores";
 import { isPresent } from "@/utils/types";
 
 export const useInstanceDetailLogic = (
@@ -17,6 +19,7 @@ export const useInstanceDetailLogic = (
 ) => {
   const router = useRouter();
   const notify = useNotify();
+  const authStore = useAuthStore();
   const resolvedInstanceId = computed(() => toValue(instanceId));
   const streamLogs = ref<Log[]>([]);
   const streamConnection = ref<WebSocket | undefined>(undefined);
@@ -159,8 +162,16 @@ export const useInstanceDetailLogic = (
 
   watch(error, (newError) => {
     if (isPresent(newError)) {
+      if (newError instanceof NotFoundError) {
+        router.replace({ name: "notFound" });
+        return;
+      }
       notify.error("Error loading instance", newError);
-      router.push("/");
+      if (authStore.hasSession) {
+        router.push({ name: "home" });
+        return;
+      }
+      router.push({ name: "login" });
     }
   });
 

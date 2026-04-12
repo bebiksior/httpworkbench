@@ -1,5 +1,6 @@
 import type {
   CreateWebhookInput,
+  TestWebhookInput,
   UpdateWebhookInput,
   Webhook,
   WebhooksResponse,
@@ -13,6 +14,10 @@ export const webhooksApi = {
 
   createWebhook: async (input: CreateWebhookInput): Promise<Webhook> => {
     return apiClient.post<Webhook>("/api/webhooks", input);
+  },
+
+  testWebhook: async (input: TestWebhookInput): Promise<void> => {
+    return apiClient.post<void>("/api/webhooks/test", input);
   },
 
   updateWebhook: async (

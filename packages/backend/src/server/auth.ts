@@ -44,7 +44,7 @@ type AuthError = {
   status: number;
 };
 
-export const authenticateRequest = async (
+const authenticateRequest = async (
   req: Request,
 ): Promise<AuthSuccess | AuthError> => {
   const authHeader = req.headers.get("authorization");
@@ -75,12 +75,21 @@ export const authenticateRequest = async (
     return { kind: "error", status: 401 };
   }
 
-  const userRecord = await getUserById(sub);
+  const userRecord = getUserById(sub);
   if (userRecord === undefined) {
     return { kind: "error", status: 401 };
   }
 
   return { kind: "ok", user: toPublicUser(userRecord) };
+};
+
+export const authenticateOptionalRequest = async (req: Request) => {
+  const auth = await authenticateRequest(req);
+  if (auth.kind === "error") {
+    return undefined;
+  }
+
+  return auth.user;
 };
 
 export const withAuth = <T extends string>(

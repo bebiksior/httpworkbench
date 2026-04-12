@@ -80,6 +80,46 @@ describe("buildDiscordNotificationPayload", () => {
     ).toBe("2024-01-02T03:04:05.000Z");
   });
 
+  test("renders custom message placeholders into webhook content", () => {
+    expect(
+      buildDiscordNotificationPayload(
+        baseLog,
+        "<@123> {{ type }} {{ address }} {{ instanceId }} {{ timestamp }} {{ text }}",
+      ).content,
+    ).toBe(
+      "<@123> HTTP 127.0.0.1 instance-1 2024-01-02T03:04:05.000Z GET / HTTP/1.1",
+    );
+  });
+
+  test("preserves unknown placeholders in custom content", () => {
+    expect(
+      buildDiscordNotificationPayload(baseLog, "value {{ unknown }}").content,
+    ).toBe("value {{ unknown }}");
+  });
+
+  test("sanitizes placeholder values so they cannot create mentions", () => {
+    expect(
+      buildDiscordNotificationPayload(
+        {
+          ...baseLog,
+          address: "<#789>",
+          instanceId: "@here",
+          raw: "@everyone <@123> <@!456> <@&987>",
+        },
+        "<@999> {{ address }} {{ instanceId }} {{ text }}",
+      ).content,
+    ).toBe(
+      "<@999> <#\u200B789> @\u200Bhere @\u200Beveryone <@\u200B123> <@!\u200B456> <@&\u200B987>",
+    );
+  });
+
+  test("truncates custom content to Discord limits", () => {
+    const payload = buildDiscordNotificationPayload(baseLog, "a".repeat(3000));
+
+    expect(payload.content?.length).toBeLessThanOrEqual(2000);
+    expect(payload.content?.endsWith("...")).toBe(true);
+  });
+
   test("truncates raw content to fit Discord limits", () => {
     const payload = buildDiscordNotificationPayload({
       ...baseLog,

@@ -59,10 +59,14 @@ const sanitizeAgentMessages = (messages: CustomUIMessage[]) => {
   }));
 };
 
-const createAgent = (modelId: string, getEditorContent: () => string) => {
+const createAgent = (
+  modelId: string,
+  initialEditorContent: string,
+  getEditorContent: () => string,
+) => {
   return new ToolLoopAgent({
     model: createModel(modelId),
-    instructions: buildAgentInstructions(getEditorContent()),
+    instructions: buildAgentInstructions(initialEditorContent),
     tools: agentTools,
     stopWhen: stepCountIs(10),
     prepareStep: ({ messages, ...settings }) => ({
@@ -122,13 +126,21 @@ const getMessageMetadata = (part: {
   return undefined;
 };
 
+type TransportOptions = {
+  getModelId: () => string;
+  getEditorContent: () => string;
+  onBeforeSend?: (messages: CustomUIMessage[]) => void;
+};
+
 class LocalAgentTransport implements ChatTransport<CustomUIMessage> {
   private readonly getModelId: () => string;
   private readonly getEditorContent: () => string;
+  private readonly onBeforeSend?: (messages: CustomUIMessage[]) => void;
 
-  constructor(getModelId: () => string, getEditorContent: () => string) {
-    this.getModelId = getModelId;
-    this.getEditorContent = getEditorContent;
+  constructor(options: TransportOptions) {
+    this.getModelId = options.getModelId;
+    this.getEditorContent = options.getEditorContent;
+    this.onBeforeSend = options.onBeforeSend;
   }
 
   async sendMessages({
@@ -137,6 +149,8 @@ class LocalAgentTransport implements ChatTransport<CustomUIMessage> {
   }: Parameters<ChatTransport<CustomUIMessage>["sendMessages"]>[0]): Promise<
     ReadableStream<UIMessageChunk>
   > {
+    this.onBeforeSend?.(messages);
+
     const modelId = this.getModelId();
     if (isAbsent(modelId) || modelId.trim() === "") {
       throw new Error("Select a model before sending messages.");
@@ -144,8 +158,15 @@ class LocalAgentTransport implements ChatTransport<CustomUIMessage> {
     if (isAbsent(abortSignal)) {
       throw new Error("Abort signal is required.");
     }
+
+    const editorContentAtSendTime = this.getEditorContent();
+
     const result = await createAgentUIStream({
-      agent: createAgent(modelId, this.getEditorContent),
+      agent: createAgent(
+        modelId,
+        editorContentAtSendTime,
+        this.getEditorContent,
+      ),
       uiMessages: sanitizeAgentMessages(messages),
       originalMessages: messages as AgentUIMessage[],
       abortSignal,
@@ -160,7 +181,5 @@ class LocalAgentTransport implements ChatTransport<CustomUIMessage> {
   }
 }
 
-export const createLocalAgentTransport = (options: {
-  getModelId: () => string;
-  getEditorContent: () => string;
-}) => new LocalAgentTransport(options.getModelId, options.getEditorContent);
+export const createLocalAgentTransport = (options: TransportOptions) =>
+  new LocalAgentTransport(options);

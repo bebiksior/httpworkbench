@@ -72,3 +72,73 @@ export const ensureStaticResponseWithinLimit = (
   }
   return { kind: "ok" };
 };
+
+type StaticHttpValidationResult =
+  | { kind: "ok" }
+  | { kind: "error"; response: Response };
+
+const staticHttpLineBreakPattern = /\r?\n/;
+const staticHttpHeaderSeparatorPattern = /\r?\n\r?\n/;
+
+export const normalizeStaticHttpRaw = (raw: string): string => {
+  const separatorMatch = staticHttpHeaderSeparatorPattern.exec(raw);
+  if (separatorMatch?.index === undefined) {
+    return raw;
+  }
+
+  const headerBlock = raw.slice(0, separatorMatch.index);
+  const body = raw.slice(separatorMatch.index + separatorMatch[0].length);
+
+  return `${headerBlock.split(staticHttpLineBreakPattern).join("\r\n")}\r\n\r\n${body}`;
+};
+
+export const ensureValidStaticHttpRaw = (
+  raw: string,
+): StaticHttpValidationResult => {
+  const trimmedStart = raw.trimStart();
+  if (!trimmedStart.startsWith("HTTP/")) {
+    return {
+      kind: "error",
+      response: Response.json(
+        {
+          error:
+            "Static response must start with an HTTP status line (e.g. HTTP/1.1 200 OK)",
+        },
+        { status: 400 },
+      ),
+    };
+  }
+  const headerSeparatorMatch = staticHttpHeaderSeparatorPattern.exec(raw);
+  if (headerSeparatorMatch === null) {
+    return {
+      kind: "error",
+      response: Response.json(
+        {
+          error:
+            "Static response must include a blank line between headers and body (\\r\\n\\r\\n)",
+        },
+        { status: 400 },
+      ),
+    };
+  }
+  const firstLine = raw.split(staticHttpLineBreakPattern)[0];
+  if (firstLine === undefined || firstLine === "") {
+    return {
+      kind: "error",
+      response: Response.json(
+        { error: "Invalid HTTP status line" },
+        { status: 400 },
+      ),
+    };
+  }
+  if (!/^HTTP\/\d+\.\d+\s+\d{3}/.test(firstLine)) {
+    return {
+      kind: "error",
+      response: Response.json(
+        { error: "Invalid HTTP status line" },
+        { status: 400 },
+      ),
+    };
+  }
+  return { kind: "ok" };
+};

@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 import {
   adjustContentLength,
+  getHeaderValue,
   parseInstanceIdFromHost,
   stripInternalHeaders,
 } from "./utils";
@@ -83,6 +84,32 @@ describe("stripInternalHeaders", () => {
   });
 });
 
+describe("getHeaderValue", () => {
+  test("reads header values case-insensitively", () => {
+    const rawRequest = [
+      "GET / HTTP/1.1",
+      "HOST: demo.instances.example.com",
+      "X-Test: value",
+      "",
+      "",
+    ].join("\r\n");
+
+    expect(getHeaderValue(rawRequest, "host")).toBe(
+      "demo.instances.example.com",
+    );
+    expect(getHeaderValue(rawRequest, "x-test")).toBe("value");
+  });
+
+  test("reads headers from partial requests without a header terminator", () => {
+    const rawRequest =
+      "POST / HTTP/1.1\r\nHost: demo.instances.example.com\r\nContent-Length: 42";
+
+    expect(getHeaderValue(rawRequest, "host")).toBe(
+      "demo.instances.example.com",
+    );
+  });
+});
+
 describe("adjustContentLength", () => {
   test("updates content-length to the body byte size", () => {
     const body = "hello🙂";
@@ -98,6 +125,35 @@ describe("adjustContentLength", () => {
     const expectedLength = new TextEncoder().encode(body).length;
 
     expect(adjusted).toContain(`Content-Length: ${expectedLength}`);
+  });
+
+  test("preserves LF line endings inside the body", () => {
+    const body =
+      "<!doctype html>\n<html>\n<body>\nline1\nline2\n</body>\n</html>";
+    const raw = ["HTTP/1.1 200 OK", "Content-Type: text/html", "", body].join(
+      "\r\n",
+    );
+
+    const adjusted = adjustContentLength(raw);
+
+    expect(adjusted.endsWith(body)).toBe(true);
+    expect(adjusted).toContain(
+      `Content-Length: ${new TextEncoder().encode(body).length}`,
+    );
+  });
+
+  test("supports LF-delimited headers without rewriting the body", () => {
+    const body = "hello\nworld";
+    const raw = ["HTTP/1.1 200 OK", "Content-Type: text/plain", "", body].join(
+      "\n",
+    );
+
+    const adjusted = adjustContentLength(raw);
+
+    expect(adjusted.endsWith(body)).toBe(true);
+    expect(adjusted).toContain(
+      `Content-Length: ${new TextEncoder().encode(body).length}`,
+    );
   });
 
   test("returns raw response unchanged if no body separator exists", () => {
