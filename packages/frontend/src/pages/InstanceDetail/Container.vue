@@ -143,6 +143,7 @@ const {
                   v-model="searchQuery"
                   type="search"
                   placeholder="Search address, method, path, headers, query..."
+                  aria-label="Search logs"
                   class="h-9 w-full rounded-lg border border-surface-300 bg-white pl-10 pr-4 text-sm text-surface-900 outline-none ring-0 transition-colors placeholder:text-surface-400 focus:border-surface-400 focus:outline-none focus:ring-0 focus:ring-offset-0 dark:border-surface-700 dark:bg-surface-800 dark:text-surface-0 dark:focus:border-surface-500"
                 />
               </label>

@@ -126,6 +126,7 @@ const showVisibility = computed(() => {
                 type="text"
                 maxlength="100"
                 placeholder="Instance name..."
+                aria-label="Instance name"
                 class="min-w-0 w-full text-2xl font-bold text-surface-900 dark:text-surface-0 bg-surface-100 dark:bg-surface-800 border border-surface-300 dark:border-surface-600 rounded px-2 py-0.5 focus:outline-none focus:border-primary"
                 @keydown="handleLabelKeydown"
                 @blur="saveLabel"
@@ -151,6 +152,7 @@ const showVisibility = computed(() => {
                 text
                 size="small"
                 class="shrink-0 p-1!"
+                aria-label="Edit instance name"
                 @click="startEditingLabel"
               />
             </template>
@@ -208,15 +210,18 @@ const showVisibility = computed(() => {
 
       <div class="flex flex-col gap-2">
         <label
+          for="instance-host-input"
           class="text-sm font-medium text-surface-700 dark:text-surface-300"
         >
           Interaction Host
         </label>
         <div class="flex gap-2">
           <InputText
+            id="instance-host-input"
             :value="instanceHost"
             readonly
             size="small"
+            aria-label="Interaction host"
             class="w-full font-mono text-sm bg-surface-50 dark:bg-surface-800"
           />
           <Button
@@ -224,6 +229,7 @@ const showVisibility = computed(() => {
             severity="secondary"
             outlined
             size="small"
+            aria-label="Copy interaction host"
             @click="handleCopy"
           />
         </div>
@@ -235,17 +241,20 @@ const showVisibility = computed(() => {
 
       <div class="flex flex-col gap-2" v-if="!isGuest && canManageInstance">
         <label
+          for="instance-webhooks-select"
           class="text-sm font-medium text-surface-700 dark:text-surface-300"
         >
           Webhooks
         </label>
         <div class="flex flex-col gap-2">
           <MultiSelect
+            input-id="instance-webhooks-select"
             v-model="selectedWebhookIds"
             :options="webhookOptions"
             option-label="label"
             option-value="value"
             placeholder="Select webhooks to notify"
+            aria-label="Webhooks"
             class="w-full"
             size="small"
             display="chip"
