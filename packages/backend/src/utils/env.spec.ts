@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { parseBooleanEnv } from "./env";
+import { parseBooleanEnv } from "shared";
 
 describe("parseBooleanEnv", () => {
   test.each(["true", "1", "yes", "y", "TRUE", "Yes"])(

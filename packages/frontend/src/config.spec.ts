@@ -28,4 +28,23 @@ describe("frontend config", () => {
     expect(config.instancesDomain).toBe("instances.example.com");
     expect(config.getInstanceHost("demo")).toBe("demo.instances.example.com");
   });
+
+  test("exposes deployment config fields without a fetch", () => {
+    const config = buildConfig(
+      {
+        VITE_IS_HOSTED: "true",
+        VITE_ALLOW_GUEST: "false",
+        VITE_DNS_ENABLED: "true",
+        VITE_DOMAIN: "example.com",
+      },
+      "test-version",
+    );
+
+    expect(config.isHosted).toBe(true);
+    expect(config.allowGuest).toBe(false);
+    expect(config.ttlMs).toBeDefined();
+    expect(config.maxInstancesPerOwner).toBe(50);
+    expect(config.rawLimitBytes).toBe(10 * 1024 * 1024);
+    expect(config.dnsEnabled).toBe(true);
+  });
 });

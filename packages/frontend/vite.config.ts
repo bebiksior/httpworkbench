@@ -10,6 +10,8 @@ const rootPackageJson = JSON.parse(
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, path.resolve(__dirname, "../.."), "");
+  const readBuildEnv = (key: string, fallback = "") =>
+    process.env[key] ?? env[key] ?? fallback;
 
   return {
     plugins: [vue(), tailwindcss()],
@@ -36,8 +38,20 @@ export default defineConfig(({ mode }) => {
       },
     },
     define: {
+      "import.meta.env.VITE_IS_HOSTED": JSON.stringify(
+        readBuildEnv("IS_HOSTED", "false"),
+      ),
+      "import.meta.env.VITE_ALLOW_GUEST": JSON.stringify(
+        readBuildEnv("ALLOW_GUEST", "false"),
+      ),
+      "import.meta.env.VITE_DNS_ENABLED": JSON.stringify(
+        readBuildEnv("DNS_ENABLED", "false"),
+      ),
       "import.meta.env.VITE_DOMAIN": JSON.stringify(
-        process.env.DOMAIN || env.DOMAIN || "localhost",
+        readBuildEnv("DOMAIN", "localhost"),
+      ),
+      "import.meta.env.VITE_INSTANCES_DOMAIN": JSON.stringify(
+        readBuildEnv("INSTANCES_DOMAIN"),
       ),
       __APP_VERSION__: JSON.stringify(rootPackageJson.version),
     },

@@ -34,8 +34,11 @@ services:
       context: .
       dockerfile: packages/frontend/Dockerfile
       args:
-        - VITE_DOMAIN=${DOMAIN:-localhost}
-        - VITE_INSTANCES_DOMAIN=${INSTANCES_DOMAIN:-}
+        - DOMAIN=${DOMAIN:-localhost}
+        - INSTANCES_DOMAIN=${INSTANCES_DOMAIN:-}
+        - IS_HOSTED=${IS_HOSTED:-false}
+        - ALLOW_GUEST=${ALLOW_GUEST:-false}
+        - DNS_ENABLED=${DNS_ENABLED:-false}
     restart: unless-stopped
     ports:
       - "80:80"

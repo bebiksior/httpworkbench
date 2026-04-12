@@ -1,21 +1,22 @@
-import { parseBooleanEnv } from "./utils/env";
+import {
+  buildPublicConfig,
+  normalizeDnsName,
+  parseBooleanEnv,
+  resolveDomain,
+  resolveInstancesDomain,
+} from "shared";
 
-const monthInMs = 30 * 24 * 60 * 60 * 1000;
-const hostedInstanceLimit = 50;
-const staticInstanceRawLimitBytes = 10 * 1024 * 1024;
 const defaultDnsPort = 53;
-const defaultInstancesSubdomain = "instances";
-const env = typeof Bun !== "undefined" ? Bun.env : process.env;
-
-const isHosted = parseBooleanEnv(env.IS_HOSTED) ?? false;
-const allowGuest = parseBooleanEnv(env.ALLOW_GUEST) ?? true;
+const env: Record<string, string | undefined> =
+  typeof Bun !== "undefined" ? Bun.env : process.env;
+const appConfig = buildPublicConfig(env);
 
 export const instancePolicies = {
-  isHosted,
-  allowGuest,
-  ttlMs: isHosted ? monthInMs : undefined,
-  maxInstancesPerOwner: isHosted ? hostedInstanceLimit : undefined,
-  rawLimitBytes: staticInstanceRawLimitBytes,
+  isHosted: appConfig.isHosted,
+  allowGuest: appConfig.allowGuest,
+  ttlMs: appConfig.ttlMs,
+  maxInstancesPerOwner: appConfig.maxInstancesPerOwner,
+  rawLimitBytes: appConfig.rawLimitBytes,
 };
 
 export type DnsConfig = {
@@ -35,18 +36,11 @@ const parseIntegerEnv = (
   return Number.isNaN(parsed) ? fallback : parsed;
 };
 
-const normalizeDnsName = (value: string): string => {
-  return value.trim().replace(/\.+$/, "").toLowerCase();
-};
-
 const parseNameservers = (
   value: string | undefined,
   domain: string | undefined,
 ): string[] | undefined => {
-  const fallbackDomain =
-    domain === undefined || domain === ""
-      ? undefined
-      : normalizeDnsName(domain);
+  const fallbackDomain = resolveDomain(domain);
 
   const defaults =
     fallbackDomain === undefined
@@ -69,18 +63,8 @@ const parseNameservers = (
 export const buildDnsConfig = (
   runtimeEnv: Record<string, string | undefined>,
 ): DnsConfig => {
-  const domain = runtimeEnv.DOMAIN;
-  const normalizedDomain =
-    domain === undefined || domain === ""
-      ? undefined
-      : normalizeDnsName(domain);
-  const fallbackInstancesDomain =
-    normalizedDomain === undefined
-      ? `${defaultInstancesSubdomain}.localhost`
-      : `${defaultInstancesSubdomain}.${normalizedDomain}`;
-  const instancesDomain = normalizeDnsName(
-    runtimeEnv.INSTANCES_DOMAIN ?? fallbackInstancesDomain,
-  );
+  const normalizedDomain = resolveDomain(runtimeEnv.DOMAIN);
+  const instancesDomain = resolveInstancesDomain(runtimeEnv);
   const fallbackInstancesAcmeChallengeDomain =
     normalizedDomain === undefined
       ? "_acme-challenge.instances-wildcard.localhost"
@@ -103,15 +87,12 @@ export const buildDnsConfig = (
     instancesDomain,
     instancesAcmeChallengeDomain,
     dnsPort: parseIntegerEnv(runtimeEnv.DNS_PORT, defaultDnsPort),
-    dnsNameservers: parseNameservers(runtimeEnv.DNS_NAMESERVERS, domain),
+    dnsNameservers: parseNameservers(
+      runtimeEnv.DNS_NAMESERVERS,
+      runtimeEnv.DOMAIN,
+    ),
     publicIp: runtimeEnv.PUBLIC_IP?.trim(),
   };
 };
 
 export const dnsConfig = buildDnsConfig(env);
-
-export const appConfig = {
-  ...instancePolicies,
-  dnsEnabled: dnsConfig.dnsEnabled,
-  instancesDomain: dnsConfig.instancesDomain,
-};
