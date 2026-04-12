@@ -13,9 +13,7 @@ ARG VITE_DOMAIN=localhost
 ARG VITE_INSTANCES_DOMAIN=
 ENV VITE_DOMAIN=${VITE_DOMAIN}
 ENV VITE_INSTANCES_DOMAIN=${VITE_INSTANCES_DOMAIN}
-COPY --from=deps /app/node_modules node_modules
-COPY --from=deps /app/packages/frontend/node_modules packages/frontend/node_modules
-COPY --from=deps /app/packages/shared/node_modules packages/shared/node_modules
+COPY --from=deps /app /app
 COPY . .
 WORKDIR /app/packages/frontend
 RUN bun run build:skipts
