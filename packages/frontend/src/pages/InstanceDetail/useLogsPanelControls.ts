@@ -65,10 +65,10 @@ export const useLogsPanelControls = (
     [
       "inline-flex h-9 cursor-pointer items-center rounded-lg border px-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30",
       active
-        ? "border-surface-600 bg-surface-600 text-surface-0 shadow-sm hover:border-surface-700 hover:bg-surface-700 dark:border-surface-700 dark:bg-surface-800 dark:text-surface-50 dark:hover:border-surface-500 dark:hover:bg-surface-700"
+        ? "border-primary bg-primary/10 text-primary shadow-sm hover:border-primary hover:bg-primary/15 dark:border-surface-700 dark:bg-surface-800 dark:text-surface-50 dark:hover:border-surface-500 dark:hover:bg-surface-700"
         : "",
       !active
-        ? "border-surface-300 bg-transparent text-surface-500 hover:border-surface-400 hover:bg-surface-100/70 hover:text-surface-700 dark:border-surface-800 dark:text-surface-400 dark:hover:border-surface-600 dark:hover:bg-surface-900/70 dark:hover:text-surface-200"
+        ? "border-surface-300 bg-white text-surface-600 hover:border-surface-400 hover:bg-surface-50 hover:text-surface-800 dark:border-surface-800 dark:bg-transparent dark:text-surface-400 dark:hover:border-surface-600 dark:hover:bg-surface-900/70 dark:hover:text-surface-200"
         : "",
     ].join(" ");
 

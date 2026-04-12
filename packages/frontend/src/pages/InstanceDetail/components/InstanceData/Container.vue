@@ -275,6 +275,7 @@ const showVisibility = computed(() => {
         label="Extend"
         icon="pi pi-refresh"
         size="small"
+        outlined
         :loading="isExtending"
         @click="handleExtend"
       />
@@ -318,8 +319,9 @@ const showVisibility = computed(() => {
           v-if="canManageInstance"
           label="Builder"
           icon="pi pi-wrench"
-          size="small"
           severity="secondary"
+          size="small"
+          outlined
           class="flex-1"
           @click="handleOpenBuilder"
         />
@@ -328,6 +330,7 @@ const showVisibility = computed(() => {
           label="Save"
           icon="pi pi-save"
           size="small"
+          outlined
           class="flex-1"
           :loading="isUpdating"
           :disabled="!isDirty"
