@@ -13,6 +13,7 @@ http://{$DOMAIN}, https://{$DOMAIN} {
 	}
 
 	encode gzip zstd
+	header /assets/* Cache-Control "public, max-age=31536000, immutable"
 
 	handle /api/* {
 		reverse_proxy backend:8081 {
