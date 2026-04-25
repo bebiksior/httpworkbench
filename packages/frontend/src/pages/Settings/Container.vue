@@ -60,7 +60,7 @@ const handleEdit = (webhook: Webhook) => {
   <Dialog
     v-model:visible="showCreateDialog"
     header="Create Webhook"
-    :style="{ width: '500px' }"
+    :style="{ width: '560px' }"
     modal
   >
     <WebhookForm @created="handleWebhookCreated" />
@@ -69,7 +69,7 @@ const handleEdit = (webhook: Webhook) => {
   <Dialog
     v-model:visible="showEditDialog"
     header="Edit Webhook"
-    :style="{ width: '500px' }"
+    :style="{ width: '560px' }"
     modal
   >
     <WebhookForm :webhook="editingWebhook" @updated="handleWebhookUpdated" />
@@ -153,7 +153,7 @@ const handleEdit = (webhook: Webhook) => {
         </section>
 
         <section v-else>
-          <div class="mb-4 flex flex-wrap items-center justify-between gap-4">
+          <div class="mb-6 flex flex-wrap items-center justify-between gap-4">
             <div>
               <h2
                 class="text-2xl font-semibold text-surface-900 dark:text-surface-0"
@@ -163,7 +163,8 @@ const handleEdit = (webhook: Webhook) => {
               <p
                 class="mt-1 max-w-2xl text-sm text-surface-600 dark:text-surface-300"
               >
-                Manage your webhooks and notifications to receive updates.
+                Discord webhooks for HTTP Workbench notifications. Treat them
+                like passwords.
               </p>
             </div>
             <Button
@@ -177,27 +178,25 @@ const handleEdit = (webhook: Webhook) => {
             {{ error?.message ?? "Unable to load webhooks" }}
           </Message>
 
-          <div v-if="isLoading" class="flex justify-center py-16">
+          <div v-if="isLoading" class="flex justify-center py-12">
             <i
               class="pi pi-spinner pi-spin text-4xl text-surface-500 dark:text-surface-300"
             />
           </div>
           <div
             v-else-if="webhooks && webhooks.length === 0"
-            class="py-12 text-center"
+            class="border-y border-surface-200 py-12 text-center dark:border-surface-800"
           >
-            <i
-              class="pi pi-inbox mb-4 text-5xl text-surface-500 dark:text-surface-300"
-            />
-            <p class="mb-2 text-lg text-surface-700 dark:text-surface-200">
-              No webhooks configured
+            <p class="mb-1 text-sm text-surface-700 dark:text-surface-200">
+              No webhooks yet
             </p>
-            <p class="mb-6 text-sm text-surface-600 dark:text-surface-300">
-              Create your first webhook to receive Discord notifications
+            <p class="mb-5 text-sm text-surface-500 dark:text-surface-400">
+              Create one to receive Discord notifications.
             </p>
             <Button
               label="Create Webhook"
               icon="pi pi-plus"
+              outlined
               @click="showCreateDialog = true"
             />
           </div>
