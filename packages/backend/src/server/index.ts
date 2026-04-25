@@ -41,7 +41,11 @@ export const initServer = async () => {
         }
         subscribeToLogStream(instanceId, ws);
       },
-      message: () => {},
+      message: (ws: ServerWebSocket<LogStreamSocketData>, message) => {
+        if (message === "ping") {
+          ws.send("pong");
+        }
+      },
       close: (ws: ServerWebSocket<LogStreamSocketData>) => {
         unsubscribeFromLogStream(ws);
       },
