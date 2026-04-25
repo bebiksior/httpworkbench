@@ -10,7 +10,25 @@ defineEmits<{
 
 const mcpEndpoint = getMcpEndpoint();
 const endpointCopied = ref(false);
+const configCopied = ref(false);
 let copyResetHandle: ReturnType<typeof setTimeout> | undefined;
+let configCopyResetHandle: ReturnType<typeof setTimeout> | undefined;
+
+const mcpConfigExample = JSON.stringify(
+  {
+    mcpServers: {
+      httpworkbench: {
+        type: "http",
+        url: mcpEndpoint,
+        headers: {
+          Authorization: "Bearer YOUR_HTTP_WORKBENCH_API_KEY",
+        },
+      },
+    },
+  },
+  undefined,
+  2,
+);
 
 const copyEndpoint = async () => {
   await navigator.clipboard.writeText(mcpEndpoint);
@@ -20,6 +38,17 @@ const copyEndpoint = async () => {
   }
   copyResetHandle = setTimeout(() => {
     endpointCopied.value = false;
+  }, 2000);
+};
+
+const copyConfigExample = async () => {
+  await navigator.clipboard.writeText(mcpConfigExample);
+  configCopied.value = true;
+  if (configCopyResetHandle !== undefined) {
+    clearTimeout(configCopyResetHandle);
+  }
+  configCopyResetHandle = setTimeout(() => {
+    configCopied.value = false;
   }, 2000);
 };
 </script>
@@ -79,6 +108,30 @@ const copyEndpoint = async () => {
         outlined
         @click="$emit('navigate-to-api-keys')"
       />
+    </div>
+
+    <div class="mb-8">
+      <div class="mb-2 flex items-center justify-between gap-3">
+        <h3 class="text-sm font-medium text-surface-700 dark:text-surface-200">
+          Example client JSON
+        </h3>
+        <Button
+          :label="configCopied ? 'Copied' : 'Copy JSON'"
+          :icon="configCopied ? 'pi pi-check' : 'pi pi-copy'"
+          severity="secondary"
+          size="small"
+          outlined
+          @click="copyConfigExample"
+        />
+      </div>
+      <p class="mb-3 text-sm text-surface-600 dark:text-surface-300">
+        Most MCP clients use an <span class="font-mono">mcpServers</span>
+        object. Paste this into your client config, then replace the bearer
+        token placeholder with an API key.
+      </p>
+      <pre
+        class="overflow-x-auto rounded-lg border border-surface-200 bg-surface-50 p-4 text-xs text-surface-800 dark:border-surface-700 dark:bg-surface-900 dark:text-surface-100"
+      ><code>{{ mcpConfigExample }}</code></pre>
     </div>
 
     <div class="mb-8">
