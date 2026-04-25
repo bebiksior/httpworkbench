@@ -43,7 +43,7 @@ const getSeverity = (type: string) => {
     class="border border-surface-200 dark:border-surface-700 rounded-lg overflow-hidden bg-white dark:bg-surface-800 shadow-sm"
   >
     <div
-      class="bg-surface-50 dark:bg-surface-900/50 px-4 py-3 text-xs text-surface-500 border-b border-surface-200 dark:border-surface-700 flex justify-between items-center"
+      class="bg-surface-50 dark:bg-surface-900/50 px-4 py-3 text-xs text-surface-700 dark:text-surface-400 border-b border-surface-200 dark:border-surface-700 flex justify-between items-center"
     >
       <div class="flex items-center gap-2">
         <Tag
@@ -52,22 +52,26 @@ const getSeverity = (type: string) => {
           rounded
           size="small"
         />
-        <span class="font-mono text-surface-600 dark:text-surface-400">{{
+        <span class="font-mono text-surface-800 dark:text-surface-300">{{
           log.address
         }}</span>
       </div>
       <div class="flex items-center gap-2">
         <span>{{ formattedTimestamp }}</span>
-        <span class="text-surface-400">•</span>
-        <span class="text-surface-400" :title="absoluteTimestamp">{{
-          absoluteTimestamp
-        }}</span>
+        <span class="text-surface-500 dark:text-surface-500">•</span>
+        <span
+          class="text-surface-600 dark:text-surface-500"
+          :title="absoluteTimestamp"
+          >{{ absoluteTimestamp }}</span
+        >
       </div>
     </div>
     <div class="p-0">
       <HTTPLog v-if="log.type === 'http'" :log="log" />
       <DNSLog v-else-if="log.type === 'dns'" :log="log" />
-      <div v-else class="p-4 text-surface-500">Unknown log type</div>
+      <div v-else class="p-4 text-surface-700 dark:text-surface-400">
+        Unknown log type
+      </div>
     </div>
   </div>
 </template>
