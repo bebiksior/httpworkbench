@@ -2,7 +2,7 @@ import { createConnection } from "node:net";
 import dgram from "node:dgram";
 import * as dnsPacket from "dns-packet";
 import type { Packet } from "dns-packet";
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 import type { DnsConfig } from "../../config";
 import {
   createDnsServer,
@@ -45,6 +45,20 @@ const createRuntimeDnsConfig = () => ({
   dnsNameservers: ["ns1.example.com", "ns2.example.com"],
   publicIp: "203.0.113.10",
 });
+
+const createDnsHeader = (params: {
+  id: number;
+  flags?: number;
+  questions?: number;
+  answers?: number;
+}): Buffer => {
+  const header = Buffer.alloc(12);
+  header.writeUInt16BE(params.id, 0);
+  header.writeUInt16BE(params.flags ?? 0, 2);
+  header.writeUInt16BE(params.questions ?? 0, 4);
+  header.writeUInt16BE(params.answers ?? 0, 6);
+  return header;
+};
 
 const sendUdpQuery = async (port: number, packet: Packet) => {
   const socket = dgram.createSocket("udp4");
@@ -658,7 +672,11 @@ describe("handleDnsRequest", () => {
     ]);
   });
 
-  test("returns undefined for malformed dns packets", async () => {
+  test("returns undefined for dns packets that are too short to identify", async () => {
+    const consoleError = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => undefined);
+
     const response = await handleDnsRequest({
       payload: new Uint8Array([1, 2, 3]),
       transport: "udp",
@@ -668,6 +686,108 @@ describe("handleDnsRequest", () => {
     });
 
     expect(response).toBeUndefined();
+    expect(consoleError).not.toHaveBeenCalled();
+    consoleError.mockRestore();
+  });
+
+  test("returns FORMERR without logging for a malformed dns question name", async () => {
+    const consoleError = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => undefined);
+    const payload = Buffer.concat([
+      createDnsHeader({
+        id: 27,
+        flags: dnsPacket.RECURSION_DESIRED,
+        questions: 1,
+      }),
+      Buffer.from([63, 97]),
+    ]);
+
+    const response = await handleDnsRequest({
+      payload,
+      transport: "udp",
+      clientAddress: "127.0.0.1",
+      config: createRuntimeDnsConfig(),
+      deps,
+    });
+
+    expect(response).toBeDefined();
+
+    if (response === undefined) {
+      throw new Error("Expected a DNS response");
+    }
+
+    const decoded = dnsPacket.decode(response);
+    expect(decoded.id).toBe(27);
+    expect((decoded.flags ?? 0) & 0x000f).toBe(1);
+    expect((decoded.flags ?? 0) & dnsPacket.RECURSION_DESIRED).toBe(
+      dnsPacket.RECURSION_DESIRED,
+    );
+    expect(decoded.questions).toEqual([]);
+    expect(consoleError).not.toHaveBeenCalled();
+    consoleError.mockRestore();
+  });
+
+  test("returns FORMERR without logging for a truncated dns question", async () => {
+    const consoleError = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => undefined);
+    const payload = Buffer.concat([
+      createDnsHeader({ id: 28, questions: 1 }),
+      Buffer.from([0]),
+    ]);
+
+    const response = await handleDnsRequest({
+      payload,
+      transport: "udp",
+      clientAddress: "127.0.0.1",
+      config: createRuntimeDnsConfig(),
+      deps,
+    });
+
+    expect(response).toBeDefined();
+
+    if (response === undefined) {
+      throw new Error("Expected a DNS response");
+    }
+
+    const decoded = dnsPacket.decode(response);
+    expect(decoded.id).toBe(28);
+    expect((decoded.flags ?? 0) & 0x000f).toBe(1);
+    expect(decoded.questions).toEqual([]);
+    expect(consoleError).not.toHaveBeenCalled();
+    consoleError.mockRestore();
+  });
+
+  test("returns FORMERR without logging for a malformed dns answer section", async () => {
+    const consoleError = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => undefined);
+    const payload = Buffer.concat([
+      createDnsHeader({ id: 29, answers: 1 }),
+      Buffer.from([0, 0, 99, 0, 1, 0, 0, 0, 60, 0]),
+    ]);
+
+    const response = await handleDnsRequest({
+      payload,
+      transport: "udp",
+      clientAddress: "127.0.0.1",
+      config: createRuntimeDnsConfig(),
+      deps,
+    });
+
+    expect(response).toBeDefined();
+
+    if (response === undefined) {
+      throw new Error("Expected a DNS response");
+    }
+
+    const decoded = dnsPacket.decode(response);
+    expect(decoded.id).toBe(29);
+    expect((decoded.flags ?? 0) & 0x000f).toBe(1);
+    expect(decoded.answers).toEqual([]);
+    expect(consoleError).not.toHaveBeenCalled();
+    consoleError.mockRestore();
   });
 
   test("marks TCP source addresses as verified", async () => {

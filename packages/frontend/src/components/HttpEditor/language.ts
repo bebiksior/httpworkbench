@@ -2,8 +2,10 @@ import type { Extension } from "@codemirror/state";
 import { StreamLanguage } from "@codemirror/language";
 import { http } from "@codemirror/legacy-modes/mode/http";
 import { simpleMode } from "@codemirror/legacy-modes/mode/simple-mode";
+import { responseBodyJsonHelpers } from "./extensions/responseBodyJsonHelpers";
+import { responseBodyHighlighting } from "./extensions/responseBodyHighlighting";
 
-export type EditorSyntax = "dns" | "http";
+export type EditorSyntax = "dns" | "http" | "response";
 
 const dns = simpleMode({
   start: [
@@ -25,6 +27,11 @@ const dns = simpleMode({
 const editorLanguageExtensions: Record<EditorSyntax, Extension> = {
   dns: StreamLanguage.define(dns),
   http: StreamLanguage.define(http),
+  response: [
+    StreamLanguage.define(http),
+    responseBodyHighlighting(),
+    responseBodyJsonHelpers(),
+  ],
 };
 
 export const getEditorLanguageExtension = (

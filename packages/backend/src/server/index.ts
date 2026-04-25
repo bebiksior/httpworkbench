@@ -11,11 +11,13 @@ import { dnsConfig, instancePolicies } from "../config";
 import {
   GUEST_INSTANCES_ROUTES,
   INSTANCES_ROUTES,
+  API_KEYS_ROUTES,
   OAUTH_ROUTES,
   USER_ROUTES,
   WEBHOOKS_ROUTES,
 } from "./api";
 import { authenticateOptionalRequest } from "./auth";
+import { handleMcpRequest } from "./mcp";
 import { canReadInstance } from "./instances/access";
 import {
   createInstancesServer,
@@ -50,6 +52,7 @@ export const initServer = async () => {
       ...INSTANCES_ROUTES,
       ...GUEST_INSTANCES_ROUTES,
       ...WEBHOOKS_ROUTES,
+      ...API_KEYS_ROUTES,
       "/api/instances/:id/stream": {
         GET: async (
           req: BunRequest<"/api/instances/:id/stream">,
@@ -107,6 +110,11 @@ export const initServer = async () => {
           const { version } = await import("../index");
           return Response.json({ version });
         },
+      },
+      "/mcp": {
+        GET: handleMcpRequest,
+        POST: handleMcpRequest,
+        DELETE: handleMcpRequest,
       },
     },
   });

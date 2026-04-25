@@ -36,6 +36,19 @@ type DnsResponseOptions = {
 };
 
 export type DnsQuestion = Question;
+export type DnsTransport = "udp" | "tcp";
+type DnsDecodeResult =
+  | {
+      ok: true;
+      request: Packet;
+    }
+  | {
+      ok: false;
+      response?: Packet;
+    };
+
+const dnsHeaderBytes = 12;
+const tcpLengthPrefixBytes = 2;
 
 export const normalizeDnsName = (value: string): string => {
   return normalizeHostname(value);
@@ -174,6 +187,33 @@ export const buildDnsResponse = ({
   };
 };
 
+const buildDnsFormerrResponseFromPayload = (
+  payload: Uint8Array,
+  transport: DnsTransport,
+): Packet | undefined => {
+  const buffer = Buffer.from(payload);
+  const offset = transport === "tcp" ? tcpLengthPrefixBytes : 0;
+
+  if (buffer.length < offset + dnsHeaderBytes) {
+    return undefined;
+  }
+
+  const flags = buffer.readUInt16BE(offset + 2);
+
+  return {
+    type: "response",
+    id: buffer.readUInt16BE(offset),
+    flags:
+      dnsPacket.AUTHORITATIVE_ANSWER |
+      (flags & dnsPacket.RECURSION_DESIRED) |
+      DNS_RESPONSE_CODES.FORMERR,
+    questions: [],
+    answers: [],
+    authorities: [],
+    additionals: [],
+  };
+};
+
 export const encodeUdpResponse = (response: Packet): Buffer => {
   return dnsPacket.encode(response);
 };
@@ -182,12 +222,30 @@ export const encodeTcpResponse = (response: Packet): Buffer => {
   return dnsPacket.streamEncode(response);
 };
 
-export const decodeUdpQuery = (payload: Uint8Array): Packet => {
+const decodeUdpQuery = (payload: Uint8Array): Packet => {
   return dnsPacket.decode(Buffer.from(payload));
 };
 
-export const decodeTcpQuery = (payload: Uint8Array): Packet => {
+const decodeTcpQuery = (payload: Uint8Array): Packet => {
   return dnsPacket.streamDecode(Buffer.from(payload));
+};
+
+export const decodeDnsQuery = (
+  payload: Uint8Array,
+  transport: DnsTransport,
+): DnsDecodeResult => {
+  try {
+    return {
+      ok: true,
+      request:
+        transport === "udp" ? decodeUdpQuery(payload) : decodeTcpQuery(payload),
+    };
+  } catch {
+    return {
+      ok: false,
+      response: buildDnsFormerrResponseFromPayload(payload, transport),
+    };
+  }
 };
 
 export const DNS_RCODE = DNS_RESPONSE_CODES;

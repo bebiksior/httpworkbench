@@ -91,7 +91,8 @@ const truncateMessage = (message?: string, maxLength = 45) => {
           class="text-sm truncate block"
           :class="{
             'font-mono': data.message !== undefined,
-            'text-surface-500': data.message === undefined,
+            'text-surface-600 dark:text-surface-300':
+              data.message === undefined,
           }"
           :title="data.message ?? 'Default embed only'"
         >

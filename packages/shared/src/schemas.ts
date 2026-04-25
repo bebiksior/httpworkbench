@@ -74,6 +74,29 @@ export const WebhookSchema = z.object({
 
 export type Webhook = z.infer<typeof WebhookSchema>;
 
+export const ApiKeyScopeSchema = z.union([
+  z.literal("instances:read"),
+  z.literal("instances:write"),
+  z.literal("instances:delete"),
+  z.literal("logs:read"),
+  z.literal("logs:stream"),
+]);
+
+export type ApiKeyScope = z.infer<typeof ApiKeyScopeSchema>;
+
+export const ApiKeySchema = z.object({
+  id: z.string(),
+  userId: z.string(),
+  name: z.string(),
+  prefix: z.string(),
+  scopes: z.array(ApiKeyScopeSchema),
+  createdAt: z.number(),
+  lastUsedAt: z.number().optional(),
+  expiresAt: z.number().optional(),
+});
+
+export type ApiKey = z.infer<typeof ApiKeySchema>;
+
 export const InstanceModerationSchema = z.object({
   instanceId: z.string(),
   window5mStartMs: z.number(),

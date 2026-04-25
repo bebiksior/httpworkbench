@@ -9,6 +9,7 @@ import {
   instanceWebhooks,
   instanceModerations,
   instances,
+  apiKeys,
   logs,
   schema,
   userNotices,
@@ -61,6 +62,7 @@ const getStats = (db: DrizzleDb) => {
   const instancesCount = db.select({ count: count() }).from(instances).get();
   const logsCount = db.select({ count: count() }).from(logs).get();
   const webhooksCount = db.select({ count: count() }).from(webhooks).get();
+  const apiKeysCount = db.select({ count: count() }).from(apiKeys).get();
   const userNoticesCount = db
     .select({ count: count() })
     .from(userNotices)
@@ -72,6 +74,7 @@ const getStats = (db: DrizzleDb) => {
     userNoticesLength: userNoticesCount?.count ?? 0,
     usersLength: usersCount?.count ?? 0,
     webhooksLength: webhooksCount?.count ?? 0,
+    apiKeysLength: apiKeysCount?.count ?? 0,
   };
 };
 
@@ -158,6 +161,7 @@ export const replaceData = (data: LegacyStorageData) => {
       tx.delete(instanceWebhooks).run();
       tx.delete(instanceModerations).run();
       tx.delete(userNotices).run();
+      tx.delete(apiKeys).run();
       tx.delete(webhooks).run();
       tx.delete(instances).run();
       tx.delete(users).run();

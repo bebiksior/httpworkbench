@@ -57,6 +57,10 @@ export default defineConfig(({ mode }) => {
           changeOrigin: true,
           ws: true,
         },
+        "/mcp": {
+          target: `http://localhost:${env.API_PORT || "8081"}`,
+          changeOrigin: true,
+        },
       },
     },
     define: {

@@ -45,3 +45,10 @@ export const config = buildConfig(
   },
   appVersion,
 );
+
+export const getMcpEndpoint = (): string => {
+  if (typeof window === "undefined") {
+    return `https://${config.domain}/mcp`;
+  }
+  return `${window.location.origin}/mcp`;
+};

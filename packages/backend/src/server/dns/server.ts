@@ -8,8 +8,7 @@ import {
   buildDnsInstanceAnswers,
   buildDnsResponse,
   buildDnsZoneAnswers,
-  decodeTcpQuery,
-  decodeUdpQuery,
+  decodeDnsQuery,
   DNS_RCODE,
   encodeTcpResponse,
   encodeUdpResponse,
@@ -18,9 +17,8 @@ import {
   parseInstanceIdFromDnsName,
   type DnsQuestion,
   type DnsRuntimeConfig,
+  type DnsTransport,
 } from "./utils";
-
-type DnsTransport = "udp" | "tcp";
 
 const dnsTcpIdleTimeoutMs = 10_000;
 const maxDnsTcpMessageBytes = 4 * 1024;
@@ -174,9 +172,15 @@ export const handleDnsRequest = async ({
   config,
   deps,
 }: DnsRequestParams): Promise<Buffer | undefined> => {
+  const decoded = decodeDnsQuery(payload, transport);
+  if (!decoded.ok) {
+    return decoded.response === undefined
+      ? undefined
+      : encodeDnsResponse(transport, decoded.response);
+  }
+
   try {
-    const request =
-      transport === "udp" ? decodeUdpQuery(payload) : decodeTcpQuery(payload);
+    const { request } = decoded;
     const question = getFirstQuestion(request);
 
     if (question === undefined) {

@@ -352,6 +352,7 @@ const showVisibility = computed(() => {
           :model-value="rawContent"
           :is-dirty="isDirty"
           :readonly="!canManageInstance"
+          syntax="response"
           max-height="500px"
           @update:modelValue="handleEditorChange"
           @save="handleSave"

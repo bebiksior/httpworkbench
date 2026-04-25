@@ -8,9 +8,7 @@ const { state, checkForUpdates } = useUpdateCheck();
 </script>
 
 <template>
-  <div
-    class="bg-white dark:bg-surface-900/70 border border-surface-200 dark:border-surface-800 rounded-2xl p-6 mb-6"
-  >
+  <div>
     <div class="flex flex-wrap items-center justify-between gap-4">
       <div>
         <div class="flex items-center gap-3">
@@ -21,7 +19,7 @@ const { state, checkForUpdates } = useUpdateCheck();
           </h2>
           <Tag :value="`v${config.version}`" severity="secondary" />
         </div>
-        <p class="text-sm text-surface-400 mt-1">
+        <p class="text-sm text-surface-600 dark:text-surface-300 mt-1">
           <template v-if="state.status === 'idle'">
             Click to check for updates
           </template>

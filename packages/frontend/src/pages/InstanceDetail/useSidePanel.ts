@@ -28,6 +28,10 @@ export const useSidePanel = (
   };
 
   const setHidden = (hidden: boolean) => {
+    if (isHidden.value === hidden) {
+      return;
+    }
+
     isTransitioning.value = true;
     isHidden.value = hidden;
     queueTransitionCleanup();

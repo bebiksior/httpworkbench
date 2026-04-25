@@ -18,6 +18,7 @@
     "migrate:sqlite": "bun --env-file=../../.env src/storage/importLegacyDb.ts"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "arctic": "^3.7.0",
     "dns-packet": "^5.6.1",
     "drizzle-orm": "^0.45.2",

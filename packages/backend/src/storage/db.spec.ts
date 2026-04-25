@@ -66,6 +66,7 @@ describe("storage db migrations", () => {
       userNoticesLength: 0,
       usersLength: 0,
       webhooksLength: 0,
+      apiKeysLength: 0,
     });
 
     closeDb();
@@ -78,6 +79,7 @@ describe("storage db migrations", () => {
 
     expect(tables).toEqual([
       { name: "__drizzle_migrations" },
+      { name: "apiKeys" },
       { name: "instanceModerations" },
       { name: "instanceWebhooks" },
       { name: "instances" },
@@ -113,6 +115,7 @@ describe("storage db migrations", () => {
         userNoticesLength: 0,
         usersLength: 1,
         webhooksLength: 1,
+        apiKeysLength: 0,
       },
     });
   });
@@ -140,6 +143,7 @@ describe("storage db migrations", () => {
         userNoticesLength: 0,
         usersLength: 0,
         webhooksLength: 0,
+        apiKeysLength: 0,
       },
     });
   });

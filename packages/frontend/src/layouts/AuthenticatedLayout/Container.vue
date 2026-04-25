@@ -16,6 +16,13 @@ const menu = ref();
 
 const items = computed(() => [
   {
+    label: "Settings",
+    icon: "pi pi-cog",
+    command: () => {
+      void router.push({ name: "settings" });
+    },
+  },
+  {
     label: authStore.isGuest ? "Exit Guest Mode" : "Logout",
     icon: "pi pi-sign-out",
     command: () => {
