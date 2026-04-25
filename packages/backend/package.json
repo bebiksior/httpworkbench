@@ -13,7 +13,7 @@
   },
   "scripts": {
     "dev": "bun --env-file=../../.env src/index.ts",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsgo --noEmit",
     "drizzle:generate": "drizzle-kit generate --config drizzle.config.ts",
     "migrate:sqlite": "bun --env-file=../../.env src/storage/importLegacyDb.ts"
   },
