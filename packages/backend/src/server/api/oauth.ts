@@ -1,7 +1,10 @@
 import { Google, generateCodeVerifier, generateState } from "arctic";
 import * as jose from "jose";
+import { ApiKeySignInSchema } from "shared";
 import { addUser, getUserByGoogleId } from "../../storage";
+import { authenticateApiKeyValue } from "../apiKeyAuth";
 import { issueAuthToken, withAuth } from "../auth";
+import { parseJsonRequest } from "../utils";
 
 const googleClientId = Bun.env.GOOGLE_CLIENT_ID;
 const googleClientSecret = Bun.env.GOOGLE_CLIENT_SECRET;
@@ -29,6 +32,27 @@ const google = new Google(
 const isSecure = frontendUrl.startsWith("https://");
 
 export const OAUTH_ROUTES = {
+  "/api/auth/api-key": {
+    POST: async (req: Request) => {
+      const parsed = await parseJsonRequest(req, ApiKeySignInSchema);
+      if (parsed.kind === "error") {
+        return parsed.response;
+      }
+
+      const auth = authenticateApiKeyValue(parsed.data.apiKey.trim());
+      if (auth === undefined) {
+        return Response.json({ error: "Invalid API key" }, { status: 401 });
+      }
+
+      const appToken = await issueAuthToken(auth.user.id);
+      const response = Response.json(auth.user, { status: 200 });
+      response.headers.set(
+        "Set-Cookie",
+        `auth_token=${appToken}; HttpOnly${isSecure ? "; Secure" : ""}; SameSite=Lax; Path=/; Max-Age=2592000`,
+      );
+      return response;
+    },
+  },
   "/api/auth/google": {
     GET: async () => {
       const state = generateState();

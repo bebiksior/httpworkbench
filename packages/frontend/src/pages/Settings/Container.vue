@@ -95,7 +95,7 @@ const handleEdit = (webhook: Webhook) => {
           <p
             class="text-sm text-surface-600 dark:text-surface-300 sm:text-base"
           >
-            Manage API keys, MCP, integrations, and deployment updates.
+            Manage OpenRouter, API keys, MCP clients, webhooks, and version checks.
           </p>
         </div>
         <Button

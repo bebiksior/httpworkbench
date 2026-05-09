@@ -1,14 +1,24 @@
 <script setup lang="ts">
 import Button from "primevue/button";
+import InputText from "primevue/inputtext";
 import Message from "primevue/message";
+import { ref } from "vue";
 import { useAuthStore } from "../../stores/auth";
 import { config } from "@/config";
 
 const authStore = useAuthStore();
+const apiKey = ref("");
 
 const handleGuestLogin = () => {
   authStore.signInAsGuest();
   window.location.href = "/";
+};
+
+const handleApiKeyLogin = async () => {
+  const signedIn = await authStore.signInWithApiKey(apiKey.value);
+  if (signedIn) {
+    window.location.href = "/";
+  }
 };
 </script>
 
@@ -54,6 +64,29 @@ const handleGuestLogin = () => {
         </svg>
         <span>Sign in with Google</span>
       </Button>
+      <form
+        class="flex flex-col gap-2 w-full"
+        @submit.prevent="handleApiKeyLogin"
+      >
+        <InputText
+          v-model="apiKey"
+          type="password"
+          autocomplete="current-password"
+          placeholder="API key"
+          class="w-full"
+        />
+        <Button
+          type="submit"
+          size="large"
+          severity="secondary"
+          outlined
+          :disabled="apiKey.trim() === '' || authStore.isLoading"
+          :loading="authStore.isLoading"
+          class="flex items-center gap-3 px-6 py-3 w-full justify-center"
+        >
+          <span>Sign in with API key</span>
+        </Button>
+      </form>
       <Button
         v-if="config.allowGuest !== false"
         @mousedown="handleGuestLogin"
