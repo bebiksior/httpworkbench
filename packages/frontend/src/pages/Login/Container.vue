@@ -8,10 +8,16 @@ import { config } from "@/config";
 
 const authStore = useAuthStore();
 const apiKey = ref("");
+const showApiKeyForm = ref(false);
 
 const handleGuestLogin = () => {
   authStore.signInAsGuest();
   window.location.href = "/";
+};
+
+const openApiKeyForm = () => {
+  authStore.clearError();
+  showApiKeyForm.value = true;
 };
 
 const handleApiKeyLogin = async () => {
@@ -64,7 +70,19 @@ const handleApiKeyLogin = async () => {
         </svg>
         <span>Sign in with Google</span>
       </Button>
+      <Button
+        v-if="!showApiKeyForm"
+        type="button"
+        size="large"
+        severity="secondary"
+        outlined
+        class="flex items-center gap-3 px-6 py-3 w-full justify-center"
+        @click="openApiKeyForm"
+      >
+        <span>Sign in with API key</span>
+      </Button>
       <form
+        v-else
         class="flex flex-col gap-2 w-full"
         @submit.prevent="handleApiKeyLogin"
       >
