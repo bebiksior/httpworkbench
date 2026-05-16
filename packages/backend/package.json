@@ -5,6 +5,7 @@
   "private": true,
   "devDependencies": {
     "@types/bun": "latest",
+    "@types/dns-packet": "^5.6.5",
     "drizzle-kit": "^0.31.10"
   },
   "peerDependencies": {
@@ -12,12 +13,14 @@
   },
   "scripts": {
     "dev": "bun --env-file=../../.env src/index.ts",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsgo --noEmit",
     "drizzle:generate": "drizzle-kit generate --config drizzle.config.ts",
     "migrate:sqlite": "bun --env-file=../../.env src/storage/importLegacyDb.ts"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "arctic": "^3.7.0",
+    "dns-packet": "^5.6.1",
     "drizzle-orm": "^0.45.2",
     "http-z": "^8.1.1",
     "jose": "^6.1.3",

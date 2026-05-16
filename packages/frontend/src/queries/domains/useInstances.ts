@@ -13,7 +13,8 @@ import { guestInstancesApi } from "@/api/domains/guestInstances";
 import { instancesApi } from "@/api/domains/instances";
 import { ForbiddenError, NotFoundError } from "@/api/errors";
 import { queryKeys } from "@/queries/keys";
-import { useAuthStore, useGuestInstancesStore } from "@/stores";
+import { useAuthStore } from "@/stores/auth";
+import { useGuestInstancesStore } from "@/stores/guestInstances";
 
 export const useInstances = () => {
   const authStore = useAuthStore();
@@ -32,20 +33,34 @@ export const useInstances = () => {
       return [];
     }
 
+    const results = await Promise.allSettled(
+      tracked.map(async (id) => {
+        const detail = await guestInstancesApi.getById(id);
+        return {
+          id,
+          instance: detail.instance,
+        };
+      }),
+    );
+
     const instances: Instance[] = [];
     const missing: string[] = [];
 
-    for (const id of tracked) {
-      try {
-        const detail = await guestInstancesApi.getById(id);
-        instances.push(detail.instance);
-      } catch (error) {
-        if (error instanceof NotFoundError) {
-          missing.push(id);
-          continue;
-        }
-        throw error;
+    for (const [index, result] of results.entries()) {
+      if (result.status === "fulfilled") {
+        instances.push(result.value.instance);
+        continue;
       }
+
+      if (result.reason instanceof NotFoundError) {
+        const missingId = tracked[index];
+        if (missingId !== undefined) {
+          missing.push(missingId);
+        }
+        continue;
+      }
+
+      throw result.reason;
     }
 
     if (missing.length > 0) {

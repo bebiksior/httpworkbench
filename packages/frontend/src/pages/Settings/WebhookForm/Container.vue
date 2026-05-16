@@ -199,7 +199,7 @@ const handleTest = async () => {
         placeholder="https://discord.com/api/webhooks/..."
         class="w-full font-mono"
       />
-      <p class="text-xs text-surface-500">
+      <p class="text-xs text-surface-600 dark:text-surface-300">
         Get your webhook URL from Discord: Server Settings → Integrations →
         Webhooks
       </p>
@@ -220,16 +220,20 @@ const handleTest = async () => {
         :maxlength="2000"
         class="w-full font-mono"
       />
-      <div class="flex items-center justify-between text-xs text-surface-500">
+      <div
+        class="flex items-center justify-between text-xs text-surface-600 dark:text-surface-300"
+      >
         <span>Leave empty to keep the default embed-only notification.</span>
         <span>{{ message.length }}/2000</span>
       </div>
-      <p class="text-xs text-surface-500">
+      <p class="text-xs text-surface-600 dark:text-surface-300">
         Optional Discord content. Mentions like
         <code class="font-mono">&lt;@123456789&gt;</code>
         work as-is.
       </p>
-      <div class="flex flex-col gap-1 text-[11px] text-surface-500">
+      <div
+        class="flex flex-col gap-1 text-[11px] text-surface-600 dark:text-surface-300"
+      >
         <span>Supported placeholders:</span>
         <div class="flex gap-1.5 overflow-x-auto whitespace-nowrap pb-1">
           <code

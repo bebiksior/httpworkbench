@@ -12,6 +12,7 @@ import {
   clearLogsForInstance,
   flushPendingWebhookNotifications,
   getLogsForInstance,
+  getLogsForInstancePage,
 } from "./logs";
 import { deleteInstance, removeExpiredInstances } from "./instances";
 
@@ -224,6 +225,55 @@ describe("addLog", () => {
     expect(getLogsForInstance("inst-2")).toEqual([
       createLog({ id: "log-2", instanceId: "inst-2" }),
     ]);
+  });
+
+  test("paginates logs by sequence without skipping identical timestamps", () => {
+    seedStorage({
+      instances: [createInstance()],
+      logs: [
+        createLog({ id: "log-1", timestamp: 1_000 }),
+        createLog({ id: "log-2", timestamp: 1_000 }),
+        createLog({ id: "log-3", timestamp: 1_000 }),
+      ],
+    });
+
+    const firstPage = getLogsForInstancePage({
+      instanceId: "inst-1",
+      limit: 2,
+    });
+
+    expect(firstPage.logs.map((log) => log.id)).toEqual(["log-1", "log-2"]);
+    expect(firstPage.nextCursor).toEqual({ seq: 2 });
+
+    const secondPage = getLogsForInstancePage({
+      instanceId: "inst-1",
+      limit: 2,
+      cursor: firstPage.nextCursor,
+    });
+
+    expect(secondPage.logs.map((log) => log.id)).toEqual(["log-3"]);
+    expect(secondPage.nextCursor).toBeUndefined();
+  });
+
+  test("filters paginated logs by type and timestamp", () => {
+    seedStorage({
+      instances: [createInstance()],
+      logs: [
+        createLog({ id: "log-1", type: "http", timestamp: 1_000 }),
+        createLog({ id: "log-2", type: "dns", timestamp: 2_000 }),
+        createLog({ id: "log-3", type: "http", timestamp: 3_000 }),
+      ],
+    });
+
+    const page = getLogsForInstancePage({
+      instanceId: "inst-1",
+      limit: 50,
+      type: "http",
+      sinceTimestamp: 2_000,
+    });
+
+    expect(page.logs.map((log) => log.id)).toEqual(["log-3"]);
+    expect(page.nextCursor).toBeUndefined();
   });
 
   test("deletes instances with cascading logs and moderations", () => {

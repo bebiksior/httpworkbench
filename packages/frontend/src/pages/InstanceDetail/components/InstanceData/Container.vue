@@ -2,11 +2,13 @@
 import Button from "primevue/button";
 import InputText from "primevue/inputtext";
 import ConfirmDialog from "primevue/confirmdialog";
+import Dialog from "primevue/dialog";
 import MultiSelect from "primevue/multiselect";
 import Tag from "primevue/tag";
 import { HttpEditor } from "@/components/HttpEditor";
 import { GUEST_OWNER_ID, type Instance } from "shared";
 import {
+  ref,
   toRefs,
   computed,
   watch,
@@ -110,6 +112,8 @@ const formattedDate = computed(() => {
 const showVisibility = computed(() => {
   return instance.value.ownerId !== GUEST_OWNER_ID;
 });
+
+const isWebhooksDialogVisible = ref(false);
 </script>
 
 <template>
@@ -126,6 +130,7 @@ const showVisibility = computed(() => {
                 type="text"
                 maxlength="100"
                 placeholder="Instance name..."
+                aria-label="Instance name"
                 class="min-w-0 w-full text-2xl font-bold text-surface-900 dark:text-surface-0 bg-surface-100 dark:bg-surface-800 border border-surface-300 dark:border-surface-600 rounded px-2 py-0.5 focus:outline-none focus:border-primary"
                 @keydown="handleLabelKeydown"
                 @blur="saveLabel"
@@ -137,11 +142,14 @@ const showVisibility = computed(() => {
               >
                 {{ displayName }}
               </h2>
-              <i v-if="isLocked" class="pi pi-lock text-surface-500 shrink-0" />
+              <i
+                v-if="isLocked"
+                class="pi pi-lock text-surface-600 dark:text-surface-400 shrink-0"
+              />
               <Tag
-                v-if="showVisibility"
-                :value="isPublic ? 'Public' : 'Private'"
-                :severity="isPublic ? 'success' : 'secondary'"
+                v-if="showVisibility && isPublic"
+                value="Public"
+                severity="success"
                 rounded
               />
               <Button
@@ -151,6 +159,7 @@ const showVisibility = computed(() => {
                 text
                 size="small"
                 class="shrink-0 p-1!"
+                aria-label="Edit instance name"
                 @click="startEditingLabel"
               />
             </template>
@@ -203,90 +212,53 @@ const showVisibility = computed(() => {
             </svg>
           </Button>
         </div>
-        <span class="text-sm text-surface-500">{{ formattedDate }}</span>
+        <span class="text-sm text-surface-600 dark:text-surface-400">
+          {{ formattedDate }}
+        </span>
       </div>
 
       <div class="flex flex-col gap-2">
         <label
+          for="instance-host-input"
           class="text-sm font-medium text-surface-700 dark:text-surface-300"
         >
-          Subdomain
+          Hostname
         </label>
         <div class="flex gap-2">
           <InputText
+            id="instance-host-input"
             :value="instanceHost"
             readonly
+            size="small"
+            aria-label="Interaction host"
             class="w-full font-mono text-sm bg-surface-50 dark:bg-surface-800"
           />
           <Button
             icon="pi pi-copy"
             severity="secondary"
             outlined
+            size="small"
+            aria-label="Copy interaction host"
             @click="handleCopy"
           />
         </div>
-        <p class="text-xs text-surface-500">
-          Send HTTP requests to this subdomain to see them appear in the logs.
-          Supports HTTP and HTTPS protocols.
+        <p class="text-xs text-surface-600 dark:text-surface-400">
+          Send HTTP, HTTPS, and DNS requests to this host to see them appear in
+          the logs.
         </p>
-      </div>
-
-      <div class="flex flex-col gap-2" v-if="!isGuest && canManageInstance">
-        <label
-          class="text-sm font-medium text-surface-700 dark:text-surface-300"
-        >
-          Webhooks
-        </label>
-        <div class="flex flex-col gap-2">
-          <MultiSelect
-            v-model="selectedWebhookIds"
-            :options="webhookOptions"
-            option-label="label"
-            option-value="value"
-            placeholder="Select webhooks to notify"
-            class="w-full"
-            display="chip"
-          />
-          <p class="text-xs text-surface-500">
-            Discord webhooks will be notified when logs are created for this
-            instance.
-          </p>
-        </div>
       </div>
     </div>
 
     <div
-      v-if="showExpirationNotice"
-      class="flex items-center justify-between gap-4 p-3 rounded-lg bg-surface-50 dark:bg-surface-800"
+      v-if="instance.kind === 'static'"
+      class="flex flex-col gap-3 flex-1 min-h-0"
     >
-      <div>
-        <p class="text-sm font-medium text-surface-900 dark:text-surface-0">
-          {{ expirationText }}
-        </p>
-        <p v-if="expirationExact" class="text-xs text-surface-500">
-          {{ expirationExact }}
-        </p>
-      </div>
-      <Button
-        v-if="!isGuest"
-        label="Extend"
-        icon="pi pi-refresh"
-        size="small"
-        :loading="isExtending"
-        @click="handleExtend"
-      />
-      <span v-else class="text-xs text-surface-500">
-        Guest instances cannot be extended.
-      </span>
-    </div>
-
-    <div v-if="instance.kind === 'static'" class="flex flex-col gap-3 flex-1">
       <div class="flex justify-between items-end">
         <div>
           <h3 class="font-semibold text-surface-900 dark:text-surface-0">
             Response Body
           </h3>
-          <p class="text-xs text-surface-500 mt-1">
+          <p class="text-xs text-surface-600 dark:text-surface-400 mt-1">
             Customize the response returned by this instance.
           </p>
         </div>
@@ -315,8 +287,9 @@ const showVisibility = computed(() => {
           v-if="canManageInstance"
           label="Builder"
           icon="pi pi-wrench"
-          size="small"
           severity="secondary"
+          size="small"
+          outlined
           class="flex-1"
           @click="handleOpenBuilder"
         />
@@ -325,6 +298,7 @@ const showVisibility = computed(() => {
           label="Save"
           icon="pi pi-save"
           size="small"
+          outlined
           class="flex-1"
           :loading="isUpdating"
           :disabled="!isDirty"
@@ -332,28 +306,61 @@ const showVisibility = computed(() => {
         />
       </div>
 
-      <div class="flex-1 h-[400px] max-h-[400px] rounded-md overflow-hidden">
+      <div class="flex-1 min-h-0 rounded-md overflow-hidden">
         <HttpEditor
           :model-value="rawContent"
           :is-dirty="isDirty"
           :readonly="!canManageInstance"
-          max-height="500px"
+          syntax="response"
           @update:modelValue="handleEditorChange"
           @save="handleSave"
         />
       </div>
     </div>
 
-    <div v-if="canManageInstance" class="flex flex-col gap-3 mt-auto">
-      <h3 class="font-semibold text-surface-900 dark:text-surface-0">
-        Actions
-      </h3>
-      <div class="flex flex-col gap-2">
+    <div
+      v-if="canManageInstance || showExpirationNotice"
+      class="flex flex-col gap-3 mt-auto"
+    >
+      <div
+        v-if="showExpirationNotice"
+        class="flex items-center gap-2 px-3 py-1 rounded-md bg-surface-50 dark:bg-surface-800 text-xs"
+      >
+        <i
+          class="pi pi-clock text-[10px] text-surface-600 dark:text-surface-400"
+          aria-hidden="true"
+        />
+        <span class="truncate text-surface-800 dark:text-surface-200">
+          {{ expirationText }}
+        </span>
+        <span
+          v-if="expirationExact"
+          class="flex-1 truncate text-surface-600 dark:text-surface-400"
+        >
+          {{ expirationExact }}
+        </span>
         <Button
-          label="Clone Instance"
+          v-if="!isGuest"
+          icon="pi pi-refresh"
+          severity="secondary"
+          text
+          rounded
+          size="small"
+          class="-mr-1 shrink-0 p-1!"
+          aria-label="Extend expiration"
+          v-tooltip.top="'Extend'"
+          :loading="isExtending"
+          @click="handleExtend"
+        />
+      </div>
+
+      <div v-if="canManageInstance" class="grid grid-cols-2 gap-2">
+        <Button
+          label="Clone"
           icon="pi pi-clone"
           severity="secondary"
           outlined
+          size="small"
           class="w-full justify-center"
           :loading="isCloning"
           @click="handleClone"
@@ -363,19 +370,35 @@ const showVisibility = computed(() => {
           icon="pi pi-ban"
           severity="secondary"
           outlined
+          size="small"
           class="w-full justify-center"
           :loading="isClearingLogs"
           @click="handleClearLogs"
         />
         <Button
-          :label="isLocked ? 'Unlock Instance' : 'Lock Instance'"
+          :label="isLocked ? 'Unlock' : 'Lock'"
           :icon="isLocked ? 'pi pi-lock-open' : 'pi pi-lock'"
           severity="secondary"
           outlined
+          size="small"
           class="w-full justify-center"
           :loading="isSettingLocked"
           @click="handleToggleLock"
           v-tooltip.top="lockTooltip"
+        />
+        <Button
+          v-if="!isGuest"
+          :label="
+            selectedWebhookIds.length > 0
+              ? `Webhooks (${selectedWebhookIds.length})`
+              : 'Webhooks'
+          "
+          icon="pi pi-bell"
+          severity="secondary"
+          outlined
+          size="small"
+          class="w-full justify-center"
+          @click="isWebhooksDialogVisible = true"
         />
         <Button
           v-if="showVisibility"
@@ -383,20 +406,22 @@ const showVisibility = computed(() => {
           :icon="isPublic ? 'pi pi-lock' : 'pi pi-globe'"
           severity="secondary"
           outlined
+          size="small"
           class="w-full justify-center"
           :loading="isSettingPublic"
           @click="handleTogglePublic"
           v-tooltip.top="
             isPublic
               ? 'Revoke public access to this instance'
-              : 'Allow anyone with the ID to view this instance'
+              : 'Allow anyone with the ID to view details and logs of this instance'
           "
         />
         <Button
-          label="Delete Instance"
+          label="Delete"
           icon="pi pi-trash"
           severity="danger"
           outlined
+          size="small"
           class="w-full justify-center"
           :loading="isDeleting"
           :disabled="isLocked"
@@ -404,5 +429,31 @@ const showVisibility = computed(() => {
         />
       </div>
     </div>
+
+    <Dialog
+      v-model:visible="isWebhooksDialogVisible"
+      modal
+      header="Webhooks"
+      :style="{ width: '40rem' }"
+      :breakpoints="{ '640px': '95vw' }"
+    >
+      <div class="flex flex-col gap-3">
+        <MultiSelect
+          v-model="selectedWebhookIds"
+          :options="webhookOptions"
+          option-label="label"
+          option-value="value"
+          placeholder="Select webhooks to notify"
+          aria-label="Webhooks"
+          class="w-full"
+          size="small"
+          display="chip"
+        />
+        <p class="text-xs text-surface-600 dark:text-surface-400">
+          Selected Discord webhooks will be notified when logs are created for
+          this instance. Changes save automatically.
+        </p>
+      </div>
+    </Dialog>
   </div>
 </template>

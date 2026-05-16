@@ -1,12 +1,13 @@
 import { computed, ref } from "vue";
 import {
   clearOpenrouterKey,
+  readOpenrouterKey,
   useHasOpenrouterKey,
   writeOpenrouterKey,
 } from "@/utils/openrouter";
 
 export const useOpenrouterKey = () => {
-  const keyInput = ref("");
+  const keyInput = ref(readOpenrouterKey() ?? "");
   const errorMessage = ref<string | undefined>(undefined);
   const hasConfiguredKey = useHasOpenrouterKey();
 
@@ -22,7 +23,7 @@ export const useOpenrouterKey = () => {
       errorMessage.value = "Local storage is unavailable";
       return;
     }
-    keyInput.value = "";
+    keyInput.value = trimmed;
   };
 
   const handleRemove = () => {

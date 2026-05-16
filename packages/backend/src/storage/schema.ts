@@ -1,4 +1,10 @@
-import type { Instance, Log, Processor, UserNotice } from "shared";
+import type {
+  ApiKeyScope,
+  InstanceKind,
+  LogType,
+  Processor,
+  UserNoticeKind,
+} from "shared";
 import {
   index,
   integer,
@@ -29,7 +35,7 @@ export const instances = sqliteTable(
     isPublic: integer("isPublic", { mode: "boolean" }).notNull(),
     isLocked: integer("isLocked", { mode: "boolean" }).notNull(),
     kind: text("kind", { enum: ["static", "dynamic"] })
-      .$type<Instance["kind"]>()
+      .$type<InstanceKind>()
       .notNull(),
     raw: text("raw"),
     processorsJson: text("processorsJson", { mode: "json" }).$type<
@@ -53,6 +59,29 @@ export const webhooks = sqliteTable(
     createdAt: integer("createdAt", { mode: "number" }).notNull(),
   },
   (table) => [index("webhooks_by_owner").on(table.ownerId)],
+);
+
+export const apiKeys = sqliteTable(
+  "apiKeys",
+  {
+    id: text("id").primaryKey(),
+    userId: text("userId")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    prefix: text("prefix").notNull(),
+    secretHash: text("secretHash").notNull(),
+    scopesJson: text("scopesJson", { mode: "json" })
+      .$type<ApiKeyScope[]>()
+      .notNull(),
+    createdAt: integer("createdAt", { mode: "number" }).notNull(),
+    lastUsedAt: integer("lastUsedAt", { mode: "number" }),
+    expiresAt: integer("expiresAt", { mode: "number" }),
+  },
+  (table) => [
+    uniqueIndex("apiKeys_prefix_unique").on(table.prefix),
+    index("apiKeys_by_user_createdAt").on(table.userId, table.createdAt),
+  ],
 );
 
 export const instanceWebhooks = sqliteTable(
@@ -85,7 +114,7 @@ export const logs = sqliteTable(
       .notNull()
       .references(() => instances.id, { onDelete: "cascade" }),
     type: text("type", { enum: ["dns", "http"] })
-      .$type<Log["type"]>()
+      .$type<LogType>()
       .notNull(),
     timestamp: integer("timestamp", { mode: "number" }).notNull(),
     address: text("address").notNull(),
@@ -135,7 +164,7 @@ export const userNotices = sqliteTable(
     id: text("id").primaryKey(),
     userId: text("userId").notNull(),
     kind: text("kind", { enum: ["instance_removed_noise"] })
-      .$type<UserNotice["kind"]>()
+      .$type<UserNoticeKind>()
       .notNull(),
     instanceId: text("instanceId").notNull(),
     createdAt: integer("createdAt", { mode: "number" }).notNull(),
@@ -150,6 +179,7 @@ export const schema = {
   users,
   instances,
   webhooks,
+  apiKeys,
   instanceWebhooks,
   logs,
   instanceModerations,

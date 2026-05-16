@@ -22,6 +22,12 @@ vi.mock("http-z", () => ({
   parse: parseMock,
 }));
 
+vi.mock("../../config", () => ({
+  dnsConfig: {
+    instancesDomain: "instances.example.com",
+  },
+}));
+
 vi.mock("../../storage", () => ({
   addLog: addLogMock,
 }));
@@ -77,11 +83,6 @@ describe("createInstancesServer", () => {
     vi.clearAllMocks();
     vi.spyOn(console, "error").mockImplementation(() => undefined);
     vi.spyOn(console, "log").mockImplementation(() => undefined);
-    vi.stubGlobal("Bun", {
-      env: {
-        DOMAIN: "example.com",
-      },
-    });
 
     listenMock.mockReturnValue({
       stop: vi.fn(),

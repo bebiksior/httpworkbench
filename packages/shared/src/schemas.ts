@@ -46,6 +46,7 @@ export const InstanceSchema = z.union([
 ]);
 
 export type Instance = z.infer<typeof InstanceSchema>;
+export type InstanceKind = Instance["kind"];
 
 export const LogSchema = z.object({
   id: z.string(),
@@ -53,10 +54,12 @@ export const LogSchema = z.object({
   type: z.union([z.literal("dns"), z.literal("http")]),
   timestamp: z.number(),
   address: z.string(),
+  addressVerified: z.boolean().optional(),
   raw: z.string(),
 });
 
 export type Log = z.infer<typeof LogSchema>;
+export type LogType = Log["type"];
 
 export const WebhookMessageSchema = z.string().max(2000).optional();
 
@@ -70,6 +73,29 @@ export const WebhookSchema = z.object({
 });
 
 export type Webhook = z.infer<typeof WebhookSchema>;
+
+export const ApiKeyScopeSchema = z.union([
+  z.literal("instances:read"),
+  z.literal("instances:write"),
+  z.literal("instances:delete"),
+  z.literal("logs:read"),
+  z.literal("logs:stream"),
+]);
+
+export type ApiKeyScope = z.infer<typeof ApiKeyScopeSchema>;
+
+export const ApiKeySchema = z.object({
+  id: z.string(),
+  userId: z.string(),
+  name: z.string(),
+  prefix: z.string(),
+  scopes: z.array(ApiKeyScopeSchema),
+  createdAt: z.number(),
+  lastUsedAt: z.number().optional(),
+  expiresAt: z.number().optional(),
+});
+
+export type ApiKey = z.infer<typeof ApiKeySchema>;
 
 export const InstanceModerationSchema = z.object({
   instanceId: z.string(),
@@ -98,6 +124,7 @@ export const UserNoticeSchema = z.object({
 });
 
 export type UserNotice = z.infer<typeof UserNoticeSchema>;
+export type UserNoticeKind = UserNotice["kind"];
 
 export const ConfigSchema = z.object({
   isHosted: z.boolean(),
@@ -105,6 +132,8 @@ export const ConfigSchema = z.object({
   ttlMs: z.number().optional(),
   maxInstancesPerOwner: z.number().optional(),
   rawLimitBytes: z.number(),
+  dnsEnabled: z.boolean(),
+  instancesDomain: z.string(),
 });
 
 export type Config = z.infer<typeof ConfigSchema>;

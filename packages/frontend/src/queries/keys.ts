@@ -10,6 +10,10 @@ export const queryKeys = {
   webhooks: {
     all: ["webhooks"] as const,
   },
+  apiKeys: {
+    all: ["api-keys"] as const,
+  },
 } as const;
 
 export const WEBHOOKS_QUERY_KEY = "webhooks";
+export const API_KEYS_QUERY_KEY = "api-keys";

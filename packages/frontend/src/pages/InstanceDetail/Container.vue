@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import Button from "primevue/button";
-import { computed, watch } from "vue";
+import { computed } from "vue";
 import { useRoute } from "vue-router";
 import { DynamicScroller, DynamicScrollerItem } from "vue-virtual-scroller";
 import { useInstanceDetailLogic } from "./useLogic";
+import { useLogsPanelControls } from "./useLogsPanelControls";
 import { useSidePanel } from "./useSidePanel";
 import { InstanceData } from "./components/InstanceData";
 import { InstanceLog } from "./components/InstanceLog";
@@ -16,26 +17,14 @@ const {
   isTransitioning: isSidePanelTransitioning,
   setHidden: setSidePanelHidden,
 } = useSidePanel();
-
-const viewQuery = computed(() => {
-  const raw = route.query.view;
-  if (Array.isArray(raw)) {
-    return raw[0];
-  }
-  return raw;
-});
-
-watch(
-  viewQuery,
-  (view) => {
-    if (view === "logs") {
-      setSidePanelHidden(true);
-    } else {
-      setSidePanelHidden(false);
-    }
-  },
-  { immediate: true },
-);
+const {
+  searchQuery,
+  filteredLogs,
+  eventsLabel,
+  isTypeSelected,
+  toggleType,
+  getFilterButtonClass,
+} = useLogsPanelControls(logs, setSidePanelHidden);
 </script>
 
 <template>
@@ -58,7 +47,9 @@ watch(
           v-if="isLoading"
           class="flex flex-1 items-center justify-center px-6 py-10"
         >
-          <i class="pi pi-spinner pi-spin text-4xl text-surface-400" />
+          <i
+            class="pi pi-spinner pi-spin text-4xl text-surface-500 dark:text-surface-400"
+          />
         </div>
 
         <InstanceData
@@ -69,7 +60,7 @@ watch(
 
         <div
           v-else
-          class="flex flex-1 items-center justify-center px-6 py-10 text-center text-surface-500"
+          class="flex flex-1 items-center justify-center px-6 py-10 text-center text-surface-700 dark:text-surface-400"
         >
           Instance not found
         </div>
@@ -80,82 +71,129 @@ watch(
       class="w-full lg:w-[50%] xl:w-[65%] flex flex-col bg-surface-50 dark:bg-surface-900 flex-1 min-h-0 rounded-lg"
     >
       <div class="flex flex-1 min-h-0 flex-col p-4">
-        <div class="flex items-center justify-between gap-3 shrink-0">
-          <div class="flex items-center gap-2">
-            <i
-              class="pi pi-list text-sm text-surface-500 dark:text-surface-400"
-              aria-hidden="true"
-            />
-            <h2 class="font-semibold text-surface-900 dark:text-surface-0">
-              Logs
-            </h2>
-            <Button
-              v-if="isSidePanelHidden"
-              severity="secondary"
-              text
-              rounded
-              size="small"
-              class="shrink-0"
-              aria-label="Show details panel"
-              title="Show details"
-              @click="setSidePanelHidden(false)"
-            >
-              <svg
-                class="h-4 w-4"
-                viewBox="0 0 20 20"
-                fill="none"
-                xmlns="http://www.w3.org/2000/svg"
-                aria-hidden="true"
+        <div class="shrink-0">
+          <div class="flex flex-col gap-3">
+            <div class="flex items-center justify-between gap-3">
+              <div class="flex min-w-0 items-center gap-2">
+                <i
+                  class="pi pi-list text-sm text-surface-700 dark:text-surface-400"
+                  aria-hidden="true"
+                />
+                <h2 class="font-semibold text-surface-900 dark:text-surface-0">
+                  Logs
+                </h2>
+                <Button
+                  v-if="isSidePanelHidden"
+                  severity="secondary"
+                  text
+                  rounded
+                  size="small"
+                  class="shrink-0"
+                  aria-label="Show details panel"
+                  title="Show details"
+                  @click="setSidePanelHidden(false)"
+                >
+                  <svg
+                    class="h-4 w-4"
+                    viewBox="0 0 20 20"
+                    fill="none"
+                    xmlns="http://www.w3.org/2000/svg"
+                    aria-hidden="true"
+                  >
+                    <rect
+                      x="2.25"
+                      y="3.25"
+                      width="15.5"
+                      height="13.5"
+                      rx="2"
+                      stroke="currentColor"
+                      stroke-width="1.5"
+                    />
+                    <path
+                      d="M7 3.25V16.75"
+                      stroke="currentColor"
+                      stroke-width="1.5"
+                    />
+                    <path
+                      d="M9.75 10H12.75"
+                      stroke="currentColor"
+                      stroke-width="1.5"
+                      stroke-linecap="round"
+                    />
+                    <path
+                      d="M11.25 8.5L12.75 10L11.25 11.5"
+                      stroke="currentColor"
+                      stroke-width="1.5"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    />
+                  </svg>
+                </Button>
+              </div>
+              <span
+                class="shrink-0 text-sm text-surface-600 dark:text-surface-400"
               >
-                <rect
-                  x="2.25"
-                  y="3.25"
-                  width="15.5"
-                  height="13.5"
-                  rx="2"
-                  stroke="currentColor"
-                  stroke-width="1.5"
+                {{ eventsLabel }}
+              </span>
+            </div>
+
+            <div class="flex items-center gap-2">
+              <label class="relative block min-w-0 flex-1">
+                <i
+                  class="pi pi-search pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-surface-500 dark:text-surface-400"
+                  aria-hidden="true"
                 />
-                <path
-                  d="M7 3.25V16.75"
-                  stroke="currentColor"
-                  stroke-width="1.5"
+                <input
+                  v-model="searchQuery"
+                  type="search"
+                  placeholder="Search address, method, path, headers, query..."
+                  aria-label="Search logs"
+                  class="h-9 w-full rounded-lg border border-surface-300 bg-white pl-10 pr-4 text-sm text-surface-900 outline-none ring-0 transition-colors placeholder:text-surface-500 focus:border-surface-400 focus:outline-none focus:ring-0 focus:ring-offset-0 dark:border-surface-700 dark:bg-surface-800 dark:text-surface-0 dark:placeholder:text-surface-400 dark:focus:border-surface-500"
                 />
-                <path
-                  d="M9.75 10H12.75"
-                  stroke="currentColor"
-                  stroke-width="1.5"
-                  stroke-linecap="round"
-                />
-                <path
-                  d="M11.25 8.5L12.75 10L11.25 11.5"
-                  stroke="currentColor"
-                  stroke-width="1.5"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                />
-              </svg>
-            </Button>
-          </div>
-          <div class="flex items-center gap-2">
-            <span class="text-sm text-surface-500"
-              >{{ logs.length }} events</span
-            >
+              </label>
+
+              <div class="flex shrink-0 items-center gap-2">
+                <button
+                  type="button"
+                  :aria-pressed="isTypeSelected('http')"
+                  :class="getFilterButtonClass(isTypeSelected('http'))"
+                  @click="toggleType('http')"
+                >
+                  HTTP
+                </button>
+                <button
+                  type="button"
+                  :aria-pressed="isTypeSelected('dns')"
+                  :class="getFilterButtonClass(isTypeSelected('dns'))"
+                  @click="toggleType('dns')"
+                >
+                  DNS
+                </button>
+              </div>
+            </div>
           </div>
         </div>
 
         <div class="relative mt-4 flex-1 min-h-0 overflow-hidden">
           <div
             v-if="logs.length === 0"
-            class="flex h-full flex-col items-center justify-center text-center text-surface-500"
+            class="flex h-full flex-col items-center justify-center text-center text-surface-700 dark:text-surface-400"
           >
             <i class="pi pi-inbox text-4xl mb-2 block"></i>
             Waiting for requests...
           </div>
 
+          <div
+            v-else-if="filteredLogs.length === 0"
+            class="flex h-full flex-col items-center justify-center text-center text-surface-700 dark:text-surface-400"
+          >
+            <i class="pi pi-search text-4xl mb-2 block"></i>
+            No logs match the current search and filters.
+          </div>
+
           <DynamicScroller
             v-else
-            :items="logs"
+            :items="filteredLogs"
             :min-item-size="200"
             :buffer="400"
             key-field="id"

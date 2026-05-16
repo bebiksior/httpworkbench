@@ -9,10 +9,7 @@ COPY packages/shared/package.json packages/shared/
 RUN bun install --frozen-lockfile
 
 FROM base AS release
-COPY --from=install /app/node_modules node_modules
-COPY --from=install /app/package.json package.json
-COPY --from=install /app/packages/backend/package.json packages/backend/
-COPY --from=install /app/packages/shared/package.json packages/shared/
+COPY --from=install /app /app
 
 COPY packages/backend packages/backend
 COPY packages/shared packages/shared

@@ -14,7 +14,7 @@ import z from "zod";
 const LEGACY_DB_JSON_FILENAME = "db.json";
 const LEGACY_DB_GZIP_FILENAME = "db.json.gz";
 
-export const LegacyStorageDataSchema = z.object({
+const LegacyStorageDataSchema = z.object({
   users: z.array(UserRecordSchema),
   instances: z.array(InstanceSchema),
   logs: z.array(LogSchema),

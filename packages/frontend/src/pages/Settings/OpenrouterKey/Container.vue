@@ -16,31 +16,17 @@ const {
 </script>
 
 <template>
-  <div
-    class="bg-white dark:bg-surface-900/70 border border-surface-200 dark:border-surface-800 rounded-2xl p-6 mb-8"
-  >
+  <div>
     <div class="flex flex-wrap items-center justify-between gap-4 mb-4">
       <div>
         <h2 class="text-2xl font-semibold text-surface-900 dark:text-surface-0">
           OpenRouter API Key
         </h2>
-        <p class="text-sm text-surface-400 mt-1 max-w-2xl">
-          Store your personal OpenRouter key securely to unlock model access in
-          the assistant.
+        <p
+          class="text-sm text-surface-600 dark:text-surface-300 mt-1 max-w-2xl"
+        >
+          Unlock the Assistant feature by providing your OpenRouter key.
         </p>
-      </div>
-      <div
-        class="flex items-center gap-2 px-3 py-1 rounded-full text-sm font-medium"
-        :class="
-          hasConfiguredKey
-            ? 'bg-emerald-500/10 text-emerald-300'
-            : 'bg-surface-200 dark:bg-surface-700 text-surface-700 dark:text-surface-200'
-        "
-      >
-        <i
-          :class="hasConfiguredKey ? 'pi pi-check-circle' : 'pi pi-info-circle'"
-        />
-        <span>{{ hasConfiguredKey ? "Configured" : "Not configured" }}</span>
       </div>
     </div>
 
@@ -69,7 +55,7 @@ const {
         placeholder="sk-or-..."
         class="w-full font-mono"
       />
-      <p class="text-xs text-surface-500">
+      <p class="text-xs text-surface-600 dark:text-surface-300">
         Keys are stored only in this browser using localStorage and cleared when
         you remove them.
       </p>

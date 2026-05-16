@@ -127,6 +127,61 @@ export const useAuthStore = defineStore("auth", () => {
     window.location.href = "/api/auth/google";
   };
 
+  const signInWithApiKey = async (apiKey: string) => {
+    clearError();
+    isLoading.value = true;
+
+    try {
+      const response = await fetch("/api/auth/api-key", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+        body: JSON.stringify({ apiKey }),
+      });
+
+      if (!response.ok) {
+        setUser(undefined);
+        error.value = {
+          message:
+            response.status === 401
+              ? "Invalid API key"
+              : "Failed to sign in with API key",
+          code: response.status === 401 ? "UNAUTHORIZED" : "UNKNOWN",
+        };
+        return false;
+      }
+
+      const data = await response.json();
+      const parsed = UserSchema.safeParse(data);
+      if (!parsed.success) {
+        setUser(undefined);
+        error.value = {
+          message: "Invalid user data received from server",
+          code: "VALIDATION_ERROR",
+        };
+        console.error("User validation error:", parsed.error);
+        return false;
+      }
+
+      clearGuestSession();
+      setUser(parsed.data);
+      isInitialized.value = true;
+      return true;
+    } catch (err) {
+      setUser(undefined);
+      error.value = {
+        message: getErrorMessage(err),
+        code: "NETWORK_ERROR",
+      };
+      console.error("API key sign-in error:", err);
+      return false;
+    } finally {
+      isLoading.value = false;
+    }
+  };
+
   const signInAsGuest = () => {
     clearError();
     activateGuestSession();
@@ -175,6 +230,7 @@ export const useAuthStore = defineStore("auth", () => {
     isInitialized: computed(() => isInitialized.value),
     error: computed(() => error.value),
     signInWithGoogle,
+    signInWithApiKey,
     signInAsGuest,
     logout,
     fetchUser,

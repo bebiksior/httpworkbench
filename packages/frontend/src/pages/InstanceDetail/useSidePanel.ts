@@ -7,7 +7,7 @@ export const useSidePanel = (
 ) => {
   const isHidden = ref(false);
   const isTransitioning = ref(false);
-  let transitionTimeout: ReturnType<typeof window.setTimeout> | null = null;
+  let transitionTimeout: number | null = null;
 
   const clearTransitionTimeout = () => {
     if (transitionTimeout === null) {
@@ -28,6 +28,10 @@ export const useSidePanel = (
   };
 
   const setHidden = (hidden: boolean) => {
+    if (isHidden.value === hidden) {
+      return;
+    }
+
     isTransitioning.value = true;
     isHidden.value = hidden;
     queueTransitionCleanup();

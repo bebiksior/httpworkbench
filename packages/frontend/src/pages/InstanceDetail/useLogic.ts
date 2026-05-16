@@ -14,6 +14,10 @@ import { useInstanceDetail } from "@/queries/domains/useInstanceDetail";
 import { useAuthStore } from "@/stores";
 import { isPresent } from "@/utils/types";
 
+const STREAM_OPEN_TIMEOUT_MS = 10_000;
+const STREAM_HEARTBEAT_INTERVAL_MS = 10_000;
+const STREAM_HEARTBEAT_TIMEOUT_MS = 25_000;
+
 export const useInstanceDetailLogic = (
   instanceId: MaybeRefOrGetter<string>,
 ) => {
@@ -31,6 +35,14 @@ export const useInstanceDetailLogic = (
   const resyncInterval = ref<ReturnType<typeof setInterval> | undefined>(
     undefined,
   );
+  const streamHealthInterval = ref<ReturnType<typeof setInterval> | undefined>(
+    undefined,
+  );
+  const streamOpenTimeout = ref<ReturnType<typeof setTimeout> | undefined>(
+    undefined,
+  );
+  const lastHeartbeatAt = ref(0);
+  const lastPingSentAt = ref<number | undefined>(undefined);
 
   const { data, isLoading, error, refetch } = useInstanceDetail(instanceId);
 
@@ -49,16 +61,41 @@ export const useInstanceDetailLogic = (
     }
   };
 
+  const clearOpenTimeout = () => {
+    if (streamOpenTimeout.value !== undefined) {
+      clearTimeout(streamOpenTimeout.value);
+      streamOpenTimeout.value = undefined;
+    }
+  };
+
+  const clearHealthCheck = () => {
+    if (streamHealthInterval.value !== undefined) {
+      clearInterval(streamHealthInterval.value);
+      streamHealthInterval.value = undefined;
+    }
+  };
+
   const closeStream = () => {
     clearReconnect();
+    clearOpenTimeout();
     if (isPresent(streamConnection.value)) {
+      streamConnection.value.onopen = null;
+      streamConnection.value.onmessage = null;
+      streamConnection.value.onerror = null;
+      streamConnection.value.onclose = null;
       streamConnection.value.close();
       streamConnection.value = undefined;
     }
+    lastPingSentAt.value = undefined;
   };
 
   const handleMessage = (message: MessageEvent) => {
     if (typeof message.data !== "string") {
+      return;
+    }
+    lastHeartbeatAt.value = Date.now();
+    lastPingSentAt.value = undefined;
+    if (message.data === "pong") {
       return;
     }
 
@@ -104,19 +141,67 @@ export const useInstanceDetailLogic = (
     }, jitteredDelay);
   };
 
+  const reconnectStream = (id: string, generation: number) => {
+    if (connectionGeneration.value !== generation) {
+      return;
+    }
+    if (resolvedInstanceId.value !== id) {
+      return;
+    }
+    closeStream();
+    openStream(id);
+  };
+
+  const sendHeartbeat = (ws: WebSocket, id: string, generation: number) => {
+    if (connectionGeneration.value !== generation) {
+      return;
+    }
+    if (resolvedInstanceId.value !== id) {
+      return;
+    }
+    if (ws.readyState !== WebSocket.OPEN) {
+      return;
+    }
+    lastPingSentAt.value = Date.now();
+    ws.send("ping");
+  };
+
   const openStream = (id: string) => {
     clearReconnect();
+    clearOpenTimeout();
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
     const generation = connectionGeneration.value;
     const ws = new WebSocket(
       `${protocol}//${window.location.host}/api/instances/${id}/stream`,
     );
+    lastHeartbeatAt.value = Date.now();
+    lastPingSentAt.value = undefined;
+    streamOpenTimeout.value = setTimeout(() => {
+      streamOpenTimeout.value = undefined;
+      if (connectionGeneration.value !== generation) {
+        return;
+      }
+      if (resolvedInstanceId.value !== id) {
+        return;
+      }
+      if (streamConnection.value !== ws) {
+        return;
+      }
+      if (ws.readyState !== WebSocket.CONNECTING) {
+        return;
+      }
+      reconnectStream(id, generation);
+    }, STREAM_OPEN_TIMEOUT_MS);
     ws.onopen = () => {
       if (connectionGeneration.value !== generation) {
         ws.close();
         return;
       }
+      clearOpenTimeout();
+      lastHeartbeatAt.value = Date.now();
+      lastPingSentAt.value = undefined;
       reconnectAttempt.value = 0;
+      sendHeartbeat(ws, id, generation);
       void refetch();
     };
     ws.onmessage = (message) => {
@@ -137,6 +222,8 @@ export const useInstanceDetailLogic = (
       if (connectionGeneration.value !== generation) {
         return;
       }
+      clearOpenTimeout();
+      lastPingSentAt.value = undefined;
       streamConnection.value = undefined;
       scheduleReconnect(id, generation);
     };
@@ -159,6 +246,46 @@ export const useInstanceDetailLogic = (
     },
     { immediate: true },
   );
+
+  if (streamHealthInterval.value === undefined) {
+    streamHealthInterval.value = setInterval(() => {
+      const id = resolvedInstanceId.value;
+      if (id === "") {
+        return;
+      }
+      const ws = streamConnection.value;
+      if (ws === undefined) {
+        openStream(id);
+        return;
+      }
+      if (
+        ws.readyState === WebSocket.CLOSING ||
+        ws.readyState === WebSocket.CLOSED
+      ) {
+        reconnectStream(id, connectionGeneration.value);
+        return;
+      }
+      if (ws.readyState !== WebSocket.OPEN) {
+        return;
+      }
+
+      const lastPingAt = lastPingSentAt.value;
+      const now = Date.now();
+      if (
+        lastPingAt !== undefined &&
+        now - lastPingAt > STREAM_HEARTBEAT_TIMEOUT_MS
+      ) {
+        reconnectStream(id, connectionGeneration.value);
+        return;
+      }
+      if (
+        lastPingAt === undefined &&
+        now - lastHeartbeatAt.value >= STREAM_HEARTBEAT_INTERVAL_MS
+      ) {
+        sendHeartbeat(ws, id, connectionGeneration.value);
+      }
+    }, STREAM_HEARTBEAT_INTERVAL_MS);
+  }
 
   watch(error, (newError) => {
     if (isPresent(newError)) {
@@ -197,6 +324,7 @@ export const useInstanceDetailLogic = (
       clearInterval(resyncInterval.value);
       resyncInterval.value = undefined;
     }
+    clearHealthCheck();
     document.removeEventListener("visibilitychange", onVisibilityChange);
     closeStream();
   });

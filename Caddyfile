@@ -9,11 +9,22 @@
 http://{$DOMAIN}, https://{$DOMAIN} {
 	tls {
 		dns cloudflare {env.CLOUDFLARE_API_TOKEN}
+		resolvers 1.1.1.1 1.0.0.1
 	}
 
 	encode gzip zstd
+	header /assets/* Cache-Control "public, max-age=31536000, immutable"
 
 	handle /api/* {
+		reverse_proxy backend:8081 {
+			header_up -X-Forwarded-For
+			header_up -X-Forwarded-Host
+			header_up -X-Forwarded-Proto
+			header_up -Via
+		}
+	}
+
+	handle /mcp {
 		reverse_proxy backend:8081 {
 			header_up -X-Forwarded-For
 			header_up -X-Forwarded-Host
@@ -29,9 +40,11 @@ http://{$DOMAIN}, https://{$DOMAIN} {
 	}
 }
 
-http://*.instances.{$DOMAIN}, https://*.instances.{$DOMAIN} {
+http://*.{$INSTANCES_DOMAIN}, https://*.{$INSTANCES_DOMAIN} {
 	tls {
 		dns cloudflare {env.CLOUDFLARE_API_TOKEN}
+		dns_challenge_override_domain {$INSTANCES_ACME_CHALLENGE_DOMAIN}
+		resolvers 1.1.1.1 1.0.0.1
 	}
 
 	reverse_proxy backend:8082 {

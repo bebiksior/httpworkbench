@@ -148,6 +148,10 @@ watch(
       autocomplete="off"
       autocorrect="off"
       autocapitalize="off"
+      data-enable-grammarly="false"
+      data-gramm="false"
+      data-gramm_editor="false"
+      data-grammarly-extension="false"
       @keydown="handleKeydown"
     />
     <div class="flex gap-2 items-center min-w-0">

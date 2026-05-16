@@ -11,9 +11,7 @@ export const useThemeStore = defineStore("theme", () => {
     if (stored === "light" || stored === "dark") {
       return stored;
     }
-    return window.matchMedia("(prefers-color-scheme: dark)").matches
-      ? "dark"
-      : "light";
+    return "dark";
   };
 
   const mode = ref<ThemeMode>(getInitialTheme());

@@ -2,29 +2,33 @@ import type { BunRequest, Server, ServerWebSocket } from "bun";
 import { serve } from "bun";
 import { GUEST_OWNER_ID } from "shared";
 import {
+  addLog,
   flushPendingWebhookNotifications,
   getInstanceById,
   removeExpiredInstances,
 } from "../storage";
-import { instancePolicies } from "../config";
+import { dnsConfig, instancePolicies } from "../config";
 import {
-  CONFIG_ROUTES,
   GUEST_INSTANCES_ROUTES,
   INSTANCES_ROUTES,
+  API_KEYS_ROUTES,
   OAUTH_ROUTES,
   USER_ROUTES,
   WEBHOOKS_ROUTES,
 } from "./api";
 import { authenticateOptionalRequest } from "./auth";
+import { handleMcpRequest } from "./mcp";
 import { canReadInstance } from "./instances/access";
 import {
   createInstancesServer,
   type LogStreamSocketData,
+  broadcastLog,
   subscribeToLogStream,
   unsubscribeFromLogStream,
 } from "./instances";
+import { createDnsServer } from "./dns";
 
-export const initServer = () => {
+export const initServer = async () => {
   const apiServer = serve({
     hostname: "0.0.0.0",
     port: parseInt(Bun.env.API_PORT ?? "8081", 10),
@@ -37,18 +41,22 @@ export const initServer = () => {
         }
         subscribeToLogStream(instanceId, ws);
       },
-      message: () => {},
+      message: (ws: ServerWebSocket<LogStreamSocketData>, message) => {
+        if (message === "ping") {
+          ws.send("pong");
+        }
+      },
       close: (ws: ServerWebSocket<LogStreamSocketData>) => {
         unsubscribeFromLogStream(ws);
       },
     },
     routes: {
-      ...CONFIG_ROUTES,
       ...OAUTH_ROUTES,
       ...USER_ROUTES,
       ...INSTANCES_ROUTES,
       ...GUEST_INSTANCES_ROUTES,
       ...WEBHOOKS_ROUTES,
+      ...API_KEYS_ROUTES,
       "/api/instances/:id/stream": {
         GET: async (
           req: BunRequest<"/api/instances/:id/stream">,
@@ -107,6 +115,11 @@ export const initServer = () => {
           return Response.json({ version });
         },
       },
+      "/mcp": {
+        GET: handleMcpRequest,
+        POST: handleMcpRequest,
+        DELETE: handleMcpRequest,
+      },
     },
   });
   console.log(`API server running on port ${Bun.env.API_PORT}`);
@@ -114,6 +127,18 @@ export const initServer = () => {
   const instancesServer = createInstancesServer(
     parseInt(Bun.env.INSTANCES_PORT ?? "8082", 10),
   );
+  const dnsServer = dnsConfig.dnsEnabled
+    ? await createDnsServer({
+        config: dnsConfig,
+        deps: {
+          getInstanceById: async (id) => getInstanceById(id),
+          addLog: async (log) => addLog(log),
+          broadcastLog,
+          createId: () => crypto.randomUUID(),
+          now: () => Date.now(),
+        },
+      })
+    : undefined;
 
   let cleanupInterval: ReturnType<typeof setInterval> | undefined;
   const ttlMs = instancePolicies.ttlMs;
@@ -141,5 +166,11 @@ export const initServer = () => {
     await flushPendingWebhookNotifications();
   };
 
-  return { apiServer, instancesServer, stopMaintenance, drainBackgroundWork };
+  return {
+    apiServer,
+    instancesServer,
+    dnsServer,
+    stopMaintenance,
+    drainBackgroundWork,
+  };
 };

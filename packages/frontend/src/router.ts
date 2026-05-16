@@ -1,12 +1,20 @@
 import { createRouter, createWebHistory } from "vue-router";
-import { AuthenticatedLayout } from "@/layouts/AuthenticatedLayout";
-import { Home } from "@/pages/Home";
-import { InstanceDetail } from "@/pages/InstanceDetail";
-import { Login } from "@/pages/Login";
-import { NotFound } from "@/pages/NotFound";
-import { Settings } from "@/pages/Settings";
-import { PoCBuilder } from "@/pages/PoCBuilder";
-import { useAuthStore, useConfigStore } from "@/stores";
+import { useAuthStore } from "@/stores/auth";
+
+const AuthenticatedLayout = () =>
+  import("@/layouts/AuthenticatedLayout").then(
+    (module) => module.AuthenticatedLayout,
+  );
+const Home = () => import("@/pages/Home").then((module) => module.Home);
+const InstanceDetail = () =>
+  import("@/pages/InstanceDetail").then((module) => module.InstanceDetail);
+const Login = () => import("@/pages/Login").then((module) => module.Login);
+const NotFound = () =>
+  import("@/pages/NotFound").then((module) => module.NotFound);
+const Settings = () =>
+  import("@/pages/Settings").then((module) => module.Settings);
+const PoCBuilder = () =>
+  import("@/pages/PoCBuilder").then((module) => module.PoCBuilder);
 
 const router = createRouter({
   history: createWebHistory(),
@@ -56,11 +64,6 @@ const router = createRouter({
 
 router.beforeEach(async (to) => {
   const authStore = useAuthStore();
-  const configStore = useConfigStore();
-
-  if (!configStore.isInitialized) {
-    await configStore.fetchConfig();
-  }
 
   if (!authStore.isInitialized) {
     await authStore.fetchUser();

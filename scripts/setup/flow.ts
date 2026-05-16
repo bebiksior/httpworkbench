@@ -1,0 +1,120 @@
+import * as path from "node:path";
+import { fileURLToPath } from "node:url";
+import { getDockerComposeBaseCommand } from "./commands";
+import type { SetupConfig, SetupState, WizardStepId } from "./types";
+
+export const rootDir = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "../..",
+);
+
+export const stepOrder: WizardStepId[] = [
+  "preflight",
+  "collect-config",
+  "verify-dns-records",
+  "oauth",
+  "start-stack",
+  "verify-http",
+  "verify-dns-service",
+  "done",
+];
+
+export const createInitialState = (): SetupState => {
+  return {
+    version: 1,
+    currentStep: "preflight",
+  };
+};
+
+export const getStepIndex = (step: WizardStepId): number => {
+  return stepOrder.indexOf(step);
+};
+
+const isMissingConfigValue = (value: string | undefined): boolean => {
+  return value === undefined || value === "";
+};
+
+export const shouldRestartAtCollectConfig = (
+  state: SetupState,
+  config: Partial<SetupConfig>,
+): boolean => {
+  return (
+    getStepIndex(state.currentStep) > getStepIndex("collect-config") &&
+    (isMissingConfigValue(config.domain) ||
+      isMissingConfigValue(config.instancesDomain) ||
+      isMissingConfigValue(config.instancesAcmeChallengeDomain) ||
+      isMissingConfigValue(config.serverIp) ||
+      config.dnsEnabled !== true ||
+      isMissingConfigValue(config.googleClientId) ||
+      isMissingConfigValue(config.googleClientSecret) ||
+      isMissingConfigValue(config.cloudflareApiToken))
+  );
+};
+
+export const getNextWizardStep = (
+  step: Exclude<WizardStepId, "done">,
+): WizardStepId => {
+  switch (step) {
+    case "preflight":
+      return "collect-config";
+    case "collect-config":
+      return "verify-dns-records";
+    case "verify-dns-records":
+      return "oauth";
+    case "oauth":
+      return "start-stack";
+    case "start-stack":
+      return "verify-http";
+    case "verify-http":
+      return "verify-dns-service";
+    case "verify-dns-service":
+      return "done";
+  }
+};
+
+export const getComposeCommand = (): string => {
+  return `${getDockerComposeBaseCommand()} -f docker-compose.yml -f docker-compose.dns.yml up -d --build`;
+};
+
+export const buildFinalChecklist = (config: SetupConfig): string[] => {
+  return [
+    `- Open ${config.frontendUrl}`,
+    `- Create an instance and note its interaction host: <instance>.${config.instancesDomain}`,
+    `- Test DNS logging with: dig <instance>.${config.instancesDomain} A`,
+    `- Test HTTP logging with: curl https://<instance>.${config.instancesDomain}`,
+    `- Start or restart the stack anytime with: ${getComposeCommand()}`,
+  ];
+};
+
+export const ensureConfig = (
+  config: Partial<SetupConfig>,
+  currentStep: WizardStepId,
+): SetupConfig => {
+  const required = [
+    config.domain,
+    config.frontendUrl,
+    config.serverIp,
+    config.instancesDomain,
+    config.instancesAcmeChallengeDomain,
+    config.jwtSecret,
+    config.googleClientId,
+    config.googleClientSecret,
+    config.cloudflareApiToken,
+  ];
+
+  const hasRequiredNameservers =
+    config.dnsNameservers !== undefined && config.dnsNameservers.length > 0;
+
+  if (
+    required.some((value) => value === undefined || value === "") ||
+    config.dnsEnabled !== true ||
+    config.dnsPort === undefined ||
+    !hasRequiredNameservers
+  ) {
+    throw new Error(
+      `Missing saved configuration before ${currentStep}. Please rerun the collect-config step.`,
+    );
+  }
+
+  return config as SetupConfig;
+};

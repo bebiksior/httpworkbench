@@ -281,6 +281,7 @@ describe("runImportLegacyDb", () => {
         userNoticesLength: 1,
         usersLength: 1,
         webhooksLength: 1,
+        apiKeysLength: 0,
       },
     });
   });
@@ -312,6 +313,7 @@ describe("runImportLegacyDb", () => {
         userNoticesLength: 1,
         usersLength: 0,
         webhooksLength: 0,
+        apiKeysLength: 0,
       },
     });
   });

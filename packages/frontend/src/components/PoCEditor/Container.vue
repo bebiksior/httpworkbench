@@ -9,6 +9,7 @@ import { EditorView } from "@codemirror/view";
 import { computed } from "vue";
 import { Codemirror } from "vue-codemirror";
 import { useThemeStore } from "@/stores/theme";
+import { disableGrammarlyExtension } from "@/components/HttpEditor/extensions/disableGrammarly";
 import { oneLight } from "@/components/HttpEditor/extensions/lightTheme";
 
 const themeStore = useThemeStore();
@@ -28,6 +29,7 @@ const extensions = computed(() => {
     javascriptLanguage.data.of({ autocomplete: scopeCompletionSource(window) }),
     editorTheme,
     EditorView.lineWrapping,
+    disableGrammarlyExtension,
   ];
 });
 
@@ -42,7 +44,6 @@ const handleChange = (value: string) => {
       :model-value="props.modelValue"
       :extensions="extensions"
       :autofocus="true"
-      :spellcheck="false"
       :indent-with-tab="true"
       :tab-size="2"
       class="h-full"

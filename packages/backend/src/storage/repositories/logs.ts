@@ -1,6 +1,6 @@
 import type { Log } from "shared";
 import { LogSchema } from "shared";
-import { asc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, gt, gte } from "drizzle-orm";
 import { getDb } from "../db";
 import { sendDiscordNotificationThrottled } from "../../server/webhooks";
 import { getInstanceById } from "./instances";
@@ -80,6 +80,85 @@ export function getLogsForInstance(instanceId: string): Log[] {
     .where(eq(logs.instanceId, instanceId))
     .orderBy(asc(logs.seq))
     .all();
+}
+
+export function getRecentLogsForInstance(
+  instanceId: string,
+  limit: number,
+): Log[] {
+  const rows = getDb()
+    .select({
+      id: logs.id,
+      instanceId: logs.instanceId,
+      type: logs.type,
+      timestamp: logs.timestamp,
+      address: logs.address,
+      raw: logs.raw,
+    })
+    .from(logs)
+    .where(eq(logs.instanceId, instanceId))
+    .orderBy(desc(logs.seq))
+    .limit(limit)
+    .all();
+
+  return rows.reverse();
+}
+
+export type LogsPageCursor = {
+  seq: number;
+};
+
+type GetLogsPageInput = {
+  instanceId: string;
+  limit: number;
+  cursor?: LogsPageCursor;
+  type?: Log["type"];
+  sinceTimestamp?: number;
+};
+
+type LogsPage = {
+  logs: Log[];
+  nextCursor?: LogsPageCursor;
+};
+
+export function getLogsForInstancePage(input: GetLogsPageInput): LogsPage {
+  const filters = [eq(logs.instanceId, input.instanceId)];
+  if (input.cursor !== undefined) {
+    filters.push(gt(logs.seq, input.cursor.seq));
+  }
+  if (input.type !== undefined) {
+    filters.push(eq(logs.type, input.type));
+  }
+  if (input.sinceTimestamp !== undefined) {
+    filters.push(gte(logs.timestamp, input.sinceTimestamp));
+  }
+
+  const rows = getDb()
+    .select({
+      seq: logs.seq,
+      id: logs.id,
+      instanceId: logs.instanceId,
+      type: logs.type,
+      timestamp: logs.timestamp,
+      address: logs.address,
+      raw: logs.raw,
+    })
+    .from(logs)
+    .where(and(...filters))
+    .orderBy(asc(logs.seq))
+    .limit(input.limit + 1)
+    .all();
+
+  const pageRows = rows.slice(0, input.limit);
+  const lastRow = pageRows.at(-1);
+
+  return {
+    logs: pageRows.map(({ seq: _seq, ...log }) => log),
+    nextCursor:
+      rows.length > input.limit && lastRow !== undefined
+        ? { seq: lastRow.seq }
+        : undefined,
+  };
 }
 
 export function clearLogsForInstance(instanceId: string): void {

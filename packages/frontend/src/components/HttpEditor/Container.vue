@@ -1,12 +1,17 @@
 <script setup lang="ts">
-import { StreamLanguage } from "@codemirror/language";
-import { http } from "@codemirror/legacy-modes/mode/http";
+import {
+  EditorSelection,
+  Transaction,
+  type EditorState,
+} from "@codemirror/state";
 import { oneDark } from "@codemirror/theme-one-dark";
-import { EditorView } from "@codemirror/view";
-import { computed, toRefs } from "vue";
+import { EditorView, type ViewUpdate } from "@codemirror/view";
+import { computed, nextTick, ref, toRefs, watch } from "vue";
 import { Codemirror } from "vue-codemirror";
 import { useThemeStore } from "@/stores/theme";
+import { getEditorLanguageExtension, type EditorSyntax } from "./language";
 import { httpEditorExtensions } from "./extensions";
+import { disableGrammarlyExtension } from "./extensions/disableGrammarly";
 import { readonlyEditorExtensions } from "./extensions/readonly";
 import { createSaveKeymap } from "./extensions/saveKeymap";
 import { oneLight } from "./extensions/lightTheme";
@@ -19,6 +24,7 @@ const props = defineProps<{
   autoHeight?: boolean;
   maxHeight?: string;
   isDirty?: boolean;
+  syntax?: EditorSyntax;
 }>();
 
 const emit = defineEmits<{
@@ -26,7 +32,10 @@ const emit = defineEmits<{
   (e: "save"): void;
 }>();
 
-const { modelValue, readonly, autoHeight, maxHeight, isDirty } = toRefs(props);
+const { modelValue, readonly, autoHeight, maxHeight, isDirty, syntax } =
+  toRefs(props);
+const editorView = ref<EditorView>();
+const preservedSelection = ref<EditorSelection>();
 
 const handleSave = () => {
   emit("save");
@@ -35,9 +44,10 @@ const handleSave = () => {
 const extensions = computed(() => {
   const editorTheme = themeStore.mode === "dark" ? oneDark : oneLight;
   const exts = [
-    StreamLanguage.define(http),
+    getEditorLanguageExtension(syntax.value),
     editorTheme,
     EditorView.lineWrapping,
+    disableGrammarlyExtension,
   ];
   if (!readonly.value) {
     exts.push(...httpEditorExtensions);
@@ -57,6 +67,56 @@ const extensions = computed(() => {
 const handleChange = (value: string) => {
   emit("update:modelValue", value);
 };
+
+const handleReady = ({ view }: { view: EditorView; state: EditorState }) => {
+  editorView.value = view;
+  preservedSelection.value = view.state.selection;
+};
+
+const isExternalDocumentSync = (update: ViewUpdate) => {
+  return (
+    update.docChanged &&
+    update.transactions.every(
+      (transaction) =>
+        transaction.annotation(Transaction.userEvent) === undefined,
+    )
+  );
+};
+
+const handleUpdate = (update: ViewUpdate) => {
+  if (isExternalDocumentSync(update)) {
+    return;
+  }
+
+  preservedSelection.value = update.state.selection;
+};
+
+const restoreSelection = (view: EditorView, selection: EditorSelection) => {
+  const docLength = view.state.doc.length;
+  const clipPosition = (position: number) => Math.min(position, docLength);
+  const ranges = selection.ranges.map((range) =>
+    EditorSelection.range(clipPosition(range.anchor), clipPosition(range.head)),
+  );
+
+  view.dispatch({
+    selection: EditorSelection.create(ranges, selection.mainIndex),
+  });
+};
+
+watch(modelValue, async () => {
+  const view = editorView.value;
+  const selection = preservedSelection.value;
+  if (view === undefined || selection === undefined || !view.hasFocus) {
+    return;
+  }
+
+  await nextTick();
+  if (view.state.doc.toString() !== modelValue.value) {
+    return;
+  }
+
+  restoreSelection(view, selection);
+});
 
 const editorStyle = computed(() => {
   const style: Record<string, string> = {
@@ -84,6 +144,8 @@ const editorStyle = computed(() => {
       :autofocus="!readonly"
       :indent-with-tab="true"
       :tab-size="2"
+      @ready="handleReady"
+      @update="handleUpdate"
       @update:modelValue="handleChange"
     />
   </div>
@@ -102,5 +164,75 @@ const editorStyle = computed(() => {
 .cm-inline-hint {
   opacity: 0.4;
   pointer-events: none;
+}
+.http-editor .cm-content .cm-response-body-html.tok-string,
+.http-editor .cm-content .cm-response-body-json.tok-string {
+  color: rgb(152, 195, 121);
+}
+.http-editor .cm-content .cm-response-body-html.tok-attributeName,
+.http-editor .cm-content .cm-response-body-html.tok-propertyName,
+.http-editor .cm-content .cm-response-body-html.tok-labelName,
+.http-editor .cm-content .cm-response-body-json.tok-propertyName {
+  color: rgb(224, 108, 117);
+}
+.http-editor .cm-content .cm-response-body-html.tok-typeName,
+.http-editor .cm-content .cm-response-body-html.tok-name {
+  color: rgb(229, 192, 123);
+}
+.http-editor .cm-content .cm-response-body-html.tok-punctuation,
+.http-editor .cm-content .cm-response-body-html.tok-angleBracket,
+.http-editor .cm-content .cm-response-body-json.tok-punctuation {
+  color: rgb(171, 178, 191);
+}
+.http-editor .cm-content .cm-response-body-html.tok-operator {
+  color: rgb(86, 182, 194);
+}
+.http-editor .cm-content .cm-response-body-html.tok-comment {
+  color: rgb(171, 178, 191);
+}
+.http-editor .cm-content .cm-response-body-json.tok-number,
+.http-editor .cm-content .cm-response-body-json.tok-integer,
+.http-editor .cm-content .cm-response-body-json.tok-float {
+  color: rgb(229, 192, 123);
+}
+.http-editor .cm-content .cm-response-body-json.tok-bool,
+.http-editor .cm-content .cm-response-body-json.tok-null,
+.http-editor .cm-content .cm-response-body-json.tok-atom {
+  color: rgb(86, 182, 194);
+}
+.dark .http-editor .cm-content .cm-response-body-html.tok-string,
+.dark .http-editor .cm-content .cm-response-body-json.tok-string {
+  color: rgb(152, 195, 121);
+}
+.dark .http-editor .cm-content .cm-response-body-html.tok-attributeName,
+.dark .http-editor .cm-content .cm-response-body-html.tok-propertyName,
+.dark .http-editor .cm-content .cm-response-body-html.tok-labelName,
+.dark .http-editor .cm-content .cm-response-body-json.tok-propertyName {
+  color: rgb(224, 108, 117);
+}
+.dark .http-editor .cm-content .cm-response-body-html.tok-typeName,
+.dark .http-editor .cm-content .cm-response-body-html.tok-name {
+  color: rgb(229, 192, 123);
+}
+.dark .http-editor .cm-content .cm-response-body-html.tok-punctuation,
+.dark .http-editor .cm-content .cm-response-body-html.tok-angleBracket,
+.dark .http-editor .cm-content .cm-response-body-json.tok-punctuation {
+  color: rgb(171, 178, 191);
+}
+.dark .http-editor .cm-content .cm-response-body-html.tok-operator {
+  color: rgb(86, 182, 194);
+}
+.dark .http-editor .cm-content .cm-response-body-html.tok-comment {
+  color: rgb(171, 178, 191);
+}
+.dark .http-editor .cm-content .cm-response-body-json.tok-number,
+.dark .http-editor .cm-content .cm-response-body-json.tok-integer,
+.dark .http-editor .cm-content .cm-response-body-json.tok-float {
+  color: rgb(229, 192, 123);
+}
+.dark .http-editor .cm-content .cm-response-body-json.tok-bool,
+.dark .http-editor .cm-content .cm-response-body-json.tok-null,
+.dark .http-editor .cm-content .cm-response-body-json.tok-atom {
+  color: rgb(86, 182, 194);
 }
 </style>

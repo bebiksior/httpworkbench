@@ -122,11 +122,11 @@ const handleCloneClick = (event: Event) => {
     >
       <div class="shrink-0">
         <div class="flex items-center gap-2 mb-1">
-          <h3
+          <h2
             class="text-base sm:text-lg font-semibold text-surface-900 dark:text-surface-0"
           >
             {{ displayName }}
-          </h3>
+          </h2>
           <Tag
             v-if="instance.public"
             value="Public"
@@ -144,6 +144,7 @@ const handleCloneClick = (event: Event) => {
         <InputText
           :value="instanceHost"
           readonly
+          :aria-label="`Host for ${displayName}`"
           class="flex-1 sm:w-80 min-w-0 font-mono text-xs sm:text-sm"
           @mousedown.stop
         />
