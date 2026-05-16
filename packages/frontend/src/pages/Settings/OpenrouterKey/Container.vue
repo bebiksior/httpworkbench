@@ -17,7 +17,9 @@ const {
 
 <template>
   <div>
-    <div class="flex flex-wrap items-center justify-between gap-4 mb-4">
+    <div
+      class="mb-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"
+    >
       <div>
         <h2 class="text-2xl font-semibold text-surface-900 dark:text-surface-0">
           OpenRouter API Key
@@ -61,10 +63,11 @@ const {
       </p>
     </div>
 
-    <div class="flex flex-wrap gap-3 mt-5">
+    <div class="mt-5 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
       <Button
         label="Save key"
         icon="pi pi-save"
+        class="w-full sm:w-auto"
         :disabled="!canSubmit"
         @click="handleSave"
       />
@@ -73,6 +76,7 @@ const {
         icon="pi pi-trash"
         severity="danger"
         outlined
+        class="w-full sm:w-auto"
         :disabled="!hasConfiguredKey"
         @click="handleRemove"
       />

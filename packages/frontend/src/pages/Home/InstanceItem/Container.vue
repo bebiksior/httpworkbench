@@ -110,7 +110,7 @@ const handleCloneClick = (event: Event) => {
 <template>
   <div
     :class="[
-      'bg-white dark:bg-surface-800 border rounded-lg p-4 sm:p-5 transition-colors cursor-pointer',
+      'bg-white dark:bg-surface-800 border rounded-lg p-3 sm:p-5 transition-colors cursor-pointer',
       instance.locked
         ? 'border-surface-300 dark:border-surface-700/50 opacity-60'
         : 'border-surface-200 dark:border-surface-700 hover:border-primary',
@@ -118,12 +118,12 @@ const handleCloneClick = (event: Event) => {
     @mousedown="handleInstanceClick"
   >
     <div
-      class="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-6 sm:justify-between"
+      class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-6"
     >
-      <div class="shrink-0">
+      <div class="min-w-0 shrink-0">
         <div class="flex items-center gap-2 mb-1">
           <h2
-            class="text-base sm:text-lg font-semibold text-surface-900 dark:text-surface-0"
+            class="min-w-0 truncate text-base font-semibold text-surface-900 dark:text-surface-0 sm:text-lg"
           >
             {{ displayName }}
           </h2>
@@ -140,12 +140,12 @@ const handleCloneClick = (event: Event) => {
         </div>
       </div>
 
-      <div class="flex items-center gap-2">
+      <div class="flex min-w-0 items-center gap-1.5 sm:gap-2">
         <InputText
           :value="instanceHost"
           readonly
           :aria-label="`Host for ${displayName}`"
-          class="flex-1 sm:w-80 min-w-0 font-mono text-xs sm:text-sm"
+          class="min-w-0 flex-1 font-mono text-xs sm:w-80 sm:text-sm"
           @mousedown.stop
         />
         <Button

@@ -29,11 +29,11 @@ const {
 
 <template>
   <div
-    class="flex flex-col lg:flex-row h-full overflow-hidden p-2 pt-0 transition-[gap] duration-[220ms] ease-out"
+    class="flex h-full flex-col overflow-y-auto p-2 pt-0 transition-[gap] duration-[220ms] ease-out lg:flex-row lg:overflow-hidden"
     :class="isSidePanelHidden ? 'gap-0' : 'gap-1.5'"
   >
     <div
-      class="instance-detail-side-panel rounded-lg w-full lg:w-[50%] xl:w-[35%] lg:min-w-[350px] bg-white dark:bg-surface-900 overflow-y-auto max-h-[40vh] lg:max-h-full shrink-0"
+      class="instance-detail-side-panel w-full shrink-0 overflow-visible rounded-lg bg-white dark:bg-surface-900 lg:max-h-full lg:w-[50%] lg:min-w-[350px] lg:overflow-y-auto xl:w-[35%]"
       :class="{
         'instance-detail-side-panel-hidden': isSidePanelHidden,
         'instance-detail-side-panel-transitioning': isSidePanelTransitioning,
@@ -68,9 +68,9 @@ const {
     </div>
 
     <div
-      class="w-full lg:w-[50%] xl:w-[65%] flex flex-col bg-surface-50 dark:bg-surface-900 flex-1 min-h-0 rounded-lg"
+      class="flex min-h-[65vh] w-full flex-1 flex-col rounded-lg bg-surface-50 dark:bg-surface-900 lg:min-h-0 lg:w-[50%] xl:w-[65%]"
     >
-      <div class="flex flex-1 min-h-0 flex-col p-4">
+      <div class="flex flex-1 min-h-0 flex-col p-3 sm:p-4">
         <div class="shrink-0">
           <div class="flex flex-col gap-3">
             <div class="flex items-center justify-between gap-3">
@@ -137,7 +137,7 @@ const {
               </span>
             </div>
 
-            <div class="flex items-center gap-2">
+            <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
               <label class="relative block min-w-0 flex-1">
                 <i
                   class="pi pi-search pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-surface-500 dark:text-surface-400"
@@ -152,7 +152,9 @@ const {
                 />
               </label>
 
-              <div class="flex shrink-0 items-center gap-2">
+              <div
+                class="grid shrink-0 grid-cols-2 gap-2 sm:flex sm:items-center"
+              >
                 <button
                   type="button"
                   :aria-pressed="isTypeSelected('http')"

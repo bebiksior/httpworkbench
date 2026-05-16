@@ -76,54 +76,63 @@ const truncateMessage = (message?: string, maxLength = 45) => {
 </script>
 
 <template>
-  <DataTable :value="webhooks" :loading="isLoading" striped-rows class="w-full">
-    <Column field="name" header="Name" style="width: 18%" />
-    <Column field="url" header="Webhook URL" style="width: 32%">
-      <template #body="{ data }">
-        <span class="font-mono text-sm truncate block" :title="data.url">
-          {{ truncateUrl(data.url, 60) }}
-        </span>
-      </template>
-    </Column>
-    <Column field="message" header="Message" style="width: 25%">
-      <template #body="{ data }">
-        <span
-          class="text-sm truncate block"
-          :class="{
-            'font-mono': data.message !== undefined,
-            'text-surface-600 dark:text-surface-300':
-              data.message === undefined,
-          }"
-          :title="data.message ?? 'Default embed only'"
-        >
-          {{ truncateMessage(data.message) }}
-        </span>
-      </template>
-    </Column>
-    <Column field="createdAt" header="Created" style="width: 15%">
-      <template #body="{ data }">
-        <span class="whitespace-nowrap">{{ formatDate(data.createdAt) }}</span>
-      </template>
-    </Column>
-    <Column header="Actions" style="width: 10%">
-      <template #body="{ data }">
-        <div class="flex gap-1">
-          <Button
-            icon="pi pi-pencil"
-            severity="secondary"
-            text
-            size="small"
-            @click="handleEdit(data)"
-          />
-          <Button
-            icon="pi pi-trash"
-            severity="danger"
-            text
-            size="small"
-            @click="handleDelete(data)"
-          />
-        </div>
-      </template>
-    </Column>
-  </DataTable>
+  <div class="overflow-x-auto">
+    <DataTable
+      :value="webhooks"
+      :loading="isLoading"
+      striped-rows
+      class="min-w-[760px]"
+    >
+      <Column field="name" header="Name" style="width: 18%" />
+      <Column field="url" header="Webhook URL" style="width: 32%">
+        <template #body="{ data }">
+          <span class="block truncate font-mono text-sm" :title="data.url">
+            {{ truncateUrl(data.url, 60) }}
+          </span>
+        </template>
+      </Column>
+      <Column field="message" header="Message" style="width: 25%">
+        <template #body="{ data }">
+          <span
+            class="block truncate text-sm"
+            :class="{
+              'font-mono': data.message !== undefined,
+              'text-surface-600 dark:text-surface-300':
+                data.message === undefined,
+            }"
+            :title="data.message ?? 'Default embed only'"
+          >
+            {{ truncateMessage(data.message) }}
+          </span>
+        </template>
+      </Column>
+      <Column field="createdAt" header="Created" style="width: 15%">
+        <template #body="{ data }">
+          <span class="whitespace-nowrap">{{
+            formatDate(data.createdAt)
+          }}</span>
+        </template>
+      </Column>
+      <Column header="Actions" style="width: 10%">
+        <template #body="{ data }">
+          <div class="flex gap-1">
+            <Button
+              icon="pi pi-pencil"
+              severity="secondary"
+              text
+              size="small"
+              @click="handleEdit(data)"
+            />
+            <Button
+              icon="pi pi-trash"
+              severity="danger"
+              text
+              size="small"
+              @click="handleDelete(data)"
+            />
+          </div>
+        </template>
+      </Column>
+    </DataTable>
+  </div>
 </template>

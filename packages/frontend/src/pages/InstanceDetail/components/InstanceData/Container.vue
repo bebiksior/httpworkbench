@@ -118,8 +118,8 @@ const isWebhooksDialogVisible = ref(false);
 
 <template>
   <ConfirmDialog />
-  <div class="flex flex-col gap-8 h-full p-4">
-    <div class="flex flex-col gap-6">
+  <div class="flex h-full min-h-0 flex-col gap-5 p-3 sm:gap-8 sm:p-4">
+    <div class="flex flex-col gap-5 sm:gap-6">
       <div>
         <div class="flex items-start justify-between gap-3">
           <div class="flex items-center gap-2 min-w-0 flex-1">
@@ -138,7 +138,7 @@ const isWebhooksDialogVisible = ref(false);
             </template>
             <template v-else>
               <h2
-                class="text-2xl font-bold text-surface-900 dark:text-surface-0 truncate"
+                class="truncate text-xl font-bold text-surface-900 dark:text-surface-0 sm:text-2xl"
               >
                 {{ displayName }}
               </h2>
@@ -231,7 +231,7 @@ const isWebhooksDialogVisible = ref(false);
             readonly
             size="small"
             aria-label="Interaction host"
-            class="w-full font-mono text-sm bg-surface-50 dark:bg-surface-800"
+            class="min-w-0 w-full bg-surface-50 font-mono text-sm dark:bg-surface-800"
           />
           <Button
             icon="pi pi-copy"
@@ -251,7 +251,7 @@ const isWebhooksDialogVisible = ref(false);
 
     <div
       v-if="instance.kind === 'static'"
-      class="flex flex-col gap-3 flex-1 min-h-0"
+      class="flex min-h-[260px] flex-1 flex-col gap-3 lg:min-h-0"
     >
       <div class="flex justify-between items-end">
         <div>
@@ -264,7 +264,7 @@ const isWebhooksDialogVisible = ref(false);
         </div>
       </div>
 
-      <div class="flex gap-2 mb-2">
+      <div class="mb-2 grid grid-cols-3 gap-2">
         <input
           v-if="canManageInstance"
           :ref="setFileInputRef"
@@ -280,7 +280,7 @@ const isWebhooksDialogVisible = ref(false);
           severity="secondary"
           size="small"
           outlined
-          class="flex-1"
+          class="min-w-0 justify-center"
           @click="triggerFileUpload"
         />
         <Button
@@ -290,7 +290,7 @@ const isWebhooksDialogVisible = ref(false);
           severity="secondary"
           size="small"
           outlined
-          class="flex-1"
+          class="min-w-0 justify-center"
           @click="handleOpenBuilder"
         />
         <Button
@@ -299,14 +299,14 @@ const isWebhooksDialogVisible = ref(false);
           icon="pi pi-save"
           size="small"
           outlined
-          class="flex-1"
+          class="min-w-0 justify-center"
           :loading="isUpdating"
           :disabled="!isDirty"
           @click="handleSave"
         />
       </div>
 
-      <div class="flex-1 min-h-0 rounded-md overflow-hidden">
+      <div class="h-72 min-h-0 overflow-hidden rounded-md lg:h-auto lg:flex-1">
         <HttpEditor
           :model-value="rawContent"
           :is-dirty="isDirty"
@@ -320,17 +320,19 @@ const isWebhooksDialogVisible = ref(false);
 
     <div
       v-if="canManageInstance || showExpirationNotice"
-      class="flex flex-col gap-3 mt-auto"
+      class="mt-auto flex flex-col gap-3"
     >
       <div
         v-if="showExpirationNotice"
-        class="flex items-center gap-2 px-3 py-1 rounded-md bg-surface-50 dark:bg-surface-800 text-xs"
+        class="flex min-w-0 items-center gap-2 rounded-md bg-surface-50 px-2 py-1 text-xs dark:bg-surface-800 sm:px-3"
       >
         <i
           class="pi pi-clock text-[10px] text-surface-600 dark:text-surface-400"
           aria-hidden="true"
         />
-        <span class="truncate text-surface-800 dark:text-surface-200">
+        <span
+          class="shrink-0 whitespace-nowrap text-surface-800 dark:text-surface-200"
+        >
           {{ expirationText }}
         </span>
         <span
@@ -354,14 +356,17 @@ const isWebhooksDialogVisible = ref(false);
         />
       </div>
 
-      <div v-if="canManageInstance" class="grid grid-cols-2 gap-2">
+      <div
+        v-if="canManageInstance"
+        class="grid grid-cols-2 gap-2 sm:grid-cols-3"
+      >
         <Button
           label="Clone"
           icon="pi pi-clone"
           severity="secondary"
           outlined
           size="small"
-          class="w-full justify-center"
+          class="min-w-0 justify-center"
           :loading="isCloning"
           @click="handleClone"
         />
@@ -371,7 +376,7 @@ const isWebhooksDialogVisible = ref(false);
           severity="secondary"
           outlined
           size="small"
-          class="w-full justify-center"
+          class="min-w-0 justify-center"
           :loading="isClearingLogs"
           @click="handleClearLogs"
         />
@@ -381,7 +386,7 @@ const isWebhooksDialogVisible = ref(false);
           severity="secondary"
           outlined
           size="small"
-          class="w-full justify-center"
+          class="min-w-0 justify-center"
           :loading="isSettingLocked"
           @click="handleToggleLock"
           v-tooltip.top="lockTooltip"
@@ -397,7 +402,7 @@ const isWebhooksDialogVisible = ref(false);
           severity="secondary"
           outlined
           size="small"
-          class="w-full justify-center"
+          class="min-w-0 justify-center"
           @click="isWebhooksDialogVisible = true"
         />
         <Button
@@ -407,7 +412,7 @@ const isWebhooksDialogVisible = ref(false);
           severity="secondary"
           outlined
           size="small"
-          class="w-full justify-center"
+          class="min-w-0 justify-center"
           :loading="isSettingPublic"
           @click="handleTogglePublic"
           v-tooltip.top="
@@ -422,7 +427,7 @@ const isWebhooksDialogVisible = ref(false);
           severity="danger"
           outlined
           size="small"
-          class="w-full justify-center"
+          class="min-w-0 justify-center"
           :loading="isDeleting"
           :disabled="isLocked"
           @click="handleDelete"
@@ -457,3 +462,16 @@ const isWebhooksDialogVisible = ref(false);
     </Dialog>
   </div>
 </template>
+
+<style scoped>
+:deep(.p-button) {
+  min-width: 0;
+}
+
+:deep(.p-button-label) {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+</style>

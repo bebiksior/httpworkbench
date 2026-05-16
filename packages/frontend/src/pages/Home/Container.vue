@@ -6,6 +6,7 @@ import IconField from "primevue/iconfield";
 import InputIcon from "primevue/inputicon";
 import InputText from "primevue/inputtext";
 import Message from "primevue/message";
+import { useMediaQuery } from "@vueuse/core";
 import { computed } from "vue";
 import { storeToRefs } from "pinia";
 import { config } from "@/config";
@@ -35,52 +36,45 @@ const showInstanceLimit = computed(
 
 const authStore = useAuthStore();
 const { isGuest } = storeToRefs(authStore);
+const showDesktopDivider = useMediaQuery("(min-width: 640px)");
 </script>
 
 <template>
   <ConfirmDialog />
   <div class="h-full overflow-y-auto bg-surface-50 dark:bg-surface-900">
-    <div class="mx-auto max-w-7xl px-4 sm:px-6 pt-6 sm:pt-8 pb-2">
+    <div class="mx-auto max-w-7xl px-3 pt-4 pb-2 sm:px-6 sm:pt-8">
       <div
-        class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-0 mb-2"
+        class="mb-2 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4"
       >
         <div>
           <div class="flex items-center gap-3">
             <h1
-              class="text-2xl sm:text-4xl font-bold text-surface-900 dark:text-surface-0"
+              class="text-2xl font-bold text-surface-900 dark:text-surface-0 sm:text-4xl"
             >
               Instances
             </h1>
             <span
               v-if="showInstanceLimit"
-              class="text-base sm:text-lg text-surface-400 font-medium"
+              class="text-base font-medium text-surface-400 sm:text-lg"
             >
               {{ instanceCount }}/{{ instanceLimit }}
             </span>
           </div>
-          <p class="text-sm sm:text-base text-surface-400">
+          <p class="text-sm text-surface-400 sm:text-base">
             All owned instances
           </p>
         </div>
-        <Button
-          label="Settings"
-          icon="pi pi-cog"
-          outlined
-          :disabled="isGuest"
-          class="w-full sm:w-auto"
-          @click="$router.push('/settings')"
-        />
       </div>
       <Message v-if="isGuest" severity="info" :closable="false" class="mt-4">
         You are in the Guest mode. Some features are limited.
       </Message>
     </div>
 
-    <Divider class="mb-6" />
+    <Divider v-if="showDesktopDivider" class="mb-6" />
 
-    <div class="mx-auto max-w-7xl px-4 sm:px-6 pt-2">
+    <div class="mx-auto max-w-7xl px-3 pt-4 sm:px-6 sm:pt-2">
       <div
-        class="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4"
+        class="mb-4 flex flex-col gap-3 sm:mb-6 sm:flex-row sm:items-center sm:justify-between sm:gap-4"
       >
         <IconField class="w-full sm:max-w-md">
           <InputIcon class="pi pi-search" />
@@ -121,7 +115,10 @@ const { isGuest } = storeToRefs(authStore);
         <i class="pi pi-spinner pi-spin text-4xl text-surface-400" />
       </div>
 
-      <div v-else-if="filteredInstances.length > 0" class="space-y-4 pb-8">
+      <div
+        v-else-if="filteredInstances.length > 0"
+        class="space-y-3 pb-8 sm:space-y-4"
+      >
         <InstanceItem
           v-for="instance in filteredInstances"
           :key="instance.id"

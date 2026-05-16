@@ -9,7 +9,9 @@ const { state, checkForUpdates } = useUpdateCheck();
 
 <template>
   <div>
-    <div class="flex flex-wrap items-center justify-between gap-4">
+    <div
+      class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"
+    >
       <div>
         <div class="flex items-center gap-3">
           <h2
@@ -32,7 +34,7 @@ const { state, checkForUpdates } = useUpdateCheck();
           <template v-else-if="state.status === 'update-available'">
             A new version ({{ state.release.tag_name }}) is available. Run:
             <code
-              class="bg-surface-200 dark:bg-surface-800 px-2 py-0.5 rounded text-surface-700 dark:text-surface-200 ml-1"
+              class="mt-2 block overflow-x-auto rounded bg-surface-200 px-2 py-0.5 text-surface-700 dark:bg-surface-800 dark:text-surface-200 sm:ml-1 sm:mt-0 sm:inline"
             >
               docker compose down && git pull && docker compose up -d --build
             </code>
@@ -43,7 +45,7 @@ const { state, checkForUpdates } = useUpdateCheck();
         </p>
       </div>
 
-      <div class="flex items-center gap-2">
+      <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
         <Button
           v-if="state.status === 'update-available'"
           label="View Release"
@@ -51,12 +53,14 @@ const { state, checkForUpdates } = useUpdateCheck();
           as="a"
           :href="state.release.html_url"
           target="_blank"
+          class="w-full sm:w-auto"
         />
         <Button
           v-if="state.status !== 'checking'"
           :label="state.status === 'idle' ? 'Check' : 'Recheck'"
           icon="pi pi-refresh"
           outlined
+          class="w-full sm:w-auto"
           @click="checkForUpdates"
         />
       </div>

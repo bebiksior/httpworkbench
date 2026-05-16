@@ -134,7 +134,7 @@ const formatScopes = (scopes: ApiKeyScope[]) => {
   <Dialog
     v-model:visible="showCreateDialog"
     header="Create API Key"
-    :style="{ width: '560px' }"
+    :style="{ width: 'min(560px, calc(100vw - 2rem))' }"
     modal
   >
     <div class="flex flex-col gap-4">
@@ -152,7 +152,7 @@ const formatScopes = (scopes: ApiKeyScope[]) => {
           readonly
           class="w-full font-mono"
         />
-        <div class="flex gap-2">
+        <div class="flex flex-col gap-2 sm:flex-row">
           <Button
             :label="copied ? 'Copied' : 'Copy Key'"
             :icon="copied ? 'pi pi-check' : 'pi pi-copy'"
@@ -230,7 +230,9 @@ const formatScopes = (scopes: ApiKeyScope[]) => {
   </Dialog>
 
   <div>
-    <div class="mb-6 flex flex-wrap items-center justify-between gap-4">
+    <div
+      class="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"
+    >
       <div>
         <h2 class="text-2xl font-semibold text-surface-900 dark:text-surface-0">
           API Keys
@@ -245,6 +247,7 @@ const formatScopes = (scopes: ApiKeyScope[]) => {
       <Button
         label="Create API Key"
         icon="pi pi-key"
+        class="w-full sm:w-auto"
         @click="showCreateDialog = true"
       />
     </div>
@@ -275,45 +278,47 @@ const formatScopes = (scopes: ApiKeyScope[]) => {
         @click="showCreateDialog = true"
       />
     </div>
-    <DataTable v-else :value="activeApiKeys" striped-rows class="w-full">
-      <Column field="name" header="Name" style="width: 18%" />
-      <Column field="prefix" header="Prefix" style="width: 18%">
-        <template #body="{ data }">
-          <span class="font-mono text-sm">{{ data.prefix }}</span>
-        </template>
-      </Column>
-      <Column field="scopes" header="Scopes" style="width: 32%">
-        <template #body="{ data }">
-          <span class="text-sm text-surface-600 dark:text-surface-300">
-            {{ formatScopes(data.scopes) }}
-          </span>
-        </template>
-      </Column>
-      <Column field="createdAt" header="Created" style="width: 14%">
-        <template #body="{ data }">
-          <span class="whitespace-nowrap">{{
-            formatDate(data.createdAt)
-          }}</span>
-        </template>
-      </Column>
-      <Column field="lastUsedAt" header="Last Used" style="width: 14%">
-        <template #body="{ data }">
-          <span class="whitespace-nowrap">{{
-            formatDate(data.lastUsedAt)
-          }}</span>
-        </template>
-      </Column>
-      <Column header="Actions" style="width: 8%">
-        <template #body="{ data }">
-          <Button
-            icon="pi pi-trash"
-            severity="danger"
-            text
-            size="small"
-            @click="revokeApiKey(data)"
-          />
-        </template>
-      </Column>
-    </DataTable>
+    <div v-else class="overflow-x-auto">
+      <DataTable :value="activeApiKeys" striped-rows class="min-w-[760px]">
+        <Column field="name" header="Name" style="width: 18%" />
+        <Column field="prefix" header="Prefix" style="width: 18%">
+          <template #body="{ data }">
+            <span class="font-mono text-sm">{{ data.prefix }}</span>
+          </template>
+        </Column>
+        <Column field="scopes" header="Scopes" style="width: 32%">
+          <template #body="{ data }">
+            <span class="text-sm text-surface-600 dark:text-surface-300">
+              {{ formatScopes(data.scopes) }}
+            </span>
+          </template>
+        </Column>
+        <Column field="createdAt" header="Created" style="width: 14%">
+          <template #body="{ data }">
+            <span class="whitespace-nowrap">{{
+              formatDate(data.createdAt)
+            }}</span>
+          </template>
+        </Column>
+        <Column field="lastUsedAt" header="Last Used" style="width: 14%">
+          <template #body="{ data }">
+            <span class="whitespace-nowrap">{{
+              formatDate(data.lastUsedAt)
+            }}</span>
+          </template>
+        </Column>
+        <Column header="Actions" style="width: 8%">
+          <template #body="{ data }">
+            <Button
+              icon="pi pi-trash"
+              severity="danger"
+              text
+              size="small"
+              @click="revokeApiKey(data)"
+            />
+          </template>
+        </Column>
+      </DataTable>
+    </div>
   </div>
 </template>

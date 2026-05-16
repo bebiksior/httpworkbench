@@ -4,6 +4,7 @@ import ConfirmDialog from "primevue/confirmdialog";
 import Divider from "primevue/divider";
 import Dialog from "primevue/dialog";
 import Message from "primevue/message";
+import { useMediaQuery } from "@vueuse/core";
 import { computed, ref } from "vue";
 import { storeToRefs } from "pinia";
 import { useRouter } from "vue-router";
@@ -30,6 +31,7 @@ const {
 const showCreateDialog = ref(false);
 const showEditDialog = ref(false);
 const editingWebhook = ref<Webhook | undefined>(undefined);
+const showDesktopDivider = useMediaQuery("(min-width: 640px)");
 const sections = [
   { id: "openrouter", label: "OpenRouter", icon: "pi pi-sparkles" },
   { id: "api-keys", label: "API Keys", icon: "pi pi-key" },
@@ -60,7 +62,7 @@ const handleEdit = (webhook: Webhook) => {
   <Dialog
     v-model:visible="showCreateDialog"
     header="Create Webhook"
-    :style="{ width: '560px' }"
+    :style="{ width: 'min(560px, calc(100vw - 2rem))' }"
     modal
   >
     <WebhookForm @created="handleWebhookCreated" />
@@ -69,7 +71,7 @@ const handleEdit = (webhook: Webhook) => {
   <Dialog
     v-model:visible="showEditDialog"
     header="Edit Webhook"
-    :style="{ width: '560px' }"
+    :style="{ width: 'min(560px, calc(100vw - 2rem))' }"
     modal
   >
     <WebhookForm :webhook="editingWebhook" @updated="handleWebhookUpdated" />
@@ -81,48 +83,50 @@ const handleEdit = (webhook: Webhook) => {
       to manage integrations.
     </Message>
   </div>
-  <div v-else class="h-full overflow-y-auto bg-surface-50 dark:bg-surface-900">
-    <div class="mx-auto max-w-7xl px-4 pt-6 pb-2 sm:px-6 sm:pt-8">
-      <div
-        class="mb-2 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-0"
-      >
-        <div>
+  <div
+    v-else
+    class="h-full overflow-x-hidden overflow-y-auto bg-surface-50 dark:bg-surface-900"
+  >
+    <div class="mx-auto max-w-7xl px-3 pt-4 pb-3 sm:px-6 sm:pt-8">
+      <div class="flex items-start justify-between gap-3 sm:items-center">
+        <div class="min-w-0">
           <h1
             class="text-2xl font-bold text-surface-900 dark:text-surface-0 sm:text-4xl"
           >
             Settings
           </h1>
           <p
-            class="text-sm text-surface-600 dark:text-surface-300 sm:text-base"
+            class="max-w-3xl text-sm text-surface-600 dark:text-surface-300 sm:text-base"
           >
             Manage OpenRouter, API keys, MCP clients, webhooks, and version
             checks.
           </p>
         </div>
         <Button
-          label="Back"
           icon="pi pi-arrow-left"
+          aria-label="Back"
           outlined
-          class="w-full sm:w-auto"
+          rounded
+          class="shrink-0"
           @click="router.push('/')"
         />
       </div>
     </div>
 
-    <Divider class="mb-6" />
+    <Divider v-if="showDesktopDivider" class="mb-6" />
 
     <div
-      class="mx-auto grid max-w-7xl gap-6 px-4 pt-2 pb-8 sm:px-6 lg:grid-cols-[220px_1fr] lg:gap-8"
+      class="mx-auto grid w-full max-w-7xl gap-4 px-3 pt-2 pb-8 sm:px-6 sm:pt-2 lg:grid-cols-[220px_1fr] lg:gap-8"
     >
-      <aside class="lg:sticky lg:top-8 lg:self-start">
+      <aside class="min-w-0 lg:sticky lg:top-8 lg:self-start">
         <nav
-          class="flex gap-1 overflow-x-auto pb-2 lg:flex-col lg:overflow-visible lg:pb-0"
+          class="grid max-w-full grid-cols-3 gap-1 pb-2 lg:flex lg:flex-col lg:pb-0"
         >
           <button
             v-for="section in sections"
             :key="section.id"
             type="button"
-            class="flex shrink-0 cursor-pointer items-center gap-2 border-b-2 px-3 py-2 text-left text-sm font-medium transition-colors lg:border-b-0 lg:border-l-2"
+            class="flex min-w-0 cursor-pointer items-center justify-center gap-1.5 border-b-2 px-2 py-2 text-center text-sm font-medium transition-colors lg:justify-start lg:border-b-0 lg:border-l-2 lg:px-3 lg:text-left"
             :class="
               activeSection === section.id
                 ? 'border-primary-500 text-surface-900 dark:text-surface-0'
@@ -131,12 +135,12 @@ const handleEdit = (webhook: Webhook) => {
             @click="activeSection = section.id"
           >
             <i :class="section.icon" />
-            <span>{{ section.label }}</span>
+            <span class="min-w-0 truncate">{{ section.label }}</span>
           </button>
         </nav>
       </aside>
 
-      <main class="min-w-0 py-2">
+      <main class="settings-content min-w-0 max-w-full py-1 sm:py-2">
         <section v-if="activeSection === 'version'">
           <UpdateCheck />
         </section>
@@ -154,7 +158,9 @@ const handleEdit = (webhook: Webhook) => {
         </section>
 
         <section v-else>
-          <div class="mb-6 flex flex-wrap items-center justify-between gap-4">
+          <div
+            class="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"
+          >
             <div>
               <h2
                 class="text-2xl font-semibold text-surface-900 dark:text-surface-0"
@@ -171,6 +177,7 @@ const handleEdit = (webhook: Webhook) => {
             <Button
               label="Create Webhook"
               icon="pi pi-plus"
+              class="w-full sm:w-auto"
               @click="showCreateDialog = true"
             />
           </div>
@@ -212,3 +219,27 @@ const handleEdit = (webhook: Webhook) => {
     </div>
   </div>
 </template>
+
+<style scoped>
+.settings-content {
+  overflow-wrap: anywhere;
+}
+
+.settings-content :deep(.p-button) {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.settings-content :deep(.p-button-label) {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.settings-content :deep(.p-inputtext),
+.settings-content :deep(.p-multiselect) {
+  min-width: 0;
+  max-width: 100%;
+}
+</style>

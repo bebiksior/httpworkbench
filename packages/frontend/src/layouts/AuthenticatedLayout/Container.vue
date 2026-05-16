@@ -16,13 +16,6 @@ const menu = ref();
 
 const items = computed(() => [
   {
-    label: "Settings",
-    icon: "pi pi-cog",
-    command: () => {
-      void router.push({ name: "settings" });
-    },
-  },
-  {
     label: authStore.isGuest ? "Exit Guest Mode" : "Logout",
     icon: "pi pi-sign-out",
     command: () => {
@@ -47,6 +40,10 @@ const goHome = (event: MouseEvent) => {
 const goLogin = () => {
   router.push({ name: "login" });
 };
+
+const goSettings = () => {
+  void router.push({ name: "settings" });
+};
 </script>
 
 <template>
@@ -54,13 +51,13 @@ const goLogin = () => {
   <CommandPalette v-if="authStore.hasSession" />
   <div class="h-screen flex flex-col bg-surface-0 dark:bg-surface-800">
     <nav class="bg-surface-0 dark:bg-surface-800 shrink-0">
-      <div class="mx-auto px-6">
+      <div class="mx-auto px-3 sm:px-6">
         <div class="flex justify-between h-16">
-          <div class="flex items-center">
+          <div class="flex min-w-0 items-center">
             <button
               @click="goHome"
               @auxclick="goHome"
-              class="flex items-center gap-2 text-xl text-surface-900 dark:text-surface-0 hover:text-primary transition-colors font-mono cursor-pointer"
+              class="flex min-w-0 items-center gap-1.5 text-lg text-surface-900 dark:text-surface-0 hover:text-primary transition-colors font-mono cursor-pointer sm:gap-2 sm:text-xl"
             >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -70,21 +67,31 @@ const goLogin = () => {
                 stroke-width="2"
                 stroke-linecap="round"
                 stroke-linejoin="round"
-                class="w-6 h-6"
+                class="h-5 w-5 shrink-0 sm:h-6 sm:w-6"
               >
                 <polyline points="4 17 10 11 4 5" />
                 <line x1="12" x2="20" y1="19" y2="19" />
               </svg>
-              httpworkbench
+              <span class="min-w-0 truncate">httpworkbench</span>
               <span
-                class="ml-2 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide bg-primary/20 text-primary rounded"
+                class="ml-0.5 shrink-0 whitespace-nowrap rounded bg-primary/20 px-1 py-0.5 text-[10px] font-semibold uppercase leading-none tracking-wide text-primary sm:ml-2 sm:px-1.5"
+                :title="`Beta v${config.version}`"
               >
-                beta v{{ config.version }}
+                <span class="hidden sm:inline">beta </span>v{{ config.version }}
               </span>
             </button>
           </div>
 
-          <div class="flex items-center gap-2">
+          <div class="flex shrink-0 items-center gap-1 sm:gap-2">
+            <Button
+              v-if="authStore.hasSession"
+              type="button"
+              icon="pi pi-cog"
+              rounded
+              text
+              aria-label="Settings"
+              @click="goSettings"
+            />
             <Button
               type="button"
               :icon="themeStore.mode === 'dark' ? 'pi pi-sun' : 'pi pi-moon'"
@@ -97,7 +104,7 @@ const goLogin = () => {
               href="https://github.com/bebiksior/httpworkbench"
               target="_blank"
               rel="noopener noreferrer"
-              class="flex items-center text-surface-600 dark:text-surface-400 hover:text-surface-800 dark:hover:text-surface-200 transition-colors"
+              class="inline-flex h-10 w-10 items-center justify-center rounded-full text-surface-600 transition-colors hover:bg-surface-100 hover:text-surface-800 dark:text-surface-400 dark:hover:bg-surface-700 dark:hover:text-surface-200"
               aria-label="GitHub"
             >
               <i class="pi pi-github text-xl" />
