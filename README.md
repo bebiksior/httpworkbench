@@ -131,7 +131,7 @@ The main app certificate still uses Cloudflare DNS challenge. Instance subdomain
 
 ## Your Data
 
-HTTP Workbench stores just the basics in a simple JSON file: your Google ID for login (not the email), when you created your account, your PoC pages and webhooks, and the HTTP request logs (including IPs, headers, and request details). This is all needed for the app to work properly.
+HTTP Workbench stores just the basics in a local SQLite database: your Google ID for login (not the email), when you created your account, your PoC pages, webhooks, API keys, and the HTTP/DNS interaction logs (including IPs, headers, DNS questions, and request details). This is all needed for the app to work properly.
 
 Full transparency: I never tried to access any data of users on ssrf.cvssadvisor.com, the old version didn't even have a proper database, it was all stored in the memory :D. However, it technically is possible that I can access this data. I'm happy to hear some suggestions to make this more secure for you guys, to be 100% sure that I can't access your data you can self-host this tool - that's why it's open-source.
 
