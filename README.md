@@ -26,7 +26,7 @@ One thing stays the same: it will be as easy as before to create new instances. 
 ## Roadmap to v1
 
 - [ ] Username/password authentication for self-hosted deployments
-- [ ] DNS support
+- [x] DNS support
 - [ ] better documentation
 - [ ] better self host setup process
 - [ ] multi-domain setup

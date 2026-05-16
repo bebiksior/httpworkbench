@@ -129,23 +129,6 @@ const { isGuest } = storeToRefs(authStore);
         />
       </div>
       <EmptyState v-else :has-search-query="hasSearchQuery" />
-
-      <Message
-        severity="warn"
-        :closable="false"
-        class="mx-auto mt-8 mb-8 max-w-2xl text-sm"
-      >
-        I&apos;m testing a new DNS-support version at
-        <a
-          href="https://alpha-httpworkbench.xyz/"
-          target="_blank"
-          rel="noreferrer"
-          class="font-medium underline"
-        >
-          alpha-httpworkbench.xyz
-        </a>
-        . If you find something broken, I&apos;d love a heads-up :D
-      </Message>
     </div>
   </div>
 </template>
