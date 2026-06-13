@@ -30,6 +30,7 @@ One thing stays the same: it will be as easy as before to create new instances. 
 - [ ] better documentation
 - [ ] better self host setup process
 - [ ] multi-domain setup
+- [ ] SMTP support 
 
 ## Roadmap after v1
 
