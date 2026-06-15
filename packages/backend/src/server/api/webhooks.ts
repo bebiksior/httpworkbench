@@ -1,4 +1,4 @@
-import type { BunRequest } from "bun";
+import { Elysia, status } from "elysia";
 import {
   CreateWebhookSchema,
   TestWebhookSchema,
@@ -11,8 +11,7 @@ import {
   getWebhooksByOwner,
   updateWebhook,
 } from "../../storage";
-import { withAuth } from "../auth";
-import { parseJsonRequest } from "../utils";
+import { authPlugin } from "../auth";
 import {
   sendDiscordTestNotification,
   validateDiscordWebhookUrl,
@@ -22,131 +21,103 @@ const normalizeWebhookMessage = (message?: string) => {
   if (message === undefined) {
     return undefined;
   }
-
   const normalized = message.trim();
   return normalized === "" ? undefined : normalized;
 };
 
-export const WEBHOOKS_ROUTES = {
-  "/api/webhooks": {
-    GET: withAuth(async (_req: BunRequest<"/api/webhooks">, user) => {
-      const webhooks = getWebhooksByOwner(user.id);
-      return Response.json(webhooks, { status: 200 });
-    }),
-    POST: withAuth(async (req: BunRequest<"/api/webhooks">, user) => {
-      const parsed = await parseJsonRequest(req, CreateWebhookSchema);
-      if (parsed.kind === "error") {
-        return parsed.response;
-      }
-
-      const validation = validateDiscordWebhookUrl(parsed.data.url);
+export const webhooksRoutes = new Elysia({ name: "routes/webhooks" })
+  .use(authPlugin)
+  .guard({ detail: { hide: true } })
+  .get("/api/webhooks", ({ user }) => getWebhooksByOwner(user.id), {
+    session: true,
+  })
+  .post(
+    "/api/webhooks",
+    ({ body, user }) => {
+      const validation = validateDiscordWebhookUrl(body.url);
       if (!validation.valid) {
-        return Response.json(
-          { error: validation.error ?? "Invalid webhook URL" },
-          { status: 400 },
-        );
+        return status(400, {
+          error: validation.error ?? "Invalid webhook URL",
+        });
       }
-
       const webhook = addWebhook({
         id: crypto.randomUUID(),
-        name: parsed.data.name,
-        url: parsed.data.url,
-        message: normalizeWebhookMessage(parsed.data.message),
+        name: body.name,
+        url: body.url,
+        message: normalizeWebhookMessage(body.message),
         ownerId: user.id,
         createdAt: Date.now(),
       });
-
-      return Response.json(webhook, { status: 201 });
-    }),
-  },
-  "/api/webhooks/test": {
-    POST: withAuth(async (req: BunRequest<"/api/webhooks/test">, _user) => {
-      const parsed = await parseJsonRequest(req, TestWebhookSchema);
-      if (parsed.kind === "error") {
-        return parsed.response;
-      }
-
-      const normalizedMessage = normalizeWebhookMessage(parsed.data.message);
-      const validation = validateDiscordWebhookUrl(parsed.data.url);
+      return status(201, webhook);
+    },
+    { session: true, body: CreateWebhookSchema },
+  )
+  .post(
+    "/api/webhooks/test",
+    async ({ body }) => {
+      const validation = validateDiscordWebhookUrl(body.url);
       if (!validation.valid) {
-        return Response.json(
-          { error: validation.error ?? "Invalid webhook URL" },
-          { status: 400 },
-        );
+        return status(400, {
+          error: validation.error ?? "Invalid webhook URL",
+        });
       }
-
       try {
         await sendDiscordTestNotification({
-          url: parsed.data.url,
-          message: normalizedMessage,
+          url: body.url,
+          message: normalizeWebhookMessage(body.message),
         });
       } catch (error) {
-        return Response.json(
-          {
-            error:
-              error instanceof Error
-                ? error.message
-                : "Failed to send test webhook notification",
-          },
-          { status: 502 },
-        );
+        return status(502, {
+          error:
+            error instanceof Error
+              ? error.message
+              : "Failed to send test webhook notification",
+        });
       }
-
-      return new Response(null, { status: 204 });
-    }),
-  },
-  "/api/webhooks/:id": {
-    PATCH: withAuth(async (req: BunRequest<"/api/webhooks/:id">, user) => {
-      const id = req.params.id;
-      if (id === "") {
-        return Response.json({ error: "Invalid id" }, { status: 400 });
-      }
-
-      const webhook = getWebhookById(id);
+      return status(204);
+    },
+    { session: true, body: TestWebhookSchema },
+  )
+  .patch(
+    "/api/webhooks/:id",
+    ({ params, body, user }) => {
+      const webhook = getWebhookById(params.id);
       if (webhook === undefined) {
-        return Response.json({ error: "Not found" }, { status: 404 });
+        return status(404, { error: "Not found" });
       }
       if (webhook.ownerId !== user.id) {
-        return Response.json({ error: "Forbidden" }, { status: 403 });
+        return status(403, { error: "Forbidden" });
       }
-
-      const parsed = await parseJsonRequest(req, UpdateWebhookSchema);
-      if (parsed.kind === "error") {
-        return parsed.response;
-      }
-
-      const validation = validateDiscordWebhookUrl(parsed.data.url);
+      const validation = validateDiscordWebhookUrl(body.url);
       if (!validation.valid) {
-        return Response.json(
-          { error: validation.error ?? "Invalid webhook URL" },
-          { status: 400 },
-        );
+        return status(400, {
+          error: validation.error ?? "Invalid webhook URL",
+        });
       }
-
-      const updatedWebhook = updateWebhook(id, {
-        name: parsed.data.name,
-        url: parsed.data.url,
-        message: normalizeWebhookMessage(parsed.data.message),
+      const updated = updateWebhook(params.id, {
+        name: body.name,
+        url: body.url,
+        message: normalizeWebhookMessage(body.message),
       });
-
-      return Response.json(updatedWebhook, { status: 200 });
-    }),
-    DELETE: withAuth(async (req: BunRequest<"/api/webhooks/:id">, user) => {
-      const id = req.params.id;
-      if (id === "") {
-        return Response.json({ error: "Invalid id" }, { status: 400 });
+      if (updated === undefined) {
+        return status(404, { error: "Not found" });
       }
-
-      const webhook = getWebhookById(id);
+      return updated;
+    },
+    { session: true, body: UpdateWebhookSchema },
+  )
+  .delete(
+    "/api/webhooks/:id",
+    ({ params, user }) => {
+      const webhook = getWebhookById(params.id);
       if (webhook === undefined) {
-        return Response.json({ error: "Not found" }, { status: 404 });
+        return status(404, { error: "Not found" });
       }
       if (webhook.ownerId !== user.id) {
-        return Response.json({ error: "Forbidden" }, { status: 403 });
+        return status(403, { error: "Forbidden" });
       }
-
-      deleteWebhook(id);
-      return Response.json({ message: "Deleted" }, { status: 200 });
-    }),
-  },
-} as const;
+      deleteWebhook(params.id);
+      return { message: "Deleted" };
+    },
+    { session: true },
+  );

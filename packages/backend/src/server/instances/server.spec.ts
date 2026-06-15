@@ -1,46 +1,42 @@
-import { beforeEach, describe, expect, test, vi } from "vitest";
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  mock,
+  spyOn,
+  test,
+} from "bun:test";
 
-const {
-  addLogMock,
-  broadcastLogMock,
-  getInstanceByIdMock,
-  listenMock,
-  parseMock,
-} = vi.hoisted(() => ({
-  addLogMock: vi.fn(),
-  broadcastLogMock: vi.fn(),
-  getInstanceByIdMock: vi.fn(),
-  listenMock: vi.fn(),
-  parseMock: vi.fn(),
-}));
+const addLogMock = mock();
+const broadcastLogMock = mock();
+const getInstanceByIdMock = mock();
+const listenMock = mock();
+const parseMock = mock();
 
-vi.mock("bun", () => ({
-  listen: listenMock,
-}));
-
-vi.mock("http-z", () => ({
+mock.module("http-z", () => ({
   parse: parseMock,
 }));
 
-vi.mock("../../config", () => ({
+mock.module("../../config", () => ({
   dnsConfig: {
     instancesDomain: "instances.example.com",
   },
 }));
 
-vi.mock("../../storage", () => ({
+mock.module("../../storage", () => ({
   addLog: addLogMock,
 }));
 
-vi.mock("../../storage/repositories/instances", () => ({
+mock.module("../../storage/repositories/instances", () => ({
   getInstanceById: getInstanceByIdMock,
 }));
 
-vi.mock("./logStream", () => ({
+mock.module("./logStream", () => ({
   broadcastLog: broadcastLogMock,
 }));
 
-import { createInstancesServer } from "./server";
+const { createInstancesServer } = await import("./server");
 
 const encode = (value: string) => new TextEncoder().encode(value);
 const decode = (value: Uint8Array) => new TextDecoder().decode(value);
@@ -62,10 +58,10 @@ const createStaticInstance = (raw: string) => ({
 
 const createSocket = () => ({
   data: undefined as { buffer: unknown } | undefined,
-  end: vi.fn(),
+  end: mock(),
   remoteAddress: "198.51.100.10",
-  timeout: vi.fn(),
-  write: vi.fn(),
+  timeout: mock(),
+  write: mock(),
 });
 
 type ServerHandlers = {
@@ -80,15 +76,15 @@ describe("createInstancesServer", () => {
   let handlers: ServerHandlers;
 
   beforeEach(() => {
-    vi.clearAllMocks();
-    vi.spyOn(console, "error").mockImplementation(() => undefined);
-    vi.spyOn(console, "log").mockImplementation(() => undefined);
+    mock.clearAllMocks();
+    spyOn(console, "error").mockImplementation(() => undefined);
+    spyOn(console, "log").mockImplementation(() => undefined);
 
     listenMock.mockReturnValue({
-      stop: vi.fn(),
+      stop: mock(),
     });
 
-    createInstancesServer(8082);
+    createInstancesServer(8082, listenMock);
 
     const options = listenMock.mock.calls[0]?.[0] as
       | { socket: ServerHandlers }
@@ -97,6 +93,10 @@ describe("createInstancesServer", () => {
       throw new Error("listen was not called");
     }
     handlers = options.socket;
+  });
+
+  afterEach(() => {
+    mock.restore();
   });
 
   test("configures a timeout when a socket opens", () => {
@@ -126,7 +126,7 @@ describe("createInstancesServer", () => {
     );
     expect(addLogMock).not.toHaveBeenCalled();
     expect(broadcastLogMock).not.toHaveBeenCalled();
-    expect(socket.end).toHaveBeenCalledOnce();
+    expect(socket.end).toHaveBeenCalledTimes(1);
   });
 
   test("logs oversized requests when they can be attributed to an instance", async () => {
@@ -147,7 +147,7 @@ describe("createInstancesServer", () => {
       ),
     );
 
-    expect(addLogMock).toHaveBeenCalledOnce();
+    expect(addLogMock).toHaveBeenCalledTimes(1);
     expect(addLogMock).toHaveBeenCalledWith(
       expect.objectContaining({
         address: "203.0.113.42",
@@ -205,7 +205,7 @@ describe("createInstancesServer", () => {
       ),
     );
 
-    expect(addLogMock).toHaveBeenCalledOnce();
+    expect(addLogMock).toHaveBeenCalledTimes(1);
     expect(addLogMock).toHaveBeenCalledWith(
       expect.objectContaining({
         address: "203.0.113.42",
@@ -221,7 +221,7 @@ describe("createInstancesServer", () => {
     const rawResponse = decode(socket.write.mock.calls[0]?.[0]);
     expect(rawResponse).toContain(`Content-Length: ${body.length}`);
     expect(rawResponse.endsWith(body)).toBe(true);
-    expect(socket.end).toHaveBeenCalledOnce();
+    expect(socket.end).toHaveBeenCalledTimes(1);
   });
 
   test("returns a bad request response when the instance does not exist", async () => {
@@ -264,7 +264,7 @@ describe("createInstancesServer", () => {
       encode(createRawRequest(["Host: demo.instances.example.com"])),
     );
 
-    expect(addLogMock).toHaveBeenCalledOnce();
+    expect(addLogMock).toHaveBeenCalledTimes(1);
     expect(broadcastLogMock).toHaveBeenCalledWith(
       addLogMock.mock.calls[0]?.[0],
     );

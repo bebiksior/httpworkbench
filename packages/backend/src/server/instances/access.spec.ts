@@ -1,4 +1,4 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, test } from "bun:test";
 import type { Instance, User } from "shared";
 import { GUEST_OWNER_ID } from "shared";
 import { canReadInstance } from "./access";

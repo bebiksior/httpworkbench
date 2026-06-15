@@ -1,7 +1,7 @@
-import type { BunRequest } from "bun";
+import { Elysia, status } from "elysia";
+import { z } from "zod";
 import {
   CreateInstanceSchema,
-  GUEST_OWNER_ID,
   InstanceDetailResponseSchema,
   RenameInstanceSchema,
   SetInstanceLockedSchema,
@@ -15,94 +15,97 @@ import {
   getInstanceById,
   getInstancesByOwner,
   getLogsForInstance,
+  getLogsForInstancePage,
   getWebhooksByOwner,
   updateInstance,
 } from "../../storage";
 import { instancePolicies } from "../../config";
-import { authenticateOptionalRequest, withAuth } from "../auth";
+import {
+  apiKeyMissingScope,
+  authPlugin,
+  enforceApiKeyRateLimit,
+  insufficientScopeResponse,
+  readSessionCookie,
+  resolveOptionalAccess,
+} from "../auth";
 import { canReadInstance } from "../instances/access";
 import {
-  ensureStaticResponseWithinLimit,
-  ensureValidStaticHttpRaw,
+  clampLogLimit,
+  decodeLogsCursor,
+  encodeLogsCursor,
   generateInstanceID,
-  parseJsonRequest,
-  normalizeStaticHttpRaw,
+  validateStaticRaw,
 } from "../utils";
 
-type WebhookValidationSuccess = {
-  kind: "ok";
-  ids: string[];
-};
+const LogsQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(500).optional(),
+  cursor: z.string().optional(),
+  type: z.enum(["http", "dns"]).optional(),
+  sinceTimestamp: z.coerce.number().int().min(0).optional(),
+});
 
-type WebhookValidationError = {
-  kind: "error";
-  response: Response;
-};
-
-const ensureOwnedWebhookIds = async (
+const ensureOwnedWebhookIds = (
   ownerId: string,
   webhookIds: string[],
-): Promise<WebhookValidationSuccess | WebhookValidationError> => {
+): { ok: true; ids: string[] } | { ok: false } => {
   if (webhookIds.length === 0) {
-    return { kind: "ok", ids: [] };
+    return { ok: true, ids: [] };
   }
   const ownedIds = new Set(
     getWebhooksByOwner(ownerId).map((webhook) => webhook.id),
   );
   for (const webhookId of webhookIds) {
     if (!ownedIds.has(webhookId)) {
-      return {
-        kind: "error",
-        response: Response.json(
-          { error: "Invalid webhook selection" },
-          { status: 400 },
-        ),
-      };
+      return { ok: false };
     }
   }
-  return { kind: "ok", ids: webhookIds };
+  return { ok: true, ids: webhookIds };
 };
 
-export const INSTANCES_ROUTES = {
-  "/api/instances": {
-    GET: withAuth(async (_req: BunRequest<"/api/instances">, user) => {
-      const instances = getInstancesByOwner(user.id);
-      return Response.json(instances, { status: 200 });
-    }),
-    POST: withAuth(async (req: BunRequest<"/api/instances">, user) => {
-      const parsed = await parseJsonRequest(req, CreateInstanceSchema);
-      if (parsed.kind === "error") {
-        return parsed.response;
+const loadOwnedInstance = (id: string, userId: string) => {
+  const current = getInstanceById(id);
+  if (current === undefined) {
+    return { ok: false as const, res: status(404, { error: "Not found" }) };
+  }
+  if (current.ownerId !== userId) {
+    return { ok: false as const, res: status(403, { error: "Forbidden" }) };
+  }
+  return { ok: true as const, instance: current };
+};
+
+export const instancesRoutes = new Elysia({ name: "routes/instances" })
+  .use(authPlugin)
+  .get("/api/instances", ({ user }) => getInstancesByOwner(user.id), {
+    scope: "instances:read",
+    detail: {
+      tags: ["Instances"],
+      summary: "List instances",
+      description: "List every instance owned by the key's user.",
+    },
+  })
+  .post(
+    "/api/instances",
+    ({ body, user }) => {
+      let staticRaw: string | undefined;
+      if (body.kind === "static") {
+        const check = validateStaticRaw(body.raw);
+        if (!check.ok) {
+          return status(check.status, { error: check.error });
+        }
+        staticRaw = check.raw;
       }
 
-      if (parsed.data.kind === "static") {
-        const normalizedStaticRaw = normalizeStaticHttpRaw(parsed.data.raw);
-        const limitCheck = ensureStaticResponseWithinLimit(normalizedStaticRaw);
-        if (limitCheck.kind === "error") {
-          return limitCheck.response;
-        }
-        const httpCheck = ensureValidStaticHttpRaw(normalizedStaticRaw);
-        if (httpCheck.kind === "error") {
-          return httpCheck.response;
-        }
+      const webhooks = ensureOwnedWebhookIds(user.id, body.webhookIds ?? []);
+      if (!webhooks.ok) {
+        return status(400, { error: "Invalid webhook selection" });
       }
 
-      const validation = await ensureOwnedWebhookIds(
-        user.id,
-        parsed.data.webhookIds ?? [],
-      );
-      if (validation.kind === "error") {
-        return validation.response;
-      }
-
-      if (instancePolicies.maxInstancesPerOwner !== undefined) {
-        const ownedInstances = getInstancesByOwner(user.id);
-        if (ownedInstances.length >= instancePolicies.maxInstancesPerOwner) {
-          return Response.json(
-            { error: "Instance limit reached" },
-            { status: 403 },
-          );
-        }
+      if (
+        instancePolicies.maxInstancesPerOwner !== undefined &&
+        getInstancesByOwner(user.id).length >=
+          instancePolicies.maxInstancesPerOwner
+      ) {
+        return status(403, { error: "Instance limit reached" });
       }
 
       const now = Date.now();
@@ -113,115 +116,112 @@ export const INSTANCES_ROUTES = {
         public: false,
         locked: false,
         expiresAt:
-          instancePolicies.ttlMs === undefined
+          instancePolicies.defaultTtlMs === undefined
             ? undefined
-            : now + instancePolicies.ttlMs,
+            : now + instancePolicies.defaultTtlMs,
+        webhookIds: webhooks.ids,
       } as const;
 
-      switch (parsed.data.kind) {
-        case "static": {
-          const normalizedStaticRaw = normalizeStaticHttpRaw(parsed.data.raw);
-          const created = addInstance({
-            kind: "static",
-            ...base,
-            raw: normalizedStaticRaw,
-            webhookIds: validation.ids,
-          });
-          return Response.json(created, { status: 201 });
-        }
-        case "dynamic": {
-          const created = addInstance({
-            kind: "dynamic",
-            ...base,
-            processors: parsed.data.processors,
-            webhookIds: validation.ids,
-          });
-          return Response.json(created, { status: 201 });
-        }
-      }
-    }),
-  },
-  "/api/instances/:id": {
-    GET: async (req: BunRequest<"/api/instances/:id">) => {
-      const id = req.params.id;
-      if (id === "") {
-        return Response.json({ error: "Invalid id" }, { status: 400 });
-      }
-
-      const instance = getInstanceById(id);
-      if (instance === undefined) {
-        return Response.json({ error: "Not found" }, { status: 404 });
-      }
-
-      const user = await authenticateOptionalRequest(req);
-      if (!canReadInstance({ instance, user })) {
-        return Response.json({ error: "Not found" }, { status: 404 });
-      }
-
-      const logs = getLogsForInstance(instance.id);
-      const response = InstanceDetailResponseSchema.parse({ instance, logs });
-      return Response.json(response, { status: 200 });
+      const created =
+        body.kind === "static"
+          ? addInstance({ kind: "static", ...base, raw: staticRaw ?? body.raw })
+          : addInstance({
+              kind: "dynamic",
+              ...base,
+              processors: body.processors,
+            });
+      return status(201, created);
     },
-    PUT: withAuth(async (req: BunRequest<"/api/instances/:id">, user) => {
-      const id = req.params.id;
-      if (id === "") {
-        return Response.json({ error: "Invalid id" }, { status: 400 });
+    {
+      scope: "instances:write",
+      body: CreateInstanceSchema,
+      detail: {
+        tags: ["Instances"],
+        summary: "Create an instance",
+        description:
+          "Create an instance that serves the given raw HTTP response from a public URL.",
+      },
+    },
+  )
+  .get(
+    "/api/instances/:id",
+    async ({ params, request, cookie }) => {
+      const instance = getInstanceById(params.id);
+      if (instance === undefined) {
+        return status(404, { error: "Not found" });
       }
 
-      const current = getInstanceById(id);
-      if (current === undefined) {
-        return Response.json({ error: "Not found" }, { status: 404 });
+      const access = await resolveOptionalAccess(
+        request,
+        readSessionCookie(cookie),
+      );
+      if (!canReadInstance({ instance, user: access?.user })) {
+        return status(404, { error: "Not found" });
       }
-      if (current.ownerId !== user.id) {
-        return Response.json({ error: "Forbidden" }, { status: 403 });
-      }
-
-      const parsed = await parseJsonRequest(req, UpdateInstanceSchema);
-      if (parsed.kind === "error") {
-        return parsed.response;
+      if (!enforceApiKeyRateLimit(access)) {
+        return status(429, { error: "Rate limit exceeded" });
       }
 
-      if (parsed.data.kind === "static") {
-        const normalizedStaticRaw = normalizeStaticHttpRaw(parsed.data.raw);
-        const limitCheck = ensureStaticResponseWithinLimit(normalizedStaticRaw);
-        if (limitCheck.kind === "error") {
-          return limitCheck.response;
+      const publiclyReadable = canReadInstance({ instance, user: undefined });
+      if (!publiclyReadable && apiKeyMissingScope(access, "instances:read")) {
+        return insufficientScopeResponse("instances:read");
+      }
+
+      const includeLogs =
+        publiclyReadable || !apiKeyMissingScope(access, "logs:read");
+      const logs = includeLogs ? getLogsForInstance(instance.id) : [];
+      return InstanceDetailResponseSchema.parse({ instance, logs });
+    },
+    {
+      detail: {
+        tags: ["Instances"],
+        summary: "Get an instance",
+        description:
+          "Get one instance and its logs. Logs are included for public instances, or when the key holds logs:read.",
+      },
+    },
+  )
+  .put(
+    "/api/instances/:id",
+    ({ params, body, user }) => {
+      const loaded = loadOwnedInstance(params.id, user.id);
+      if (!loaded.ok) {
+        return loaded.res;
+      }
+      if (body.kind !== loaded.instance.kind) {
+        return status(400, { error: "Kind mismatch" });
+      }
+
+      let staticRaw: string | undefined;
+      if (body.kind === "static") {
+        const check = validateStaticRaw(body.raw);
+        if (!check.ok) {
+          return status(check.status, { error: check.error });
         }
-        const httpCheck = ensureValidStaticHttpRaw(normalizedStaticRaw);
-        if (httpCheck.kind === "error") {
-          return httpCheck.response;
-        }
-      }
-
-      if (parsed.data.kind !== current.kind) {
-        return Response.json({ error: "Kind mismatch" }, { status: 400 });
+        staticRaw = check.raw;
       }
 
       let nextWebhookIds: string[] | undefined;
-      if (parsed.data.webhookIds !== undefined) {
-        const validation = await ensureOwnedWebhookIds(
-          user.id,
-          parsed.data.webhookIds,
-        );
-        if (validation.kind === "error") {
-          return validation.response;
+      if (body.webhookIds !== undefined) {
+        const webhooks = ensureOwnedWebhookIds(user.id, body.webhookIds);
+        if (!webhooks.ok) {
+          return status(400, { error: "Invalid webhook selection" });
         }
-        nextWebhookIds = validation.ids;
+        nextWebhookIds = webhooks.ids;
       }
 
-      const updated = updateInstance(id, (inst) => {
-        if (inst.kind === "static" && parsed.data.kind === "static") {
-          const normalizedStaticRaw = normalizeStaticHttpRaw(parsed.data.raw);
+      const updated = updateInstance(params.id, (inst) => {
+        if (inst.kind === "static" && body.kind === "static") {
           return {
             ...inst,
-            raw: normalizedStaticRaw,
+            raw: staticRaw ?? body.raw,
             webhookIds: nextWebhookIds ?? inst.webhookIds,
           };
         }
-        if (inst.kind === "dynamic" && parsed.data.kind === "dynamic") {
+        if (inst.kind === "dynamic" && body.kind === "dynamic") {
           return {
             ...inst,
-            processors: parsed.data.processors,
+            processors: body.processors,
             webhookIds: nextWebhookIds ?? inst.webhookIds,
           };
         }
@@ -229,196 +229,207 @@ export const INSTANCES_ROUTES = {
       });
 
       if (updated === undefined) {
-        return Response.json({ error: "Not found" }, { status: 404 });
+        return status(404, { error: "Not found" });
+      }
+      return updated;
+    },
+    {
+      scope: "instances:write",
+      body: UpdateInstanceSchema,
+      detail: {
+        tags: ["Instances"],
+        summary: "Replace an instance",
+        description: "Replace an owned instance. The kind must match.",
+      },
+    },
+  )
+  .delete(
+    "/api/instances/:id",
+    ({ params, user }) => {
+      const loaded = loadOwnedInstance(params.id, user.id);
+      if (!loaded.ok) {
+        return loaded.res;
+      }
+      if (loaded.instance.locked) {
+        return status(409, { error: "Instance is locked" });
+      }
+      deleteInstance(params.id);
+      return { message: "Deleted" };
+    },
+    {
+      scope: "instances:delete",
+      detail: {
+        tags: ["Instances"],
+        summary: "Delete an instance",
+        description: "Delete an owned, unlocked instance and its logs.",
+      },
+    },
+  )
+  .post(
+    "/api/instances/:id/extend",
+    ({ params, user }) => {
+      if (instancePolicies.maxTtlMs === undefined) {
+        return status(400, { error: "Instance expiration is disabled" });
+      }
+      const loaded = loadOwnedInstance(params.id, user.id);
+      if (!loaded.ok) {
+        return loaded.res;
+      }
+      const nextExpiration = Date.now() + instancePolicies.maxTtlMs;
+      const extended = updateInstance(params.id, (inst) => ({
+        ...inst,
+        expiresAt: nextExpiration,
+      }));
+      if (extended === undefined) {
+        return status(404, { error: "Not found" });
+      }
+      return extended;
+    },
+    {
+      scope: "instances:write",
+      detail: {
+        tags: ["Instances"],
+        summary: "Extend instance expiration",
+        description:
+          "Reset the instance's expiration to the maximum TTL from now.",
+      },
+    },
+  )
+  .get(
+    "/api/instances/:id/logs",
+    ({ params, query, user }) => {
+      const current = getInstanceById(params.id);
+      if (current?.ownerId !== user.id) {
+        return status(404, { error: "Not found" });
       }
 
-      return Response.json(updated, { status: 200 });
-    }),
-    DELETE: withAuth(async (req: BunRequest<"/api/instances/:id">, user) => {
-      const id = req.params.id;
-      if (id === "") {
-        return Response.json({ error: "Invalid id" }, { status: 400 });
+      const cursor =
+        query.cursor === undefined ? undefined : decodeLogsCursor(query.cursor);
+      if (query.cursor !== undefined && cursor === undefined) {
+        return status(400, { error: "Invalid cursor" });
       }
 
-      const current = getInstanceById(id);
-      if (current === undefined) {
-        return Response.json({ error: "Not found" }, { status: 404 });
+      const page = getLogsForInstancePage({
+        instanceId: params.id,
+        limit: clampLogLimit(query.limit),
+        cursor,
+        type: query.type,
+        sinceTimestamp: query.sinceTimestamp,
+      });
+      return {
+        logs: page.logs,
+        nextCursor:
+          page.nextCursor === undefined
+            ? undefined
+            : encodeLogsCursor(page.nextCursor),
+      };
+    },
+    {
+      scope: "logs:read",
+      query: LogsQuerySchema,
+      detail: {
+        tags: ["Logs"],
+        summary: "Read instance logs",
+        description:
+          "Read a page of HTTP/DNS logs (oldest first). Page with nextCursor.",
+      },
+    },
+  )
+  .delete(
+    "/api/instances/:id/logs",
+    ({ params, user }) => {
+      const loaded = loadOwnedInstance(params.id, user.id);
+      if (!loaded.ok) {
+        return loaded.res;
       }
-      if (current.ownerId !== user.id) {
-        return Response.json({ error: "Forbidden" }, { status: 403 });
+      clearLogsForInstance(params.id);
+      return { message: "Logs cleared" };
+    },
+    {
+      scope: "instances:write",
+      detail: {
+        tags: ["Logs"],
+        summary: "Clear instance logs",
+        description: "Permanently remove all logs for an owned instance.",
+      },
+    },
+  )
+  .patch(
+    "/api/instances/:id/rename",
+    ({ params, body, user }) => {
+      const loaded = loadOwnedInstance(params.id, user.id);
+      if (!loaded.ok) {
+        return loaded.res;
       }
-      if (current.locked) {
-        return Response.json({ error: "Instance is locked" }, { status: 409 });
+      const updated = updateInstance(params.id, (inst) => ({
+        ...inst,
+        label: body.label,
+      }));
+      if (updated === undefined) {
+        return status(404, { error: "Not found" });
       }
-
-      deleteInstance(id);
-      return Response.json({ message: "Deleted" }, { status: 200 });
-    }),
-  },
-  "/api/instances/:id/extend": {
-    POST: withAuth(
-      async (req: BunRequest<"/api/instances/:id/extend">, user) => {
-        if (instancePolicies.ttlMs === undefined) {
-          return Response.json(
-            { error: "Instance expiration is disabled" },
-            { status: 400 },
-          );
-        }
-
-        const id = req.params.id;
-        if (id === "") {
-          return Response.json({ error: "Invalid id" }, { status: 400 });
-        }
-
-        const current = getInstanceById(id);
-        if (current === undefined) {
-          return Response.json({ error: "Not found" }, { status: 404 });
-        }
-        if (current.ownerId !== user.id) {
-          return Response.json({ error: "Forbidden" }, { status: 403 });
-        }
-        if (current.ownerId === GUEST_OWNER_ID) {
-          return Response.json(
-            { error: "Guest instances cannot be extended" },
-            { status: 403 },
-          );
-        }
-
-        const nextExpiration = Date.now() + instancePolicies.ttlMs;
-        const extended = updateInstance(id, (inst) => ({
-          ...inst,
-          expiresAt: nextExpiration,
-        }));
-
-        if (extended === undefined) {
-          return Response.json({ error: "Not found" }, { status: 404 });
-        }
-
-        return Response.json(extended, { status: 200 });
+      return updated;
+    },
+    {
+      scope: "instances:write",
+      body: RenameInstanceSchema,
+      detail: {
+        tags: ["Instances"],
+        summary: "Rename an instance",
+        description: "Set or clear the instance label.",
       },
-    ),
-  },
-  "/api/instances/:id/logs": {
-    DELETE: withAuth(
-      async (req: BunRequest<"/api/instances/:id/logs">, user) => {
-        const id = req.params.id;
-        if (id === "") {
-          return Response.json({ error: "Invalid id" }, { status: 400 });
-        }
-
-        const current = getInstanceById(id);
-        if (current === undefined) {
-          return Response.json({ error: "Not found" }, { status: 404 });
-        }
-        if (current.ownerId !== user.id) {
-          return Response.json({ error: "Forbidden" }, { status: 403 });
-        }
-
-        clearLogsForInstance(id);
-        return Response.json({ message: "Logs cleared" }, { status: 200 });
+    },
+  )
+  .patch(
+    "/api/instances/:id/lock",
+    ({ params, body, user }) => {
+      const loaded = loadOwnedInstance(params.id, user.id);
+      if (!loaded.ok) {
+        return loaded.res;
+      }
+      const updated = updateInstance(params.id, (inst) => ({
+        ...inst,
+        locked: body.locked,
+      }));
+      if (updated === undefined) {
+        return status(404, { error: "Not found" });
+      }
+      return updated;
+    },
+    {
+      scope: "instances:write",
+      body: SetInstanceLockedSchema,
+      detail: {
+        tags: ["Instances"],
+        summary: "Lock or unlock an instance",
+        description: "Locked instances cannot be deleted.",
       },
-    ),
-  },
-  "/api/instances/:id/rename": {
-    PATCH: withAuth(
-      async (req: BunRequest<"/api/instances/:id/rename">, user) => {
-        const id = req.params.id;
-        if (id === "") {
-          return Response.json({ error: "Invalid id" }, { status: 400 });
-        }
-
-        const current = getInstanceById(id);
-        if (current === undefined) {
-          return Response.json({ error: "Not found" }, { status: 404 });
-        }
-        if (current.ownerId !== user.id) {
-          return Response.json({ error: "Forbidden" }, { status: 403 });
-        }
-
-        const parsed = await parseJsonRequest(req, RenameInstanceSchema);
-        if (parsed.kind === "error") {
-          return parsed.response;
-        }
-
-        const updated = updateInstance(id, (inst) => ({
-          ...inst,
-          label: parsed.data.label,
-        }));
-
-        if (updated === undefined) {
-          return Response.json({ error: "Not found" }, { status: 404 });
-        }
-
-        return Response.json(updated, { status: 200 });
+    },
+  )
+  .patch(
+    "/api/instances/:id/public",
+    ({ params, body, user }) => {
+      const loaded = loadOwnedInstance(params.id, user.id);
+      if (!loaded.ok) {
+        return loaded.res;
+      }
+      const updated = updateInstance(params.id, (inst) => ({
+        ...inst,
+        public: body.public,
+      }));
+      if (updated === undefined) {
+        return status(404, { error: "Not found" });
+      }
+      return updated;
+    },
+    {
+      scope: "instances:write",
+      body: SetInstancePublicSchema,
+      detail: {
+        tags: ["Instances"],
+        summary: "Set instance visibility",
+        description:
+          "Public instances and their logs can be read by anyone with the ID.",
       },
-    ),
-  },
-  "/api/instances/:id/lock": {
-    PATCH: withAuth(
-      async (req: BunRequest<"/api/instances/:id/lock">, user) => {
-        const id = req.params.id;
-        if (id === "") {
-          return Response.json({ error: "Invalid id" }, { status: 400 });
-        }
-
-        const current = getInstanceById(id);
-        if (current === undefined) {
-          return Response.json({ error: "Not found" }, { status: 404 });
-        }
-        if (current.ownerId !== user.id) {
-          return Response.json({ error: "Forbidden" }, { status: 403 });
-        }
-
-        const parsed = await parseJsonRequest(req, SetInstanceLockedSchema);
-        if (parsed.kind === "error") {
-          return parsed.response;
-        }
-
-        const updated = updateInstance(id, (inst) => ({
-          ...inst,
-          locked: parsed.data.locked,
-        }));
-
-        if (updated === undefined) {
-          return Response.json({ error: "Not found" }, { status: 404 });
-        }
-
-        return Response.json(updated, { status: 200 });
-      },
-    ),
-  },
-  "/api/instances/:id/public": {
-    PATCH: withAuth(
-      async (req: BunRequest<"/api/instances/:id/public">, user) => {
-        const id = req.params.id;
-        if (id === "") {
-          return Response.json({ error: "Invalid id" }, { status: 400 });
-        }
-
-        const current = getInstanceById(id);
-        if (current === undefined) {
-          return Response.json({ error: "Not found" }, { status: 404 });
-        }
-        if (current.ownerId !== user.id) {
-          return Response.json({ error: "Forbidden" }, { status: 403 });
-        }
-
-        const parsed = await parseJsonRequest(req, SetInstancePublicSchema);
-        if (parsed.kind === "error") {
-          return parsed.response;
-        }
-
-        const updated = updateInstance(id, (inst) => ({
-          ...inst,
-          public: parsed.data.public,
-        }));
-
-        if (updated === undefined) {
-          return Response.json({ error: "Not found" }, { status: 404 });
-        }
-
-        return Response.json(updated, { status: 200 });
-      },
-    ),
-  },
-} as const;
+    },
+  );

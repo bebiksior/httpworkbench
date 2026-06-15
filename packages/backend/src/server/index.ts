@@ -1,6 +1,4 @@
-import type { BunRequest, Server, ServerWebSocket } from "bun";
-import { serve } from "bun";
-import { GUEST_OWNER_ID } from "shared";
+import { Elysia, status } from "elysia";
 import {
   addLog,
   flushPendingWebhookNotifications,
@@ -9,120 +7,112 @@ import {
 } from "../storage";
 import { dnsConfig, instancePolicies } from "../config";
 import {
-  GUEST_INSTANCES_ROUTES,
-  INSTANCES_ROUTES,
-  API_KEYS_ROUTES,
-  OAUTH_ROUTES,
-  USER_ROUTES,
-  WEBHOOKS_ROUTES,
+  apiKeysRoutes,
+  guestInstancesRoutes,
+  instancesRoutes,
+  oauthRoutes,
+  userRoutes,
+  webhooksRoutes,
 } from "./api";
-import { authenticateOptionalRequest } from "./auth";
+import {
+  apiKeyMissingScope,
+  enforceApiKeyRateLimit,
+  readSessionCookie,
+  resolveOptionalAccess,
+} from "./auth";
 import { handleMcpRequest } from "./mcp";
+import { openApiPlugin } from "./openapi";
 import { canReadInstance } from "./instances/access";
 import {
-  createInstancesServer,
-  type LogStreamSocketData,
   broadcastLog,
+  createInstancesServer,
   subscribeToLogStream,
   unsubscribeFromLogStream,
 } from "./instances";
 import { createDnsServer } from "./dns";
+import { version } from "../version";
 
-export const initServer = async () => {
-  const apiServer = serve({
-    hostname: "0.0.0.0",
-    port: parseInt(Bun.env.API_PORT ?? "8081", 10),
-    websocket: {
-      open: (ws: ServerWebSocket<LogStreamSocketData>) => {
-        const instanceId = ws.data?.instanceId;
-        if (instanceId === undefined) {
-          ws.close(1008, "Missing instance context");
-          return;
+const buildApiServer = (port: number) => {
+  return new Elysia()
+    .onError({ as: "global" }, ({ code, error, set }) => {
+      if (code === "VALIDATION") {
+        set.status = 400;
+        const where = (error as { type?: string }).type ?? "body";
+        return { error: `Invalid ${where}` };
+      }
+      if (code === "PARSE") {
+        set.status = 400;
+        return { error: "Invalid JSON" };
+      }
+      if (code === "NOT_FOUND") {
+        set.status = 404;
+        return { error: "Not found" };
+      }
+      console.error(error);
+      set.status = 500;
+      return { error: "Internal server error" };
+    })
+    .onRequest(({ request }) => {
+      if (new URL(request.url).pathname === "/mcp") {
+        return handleMcpRequest(request);
+      }
+    })
+    .use(openApiPlugin())
+    .get("/api/health", () => ({ status: "ok" }), { detail: { hide: true } })
+    .get("/api/version", () => ({ version }), { detail: { hide: true } })
+    .use(oauthRoutes)
+    .use(userRoutes)
+    .use(instancesRoutes)
+    .use(guestInstancesRoutes)
+    .use(webhooksRoutes)
+    .use(apiKeysRoutes)
+    .ws("/api/instances/:id/stream", {
+      async beforeHandle({ params, request, set, cookie }) {
+        const instance = getInstanceById(params.id);
+        if (instance === undefined) {
+          return status(404, { error: "Not found" });
         }
-        subscribeToLogStream(instanceId, ws);
+        const access = await resolveOptionalAccess(
+          request,
+          readSessionCookie(cookie),
+        );
+        if (!canReadInstance({ instance, user: access?.user })) {
+          return status(404, { error: "Not found" });
+        }
+        if (!enforceApiKeyRateLimit(access)) {
+          return status(429, { error: "Rate limit exceeded" });
+        }
+        const publiclyReadable = canReadInstance({
+          instance,
+          user: undefined,
+        });
+        if (!publiclyReadable && apiKeyMissingScope(access, "logs:stream")) {
+          set.headers["WWW-Authenticate"] =
+            'Bearer error="insufficient_scope", scope="logs:stream"';
+          return status(403, {
+            error: "Missing required scope: logs:stream",
+          });
+        }
       },
-      message: (ws: ServerWebSocket<LogStreamSocketData>, message) => {
+      open(ws) {
+        subscribeToLogStream(ws.data.params.id, ws.raw);
+      },
+      message(ws, message) {
         if (message === "ping") {
           ws.send("pong");
         }
       },
-      close: (ws: ServerWebSocket<LogStreamSocketData>) => {
-        unsubscribeFromLogStream(ws);
+      close(ws) {
+        unsubscribeFromLogStream(ws.data.params.id, ws.raw);
       },
-    },
-    routes: {
-      ...OAUTH_ROUTES,
-      ...USER_ROUTES,
-      ...INSTANCES_ROUTES,
-      ...GUEST_INSTANCES_ROUTES,
-      ...WEBHOOKS_ROUTES,
-      ...API_KEYS_ROUTES,
-      "/api/instances/:id/stream": {
-        GET: async (
-          req: BunRequest<"/api/instances/:id/stream">,
-          server: Server<LogStreamSocketData>,
-        ) => {
-          const upgradeHeader = req.headers.get("upgrade");
-          if (upgradeHeader?.toLowerCase() !== "websocket") {
-            return new Response("Upgrade Required", { status: 426 });
-          }
+    })
+    .listen(port, () => {
+      console.log(`API server running on port ${port}`);
+    });
+};
 
-          const instance = getInstanceById(req.params.id);
-          if (instance === undefined) {
-            return Response.json({ error: "Not found" }, { status: 404 });
-          }
-
-          const user = await authenticateOptionalRequest(req);
-          if (!canReadInstance({ instance, user })) {
-            return new Response("Not Found", { status: 404 });
-          }
-
-          if (instance.ownerId === GUEST_OWNER_ID || user === undefined) {
-            const upgraded = server.upgrade(req, {
-              data: {
-                instanceId: instance.id,
-                userId: GUEST_OWNER_ID,
-              },
-            });
-
-            if (!upgraded) {
-              return new Response("Upgrade failed", { status: 500 });
-            }
-            return;
-          }
-
-          const upgraded = server.upgrade(req, {
-            data: {
-              instanceId: instance.id,
-              userId: user.id,
-            },
-          });
-
-          if (!upgraded) {
-            return new Response("Upgrade failed", { status: 500 });
-          }
-        },
-      },
-      "/api/health": {
-        GET: () =>
-          new Response(JSON.stringify({ status: "ok" }), {
-            headers: { "Content-Type": "application/json" },
-          }),
-      },
-      "/api/version": {
-        GET: async () => {
-          const { version } = await import("../index");
-          return Response.json({ version });
-        },
-      },
-      "/mcp": {
-        GET: handleMcpRequest,
-        POST: handleMcpRequest,
-        DELETE: handleMcpRequest,
-      },
-    },
-  });
-  console.log(`API server running on port ${Bun.env.API_PORT}`);
+export const initServer = async () => {
+  const apiServer = buildApiServer(parseInt(Bun.env.API_PORT ?? "8081", 10));
 
   const instancesServer = createInstancesServer(
     parseInt(Bun.env.INSTANCES_PORT ?? "8082", 10),
@@ -141,9 +131,9 @@ export const initServer = async () => {
     : undefined;
 
   let cleanupInterval: ReturnType<typeof setInterval> | undefined;
-  const ttlMs = instancePolicies.ttlMs;
-  if (ttlMs !== undefined) {
-    const intervalMs = Math.min(ttlMs, 60 * 60 * 1000);
+  const defaultTtlMs = instancePolicies.defaultTtlMs;
+  if (defaultTtlMs !== undefined) {
+    const intervalMs = Math.min(defaultTtlMs, 60 * 60 * 1000);
     const runCleanup = () => {
       try {
         removeExpiredInstances(Date.now());

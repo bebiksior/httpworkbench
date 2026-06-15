@@ -1,5 +1,5 @@
 import * as dnsPacket from "dns-packet";
-import { describe, expect, test } from "vitest";
+import { describe, expect, test } from "bun:test";
 import {
   buildDnsAcmeChallengeAnswers,
   buildDnsInstanceAnswers,

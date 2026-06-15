@@ -1,11 +1,6 @@
-import { join } from "node:path";
 import { initServer } from "./server";
 import { closeDb, initDb, maybeAutoImportLegacyDb } from "./storage";
-
-const rootPackageJson = await Bun.file(
-  join(import.meta.dir, "../../../package.json"),
-).json();
-export const version: string = rootPackageJson.version;
+import { version } from "./version";
 
 async function init() {
   console.log("init", version);

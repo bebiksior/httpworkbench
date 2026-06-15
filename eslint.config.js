@@ -6,6 +6,10 @@ import vueParser from "vue-eslint-parser";
 import globals from "globals";
 import prettier from "eslint-plugin-prettier";
 import prettierConfig from "eslint-config-prettier";
+import { dirname } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const tsconfigRootDir = dirname(fileURLToPath(import.meta.url));
 
 export default [
   {
@@ -28,11 +32,83 @@ export default [
       parserOptions: {
         ecmaVersion: "latest",
         sourceType: "module",
+        tsconfigRootDir,
         project: "./packages/backend/tsconfig.json",
       },
       globals: {
         ...globals.node,
         Bun: "readonly",
+      },
+    },
+    plugins: {
+      "@typescript-eslint": tseslint,
+      prettier: prettier,
+    },
+    rules: {
+      ...tseslint.configs.recommended.rules,
+      "@typescript-eslint/no-unused-vars": [
+        "error",
+        {
+          argsIgnorePattern: "^_",
+          varsIgnorePattern: "^_",
+        },
+      ],
+      "@typescript-eslint/no-explicit-any": "error",
+      "@typescript-eslint/prefer-optional-chain": "error",
+      "@typescript-eslint/no-non-null-assertion": "error",
+      "@typescript-eslint/strict-boolean-expressions": "error",
+      "no-empty": "off",
+      "prettier/prettier": "error",
+    },
+  },
+  {
+    files: ["scripts/**/*.ts"],
+    languageOptions: {
+      parser: tsparser,
+      parserOptions: {
+        ecmaVersion: "latest",
+        sourceType: "module",
+        tsconfigRootDir,
+        project: "./scripts/tsconfig.json",
+      },
+      globals: {
+        ...globals.node,
+        Bun: "readonly",
+      },
+    },
+    plugins: {
+      "@typescript-eslint": tseslint,
+      prettier: prettier,
+    },
+    rules: {
+      ...tseslint.configs.recommended.rules,
+      "@typescript-eslint/no-unused-vars": [
+        "error",
+        {
+          argsIgnorePattern: "^_",
+          varsIgnorePattern: "^_",
+        },
+      ],
+      "@typescript-eslint/no-explicit-any": "error",
+      "@typescript-eslint/prefer-optional-chain": "error",
+      "@typescript-eslint/no-non-null-assertion": "error",
+      "@typescript-eslint/strict-boolean-expressions": "error",
+      "no-empty": "off",
+      "prettier/prettier": "error",
+    },
+  },
+  {
+    files: ["packages/shared/**/*.ts"],
+    languageOptions: {
+      parser: tsparser,
+      parserOptions: {
+        ecmaVersion: "latest",
+        sourceType: "module",
+        tsconfigRootDir,
+        project: "./packages/shared/tsconfig.json",
+      },
+      globals: {
+        ...globals.es2021,
       },
     },
     plugins: {
@@ -63,6 +139,7 @@ export default [
       parserOptions: {
         ecmaVersion: "latest",
         sourceType: "module",
+        tsconfigRootDir,
         project: "./packages/frontend/tsconfig.app.json",
       },
       globals: {
@@ -101,6 +178,7 @@ export default [
         sourceType: "module",
         parser: tsparser,
         extraFileExtensions: [".vue"],
+        tsconfigRootDir,
         project: "./packages/frontend/tsconfig.app.json",
       },
       globals: {

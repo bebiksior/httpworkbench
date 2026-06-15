@@ -1,18 +1,15 @@
 const minuteMs = 60_000;
-const fiveMinMs = 5 * minuteMs;
-const fifteenMinMs = 15 * minuteMs;
-const thirtyMinMs = 30 * minuteMs;
 
 export const abusePolicy = {
   discordMuteThresholdPerMinute: 20,
   discordWebhookLimitPerMinutePerInstance: 5,
   discordMuteDurationMs: 5 * minuteMs,
-  strikeRequestThreshold5m: 100,
+  strikeRequestThreshold5m: 130,
   strikesForTombstone: 3,
-  strikeTimestampsMaxAgeMs: thirtyMinMs,
-  immediateTombstoneRequests5m: 300,
+  strikeTimestampsMaxAgeMs: 30 * minuteMs,
+  immediateTombstoneRequests5m: 350,
   immediateTombstoneRequests15m: 1000,
-  window5mMs: fiveMinMs,
-  window15mMs: fifteenMinMs,
+  window5mMs: 5 * minuteMs,
+  window15mMs: 15 * minuteMs,
   minuteBucketMs: minuteMs,
 } as const;

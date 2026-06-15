@@ -1,7 +1,10 @@
-import type { BunRequest } from "bun";
+import { Elysia, status } from "elysia";
 import * as jose from "jose";
-import type { User } from "shared";
+import type { ApiKey, ApiKeyScope, User } from "shared";
 import { getUserById, toPublicUser } from "../storage";
+import type { ApiKeyAuthContext } from "./apiKeyAuth";
+import { authenticateApiKeyValue, hasApiKeyScope } from "./apiKeyAuth";
+import { createFixedWindowRateLimiter } from "./rateLimit";
 
 const jwtSecret = Bun.env.JWT_SECRET;
 
@@ -34,33 +37,16 @@ const extractBearer = (header: string) => {
   return parts[1];
 };
 
-type AuthSuccess = {
-  kind: "ok";
-  user: User;
-};
-
-type AuthError = {
-  kind: "error";
-  status: number;
-};
-
-const authenticateRequest = async (
+const authenticateSession = async (
   req: Request,
-): Promise<AuthSuccess | AuthError> => {
+  sessionCookie?: string,
+): Promise<User | undefined> => {
   const authHeader = req.headers.get("authorization");
-  let token = authHeader !== null ? extractBearer(authHeader) : undefined;
+  const bearer = authHeader !== null ? extractBearer(authHeader) : undefined;
+  const token = bearer ?? sessionCookie;
 
   if (token === undefined) {
-    const cookieHeader = req.headers.get("cookie");
-    if (cookieHeader !== null) {
-      const cookies = new Bun.CookieMap(cookieHeader);
-      const cookieToken = cookies.get("auth_token");
-      token = cookieToken !== null ? cookieToken : undefined;
-    }
-  }
-
-  if (token === undefined) {
-    return { kind: "error", status: 401 };
+    return undefined;
   }
 
   let sub: string | undefined;
@@ -68,39 +54,167 @@ const authenticateRequest = async (
     const { payload } = await jose.jwtVerify(token, secret);
     sub = typeof payload.sub === "string" ? payload.sub : undefined;
   } catch {
-    return { kind: "error", status: 401 };
-  }
-
-  if (sub === undefined) {
-    return { kind: "error", status: 401 };
-  }
-
-  const userRecord = getUserById(sub);
-  if (userRecord === undefined) {
-    return { kind: "error", status: 401 };
-  }
-
-  return { kind: "ok", user: toPublicUser(userRecord) };
-};
-
-export const authenticateOptionalRequest = async (req: Request) => {
-  const auth = await authenticateRequest(req);
-  if (auth.kind === "error") {
     return undefined;
   }
 
-  return auth.user;
+  if (sub === undefined) {
+    return undefined;
+  }
+
+  const userRecord = getUserById(sub);
+  return userRecord === undefined ? undefined : toPublicUser(userRecord);
 };
 
-export const withAuth = <T extends string>(
-  handler: (req: BunRequest<T>, user: User) => Promise<Response> | Response,
-) => {
-  return async (req: BunRequest<T>) => {
-    const auth = await authenticateRequest(req);
-    if (auth.kind === "error") {
-      return new Response("Unauthorized", { status: auth.status });
+type AccessContext =
+  | { via: "session"; user: User }
+  | { via: "api_key"; user: User; apiKey: ApiKey };
+
+const apiKeyRequestsPerMinute = 300;
+
+const apiKeyRateLimiter = createFixedWindowRateLimiter({
+  maxRequests: apiKeyRequestsPerMinute,
+  windowMs: 60_000,
+});
+
+const bearerRealm = 'Bearer realm="httpworkbench-api"';
+
+const apiKeyContext = (auth: ApiKeyAuthContext): AccessContext => ({
+  via: "api_key",
+  user: auth.user,
+  apiKey: auth.apiKey,
+});
+
+const readApiKeyBearer = (
+  req: Request,
+):
+  | { present: false }
+  | { present: true; auth: ApiKeyAuthContext | undefined } => {
+  const authHeader = req.headers.get("authorization");
+  const bearer = authHeader !== null ? extractBearer(authHeader) : undefined;
+  if (bearer === undefined) {
+    return { present: false };
+  }
+  if (!bearer.startsWith("hwb_")) {
+    return { present: false };
+  }
+  return { present: true, auth: authenticateApiKeyValue(bearer) };
+};
+
+type AccessOutcome =
+  | { ok: true; context: AccessContext }
+  | { ok: false; httpStatus: number; error: string; wwwAuthenticate?: string };
+
+const resolveAccessOutcome = async (
+  req: Request,
+  sessionCookie?: string,
+): Promise<AccessOutcome> => {
+  const apiKey = readApiKeyBearer(req);
+  if (apiKey.present) {
+    if (apiKey.auth === undefined) {
+      return {
+        ok: false,
+        httpStatus: 401,
+        error: "Unauthorized",
+        wwwAuthenticate: bearerRealm,
+      };
     }
+    if (!apiKeyRateLimiter.check(apiKey.auth.apiKey.id)) {
+      return { ok: false, httpStatus: 429, error: "Rate limit exceeded" };
+    }
+    return { ok: true, context: apiKeyContext(apiKey.auth) };
+  }
 
-    return handler(req, auth.user);
-  };
+  const user = await authenticateSession(req, sessionCookie);
+  if (user === undefined) {
+    return {
+      ok: false,
+      httpStatus: 401,
+      error: "Unauthorized",
+      wwwAuthenticate: bearerRealm,
+    };
+  }
+  return { ok: true, context: { via: "session", user } };
 };
+
+export const resolveOptionalAccess = async (
+  req: Request,
+  sessionCookie?: string,
+): Promise<AccessContext | undefined> => {
+  const apiKey = readApiKeyBearer(req);
+  if (apiKey.present) {
+    return apiKey.auth === undefined ? undefined : apiKeyContext(apiKey.auth);
+  }
+  const user = await authenticateSession(req, sessionCookie);
+  return user === undefined ? undefined : { via: "session", user };
+};
+
+export const enforceApiKeyRateLimit = (
+  access: AccessContext | undefined,
+): boolean => {
+  if (access?.via !== "api_key") {
+    return true;
+  }
+  return apiKeyRateLimiter.check(access.apiKey.id);
+};
+
+export const apiKeyMissingScope = (
+  access: AccessContext | undefined,
+  scope: ApiKeyScope,
+): boolean =>
+  access?.via === "api_key" && !hasApiKeyScope(access.apiKey, scope);
+
+export const insufficientScopeResponse = (scope: ApiKeyScope): Response =>
+  Response.json(
+    { error: `Missing required scope: ${scope}` },
+    {
+      status: 403,
+      headers: {
+        "WWW-Authenticate": `Bearer error="insufficient_scope", scope="${scope}"`,
+      },
+    },
+  );
+
+export const readSessionCookie = (cookie: {
+  auth_token?: { value: unknown };
+}): string | undefined => {
+  const value = cookie.auth_token?.value;
+  return typeof value === "string" ? value : undefined;
+};
+
+export const authPlugin = new Elysia({ name: "auth" }).macro({
+  session: {
+    async resolve({ request, set, cookie }) {
+      const user = await authenticateSession(
+        request,
+        readSessionCookie(cookie),
+      );
+      if (user === undefined) {
+        set.headers["WWW-Authenticate"] = bearerRealm;
+        return status(401, { error: "Unauthorized" });
+      }
+      return { user };
+    },
+  },
+  scope(required: ApiKeyScope) {
+    return {
+      async resolve({ request, set, cookie }) {
+        const outcome = await resolveAccessOutcome(
+          request,
+          readSessionCookie(cookie),
+        );
+        if (!outcome.ok) {
+          if (outcome.wwwAuthenticate !== undefined) {
+            set.headers["WWW-Authenticate"] = outcome.wwwAuthenticate;
+          }
+          return status(outcome.httpStatus, { error: outcome.error });
+        }
+        if (apiKeyMissingScope(outcome.context, required)) {
+          set.headers["WWW-Authenticate"] =
+            `Bearer error="insufficient_scope", scope="${required}"`;
+          return status(403, { error: `Missing required scope: ${required}` });
+        }
+        return { access: outcome.context, user: outcome.context.user };
+      },
+    };
+  },
+});

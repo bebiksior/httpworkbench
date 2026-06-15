@@ -1,4 +1,4 @@
-import type { BunRequest } from "bun";
+import { Elysia, status } from "elysia";
 import {
   CreateInstanceSchema,
   GUEST_INSTANCE_TTL_MS,
@@ -16,58 +16,33 @@ import {
   getLogsForInstance,
   updateInstance,
 } from "../../storage";
-import {
-  ensureStaticResponseWithinLimit,
-  ensureValidStaticHttpRaw,
-  generateInstanceID,
-  parseJsonRequest,
-  normalizeStaticHttpRaw,
-} from "../utils";
+import { generateInstanceID, validateStaticRaw } from "../utils";
 
-const guestDisabledResponse = () =>
-  Response.json({ error: "Guest access is disabled" }, { status: 403 });
-
-const loadGuestInstance = async (id: string) => {
-  if (id === "") {
-    return {
-      kind: "error" as const,
-      response: Response.json({ error: "Invalid id" }, { status: 400 }),
-    };
-  }
-
+const loadGuestInstance = (id: string) => {
   const instance = getInstanceById(id);
   if (instance?.ownerId !== GUEST_OWNER_ID) {
-    return {
-      kind: "error" as const,
-      response: Response.json({ error: "Not found" }, { status: 404 }),
-    };
+    return { ok: false as const, error: status(404, { error: "Not found" }) };
   }
-
-  return { kind: "ok" as const, instance };
+  return { ok: true as const, instance };
 };
 
-export const GUEST_INSTANCES_ROUTES = {
-  "/api/guest/instances": {
-    POST: async (req: BunRequest<"/api/guest/instances">) => {
-      if (!instancePolicies.allowGuest) {
-        return guestDisabledResponse();
-      }
-
-      const parsed = await parseJsonRequest(req, CreateInstanceSchema);
-      if (parsed.kind === "error") {
-        return parsed.response;
-      }
-
-      if (parsed.data.kind === "static") {
-        const normalizedStaticRaw = normalizeStaticHttpRaw(parsed.data.raw);
-        const limitCheck = ensureStaticResponseWithinLimit(normalizedStaticRaw);
-        if (limitCheck.kind === "error") {
-          return limitCheck.response;
+export const guestInstancesRoutes = new Elysia({ name: "routes/guest" })
+  .guard({ detail: { hide: true } })
+  .onBeforeHandle(() => {
+    if (!instancePolicies.allowGuest) {
+      return status(403, { error: "Guest access is disabled" });
+    }
+  })
+  .post(
+    "/api/guest/instances",
+    ({ body }) => {
+      let staticRaw: string | undefined;
+      if (body.kind === "static") {
+        const check = validateStaticRaw(body.raw);
+        if (!check.ok) {
+          return status(check.status, { error: check.error });
         }
-        const httpCheck = ensureValidStaticHttpRaw(normalizedStaticRaw);
-        if (httpCheck.kind === "error") {
-          return httpCheck.response;
-        }
+        staticRaw = check.raw;
       }
 
       const now = Date.now();
@@ -81,156 +56,99 @@ export const GUEST_INSTANCES_ROUTES = {
         locked: false,
       };
 
-      switch (parsed.data.kind) {
-        case "static": {
-          const normalizedStaticRaw = normalizeStaticHttpRaw(parsed.data.raw);
-          const created = addInstance({
-            kind: "static",
-            ...base,
-            raw: normalizedStaticRaw,
-          });
-          return Response.json(created, { status: 201 });
-        }
-        case "dynamic": {
-          const created = addInstance({
-            kind: "dynamic",
-            ...base,
-            processors: parsed.data.processors,
-          });
-          return Response.json(created, { status: 201 });
-        }
-      }
+      const created =
+        body.kind === "static"
+          ? addInstance({ kind: "static", ...base, raw: staticRaw ?? body.raw })
+          : addInstance({
+              kind: "dynamic",
+              ...base,
+              processors: body.processors,
+            });
+      return status(201, created);
     },
-  },
-  "/api/guest/instances/:id": {
-    GET: async (req: BunRequest<"/api/guest/instances/:id">) => {
-      if (!instancePolicies.allowGuest) {
-        return guestDisabledResponse();
+    { body: CreateInstanceSchema },
+  )
+  .get("/api/guest/instances/:id", ({ params }) => {
+    const loaded = loadGuestInstance(params.id);
+    if (!loaded.ok) {
+      return loaded.error;
+    }
+    const logs = getLogsForInstance(loaded.instance.id);
+    return InstanceDetailResponseSchema.parse({
+      instance: loaded.instance,
+      logs,
+    });
+  })
+  .put(
+    "/api/guest/instances/:id",
+    ({ params, body }) => {
+      const loaded = loadGuestInstance(params.id);
+      if (!loaded.ok) {
+        return loaded.error;
+      }
+      if (body.kind !== loaded.instance.kind) {
+        return status(400, { error: "Kind mismatch" });
       }
 
-      const loaded = await loadGuestInstance(req.params.id);
-      if (loaded.kind === "error") {
-        return loaded.response;
-      }
-      const logs = getLogsForInstance(loaded.instance.id);
-      const response = InstanceDetailResponseSchema.parse({
-        instance: loaded.instance,
-        logs,
-      });
-      return Response.json(response, { status: 200 });
-    },
-    PUT: async (req: BunRequest<"/api/guest/instances/:id">) => {
-      if (!instancePolicies.allowGuest) {
-        return guestDisabledResponse();
-      }
-
-      const loaded = await loadGuestInstance(req.params.id);
-      if (loaded.kind === "error") {
-        return loaded.response;
-      }
-
-      const parsed = await parseJsonRequest(req, UpdateInstanceSchema);
-      if (parsed.kind === "error") {
-        return parsed.response;
-      }
-
-      if (parsed.data.kind === "static") {
-        const normalizedStaticRaw = normalizeStaticHttpRaw(parsed.data.raw);
-        const limitCheck = ensureStaticResponseWithinLimit(normalizedStaticRaw);
-        if (limitCheck.kind === "error") {
-          return limitCheck.response;
+      let staticRaw: string | undefined;
+      if (body.kind === "static") {
+        const check = validateStaticRaw(body.raw);
+        if (!check.ok) {
+          return status(check.status, { error: check.error });
         }
-        const httpCheck = ensureValidStaticHttpRaw(normalizedStaticRaw);
-        if (httpCheck.kind === "error") {
-          return httpCheck.response;
-        }
-      }
-
-      if (parsed.data.kind !== loaded.instance.kind) {
-        return Response.json({ error: "Kind mismatch" }, { status: 400 });
+        staticRaw = check.raw;
       }
 
       const updated = updateInstance(loaded.instance.id, (inst) => {
-        if (inst.kind === "static" && parsed.data.kind === "static") {
-          const normalizedStaticRaw = normalizeStaticHttpRaw(parsed.data.raw);
-          return {
-            ...inst,
-            raw: normalizedStaticRaw,
-            webhookIds: [],
-          };
+        if (inst.kind === "static" && body.kind === "static") {
+          return { ...inst, raw: staticRaw ?? body.raw, webhookIds: [] };
         }
-        if (inst.kind === "dynamic" && parsed.data.kind === "dynamic") {
-          return {
-            ...inst,
-            processors: parsed.data.processors,
-            webhookIds: [],
-          };
+        if (inst.kind === "dynamic" && body.kind === "dynamic") {
+          return { ...inst, processors: body.processors, webhookIds: [] };
         }
         return inst;
       });
-
       if (updated === undefined) {
-        return Response.json({ error: "Not found" }, { status: 404 });
+        return status(404, { error: "Not found" });
       }
-
-      return Response.json(updated, { status: 200 });
+      return updated;
     },
-    DELETE: async (req: BunRequest<"/api/guest/instances/:id">) => {
-      if (!instancePolicies.allowGuest) {
-        return guestDisabledResponse();
+    { body: UpdateInstanceSchema },
+  )
+  .delete("/api/guest/instances/:id", ({ params }) => {
+    const loaded = loadGuestInstance(params.id);
+    if (!loaded.ok) {
+      return loaded.error;
+    }
+    if (loaded.instance.locked) {
+      return status(409, { error: "Instance is locked" });
+    }
+    deleteInstance(loaded.instance.id);
+    return { message: "Deleted" };
+  })
+  .patch(
+    "/api/guest/instances/:id/lock",
+    ({ params, body }) => {
+      const loaded = loadGuestInstance(params.id);
+      if (!loaded.ok) {
+        return loaded.error;
       }
-
-      const loaded = await loadGuestInstance(req.params.id);
-      if (loaded.kind === "error") {
-        return loaded.response;
-      }
-      if (loaded.instance.locked) {
-        return Response.json({ error: "Instance is locked" }, { status: 409 });
-      }
-      deleteInstance(loaded.instance.id);
-      return Response.json({ message: "Deleted" }, { status: 200 });
-    },
-  },
-  "/api/guest/instances/:id/lock": {
-    PATCH: async (req: BunRequest<"/api/guest/instances/:id/lock">) => {
-      if (!instancePolicies.allowGuest) {
-        return guestDisabledResponse();
-      }
-
-      const loaded = await loadGuestInstance(req.params.id);
-      if (loaded.kind === "error") {
-        return loaded.response;
-      }
-
-      const parsed = await parseJsonRequest(req, SetInstanceLockedSchema);
-      if (parsed.kind === "error") {
-        return parsed.response;
-      }
-
       const updated = updateInstance(loaded.instance.id, (inst) => ({
         ...inst,
-        locked: parsed.data.locked,
+        locked: body.locked,
       }));
-
       if (updated === undefined) {
-        return Response.json({ error: "Not found" }, { status: 404 });
+        return status(404, { error: "Not found" });
       }
-
-      return Response.json(updated, { status: 200 });
+      return updated;
     },
-  },
-  "/api/guest/instances/:id/logs": {
-    DELETE: async (req: BunRequest<"/api/guest/instances/:id/logs">) => {
-      if (!instancePolicies.allowGuest) {
-        return guestDisabledResponse();
-      }
-
-      const loaded = await loadGuestInstance(req.params.id);
-      if (loaded.kind === "error") {
-        return loaded.response;
-      }
-      clearLogsForInstance(loaded.instance.id);
-      return Response.json({ message: "Logs cleared" }, { status: 200 });
-    },
-  },
-} as const;
+    { body: SetInstanceLockedSchema },
+  )
+  .delete("/api/guest/instances/:id/logs", ({ params }) => {
+    const loaded = loadGuestInstance(params.id);
+    if (!loaded.ok) {
+      return loaded.error;
+    }
+    clearLogsForInstance(loaded.instance.id);
+    return { message: "Logs cleared" };
+  });

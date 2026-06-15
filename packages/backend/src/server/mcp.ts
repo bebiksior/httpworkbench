@@ -1,9 +1,8 @@
+import type { AuthInfo } from "@modelcontextprotocol/sdk/server/auth/types.js";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
-import type { AuthInfo } from "@modelcontextprotocol/sdk/server/auth/types.js";
 import * as z from "zod/v4";
-import type { ApiKeyAuthContext } from "./apiKeyAuth";
-import { authenticateApiKeyRequest, hasApiKeyScope } from "./apiKeyAuth";
+import { instancePolicies } from "../config";
 import {
   addInstance,
   clearLogsForInstance,
@@ -13,20 +12,20 @@ import {
   getLogsForInstancePage,
   getRecentLogsForInstance,
   updateInstance,
-  type LogsPageCursor,
 } from "../storage";
-import { instancePolicies } from "../config";
+import type { ApiKeyAuthContext } from "./apiKeyAuth";
+import { authenticateApiKeyRequest, hasApiKeyScope } from "./apiKeyAuth";
 import { createFixedWindowRateLimiter } from "./rateLimit";
 import {
-  ensureStaticResponseWithinLimit,
-  ensureValidStaticHttpRaw,
+  clampLogLimit,
+  decodeLogsCursor,
+  encodeLogsCursor,
   generateInstanceID,
-  normalizeStaticHttpRaw,
+  MAX_LOG_LIMIT,
+  validateStaticRaw,
 } from "./utils";
 
 const mcpLogPreviewLimit = 10;
-const defaultLogLimit = 50;
-const maxLogLimit = 500;
 const mcpRateLimitWindowMs = 60_000;
 const mcpRateLimitMaxRequests = 120;
 const unauthMcpRateLimitMaxRequests = 600;
@@ -166,30 +165,6 @@ const serializeInstanceSummary = (
   };
 };
 
-const encodeCursor = (cursor: LogsPageCursor): string => {
-  return Buffer.from(JSON.stringify(cursor), "utf8").toString("base64url");
-};
-
-const decodeCursor = (cursor: string): LogsPageCursor | undefined => {
-  try {
-    const decoded = JSON.parse(
-      Buffer.from(cursor, "base64url").toString("utf8"),
-    );
-    if (
-      decoded !== null &&
-      typeof decoded === "object" &&
-      typeof decoded.seq === "number" &&
-      Number.isInteger(decoded.seq) &&
-      decoded.seq >= 0
-    ) {
-      return { seq: decoded.seq };
-    }
-  } catch {
-    return undefined;
-  }
-  return undefined;
-};
-
 const readLogsPage = (input: {
   auth: ApiKeyAuthContext;
   instanceId: string;
@@ -199,12 +174,9 @@ const readLogsPage = (input: {
   sinceTimestamp?: number;
 }) => {
   getOwnedInstance(input.instanceId, input.auth);
-  const limit = Math.min(
-    Math.max(input.limit ?? defaultLogLimit, 1),
-    maxLogLimit,
-  );
+  const limit = clampLogLimit(input.limit);
   const cursor =
-    input.cursor === undefined ? undefined : decodeCursor(input.cursor);
+    input.cursor === undefined ? undefined : decodeLogsCursor(input.cursor);
   if (input.cursor !== undefined && cursor === undefined) {
     throw new Error("Invalid cursor");
   }
@@ -220,7 +192,9 @@ const readLogsPage = (input: {
   return {
     logs: page.logs,
     nextCursor:
-      page.nextCursor === undefined ? undefined : encodeCursor(page.nextCursor),
+      page.nextCursor === undefined
+        ? undefined
+        : encodeLogsCursor(page.nextCursor),
   };
 };
 
@@ -263,7 +237,7 @@ const createMcpServer = () => {
     {
       title: "Create Instance",
       description:
-        "Create a new static HTTP Workbench instance that serves the provided raw HTTP response from a public instance URL. Use this when the user needs a new hosted PoC page, callback receiver, redirect target, CORS test endpoint, separate origin, or other temporary hosted surface. Side effects: persists a new instance owned by the API key user, consumes instance quota, creates a reachable public endpoint, and future requests or DNS lookups for that endpoint may be logged. The raw input must be a complete valid HTTP response with status line, headers, blank line, and body.",
+        "Create a new static HTTP Workbench instance that serves the provided raw HTTP response from a public instance URL. Use this when the user needs a new hosted PoC page, callback receiver, redirect target, CORS test endpoint, separate origin, or other temporary hosted surface. Side effects: persists a new instance owned by the API key user, consumes instance quota, creates a reachable public endpoint, and future requests or DNS lookups for that endpoint may be logged. The raw input must be a complete valid HTTP response with status line, headers, blank line, and body. Consider cleaning up instance once you are done testing",
       inputSchema: {
         raw: z
           .string()
@@ -289,15 +263,11 @@ const createMcpServer = () => {
       const auth = getAuthContext(extra);
       requireScope(auth, "instances:write");
 
-      const normalizedRaw = normalizeStaticHttpRaw(raw);
-      const limitCheck = ensureStaticResponseWithinLimit(normalizedRaw);
-      if (limitCheck.kind === "error") {
-        return toolError(await limitCheck.response.text());
+      const check = validateStaticRaw(raw);
+      if (!check.ok) {
+        return toolError(check.error);
       }
-      const httpCheck = ensureValidStaticHttpRaw(normalizedRaw);
-      if (httpCheck.kind === "error") {
-        return toolError(await httpCheck.response.text());
-      }
+      const normalizedRaw = check.raw;
 
       if (instancePolicies.maxInstancesPerOwner !== undefined) {
         const ownedInstances = getInstancesByOwner(auth.user.id);
@@ -312,9 +282,9 @@ const createMcpServer = () => {
         ownerId: auth.user.id,
         createdAt: now,
         expiresAt:
-          instancePolicies.ttlMs === undefined
+          instancePolicies.defaultTtlMs === undefined
             ? undefined
-            : now + instancePolicies.ttlMs,
+            : now + instancePolicies.defaultTtlMs,
         webhookIds: [],
         label,
         public: false,
@@ -390,15 +360,11 @@ const createMcpServer = () => {
         return toolError("Only static instances can be updated through MCP");
       }
 
-      const normalizedRaw = normalizeStaticHttpRaw(raw);
-      const limitCheck = ensureStaticResponseWithinLimit(normalizedRaw);
-      if (limitCheck.kind === "error") {
-        return toolError(await limitCheck.response.text());
+      const check = validateStaticRaw(raw);
+      if (!check.ok) {
+        return toolError(check.error);
       }
-      const httpCheck = ensureValidStaticHttpRaw(normalizedRaw);
-      if (httpCheck.kind === "error") {
-        return toolError(await httpCheck.response.text());
-      }
+      const normalizedRaw = check.raw;
 
       const updated = updateInstance(instanceId, (instance) => ({
         ...instance,
@@ -460,7 +426,7 @@ const createMcpServer = () => {
     },
     async ({ instanceId }, extra) => {
       const auth = getAuthContext(extra);
-      requireScope(auth, "logs:read");
+      requireScope(auth, "instances:write");
       getOwnedInstance(instanceId, auth);
       clearLogsForInstance(instanceId);
       return jsonToolResult({ cleared: true });
@@ -482,9 +448,11 @@ const createMcpServer = () => {
           .number()
           .int()
           .min(1)
-          .max(maxLogLimit)
+          .max(MAX_LOG_LIMIT)
           .optional()
-          .describe(`Maximum number of logs to return, up to ${maxLogLimit}.`),
+          .describe(
+            `Maximum number of logs to return, up to ${MAX_LOG_LIMIT}.`,
+          ),
         cursor: z
           .string()
           .optional()
@@ -528,10 +496,10 @@ const createMcpServer = () => {
           .number()
           .int()
           .min(1)
-          .max(maxLogLimit)
+          .max(MAX_LOG_LIMIT)
           .optional()
           .describe(
-            `Maximum number of new logs to return, up to ${maxLogLimit}.`,
+            `Maximum number of new logs to return, up to ${MAX_LOG_LIMIT}.`,
           ),
         cursor: z
           .string()

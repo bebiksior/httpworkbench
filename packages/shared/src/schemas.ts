@@ -129,7 +129,8 @@ export type UserNoticeKind = UserNotice["kind"];
 export const ConfigSchema = z.object({
   isHosted: z.boolean(),
   allowGuest: z.boolean(),
-  ttlMs: z.number().optional(),
+  defaultTtlMs: z.number().optional(),
+  maxTtlMs: z.number().optional(),
   maxInstancesPerOwner: z.number().optional(),
   rawLimitBytes: z.number(),
   dnsEnabled: z.boolean(),

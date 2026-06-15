@@ -1,32 +1,24 @@
-import type { BunRequest } from "bun";
+import { Elysia, status } from "elysia";
 import { acknowledgeUserNotice, getPendingNoticesForUser } from "../../storage";
-import { withAuth } from "../auth";
+import { authPlugin } from "../auth";
 
-export const USER_ROUTES = {
-  "/api/user": {
-    GET: withAuth(async (_req, user) => {
-      return Response.json(user, { status: 200 });
-    }),
-  },
-  "/api/user/notices": {
-    GET: withAuth(async (_req, user) => {
-      const notices = getPendingNoticesForUser(user.id);
-      return Response.json({ notices }, { status: 200 });
-    }),
-  },
-  "/api/user/notices/:id/ack": {
-    POST: withAuth(
-      async (req: BunRequest<"/api/user/notices/:id/ack">, user) => {
-        const id = req.params.id;
-        if (id === "") {
-          return Response.json({ error: "Invalid id" }, { status: 400 });
-        }
-        const updated = acknowledgeUserNotice(id, user.id);
-        if (updated === undefined) {
-          return Response.json({ error: "Not found" }, { status: 404 });
-        }
-        return Response.json(updated, { status: 200 });
-      },
-    ),
-  },
-} as const;
+export const userRoutes = new Elysia({ name: "routes/user" })
+  .use(authPlugin)
+  .guard({ detail: { hide: true } })
+  .get("/api/user", ({ user }) => user, { session: true })
+  .get(
+    "/api/user/notices",
+    ({ user }) => ({ notices: getPendingNoticesForUser(user.id) }),
+    { session: true },
+  )
+  .post(
+    "/api/user/notices/:id/ack",
+    ({ params, user }) => {
+      const updated = acknowledgeUserNotice(params.id, user.id);
+      if (updated === undefined) {
+        return status(404, { error: "Not found" });
+      }
+      return updated;
+    },
+    { session: true },
+  );

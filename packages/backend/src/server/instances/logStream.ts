@@ -1,16 +1,15 @@
-import type { ServerWebSocket } from "bun";
 import type { Log } from "shared";
 
-export type LogStreamSocketData = {
-  instanceId: string;
-  userId: string;
-};
+interface LogStreamSocket {
+  send(data: string): unknown;
+  readonly readyState: number;
+}
 
-const listeners = new Map<string, Set<ServerWebSocket<LogStreamSocketData>>>();
+const listeners = new Map<string, Set<LogStreamSocket>>();
 
 export const subscribeToLogStream = (
   instanceId: string,
-  socket: ServerWebSocket<LogStreamSocketData>,
+  socket: LogStreamSocket,
 ) => {
   let sockets = listeners.get(instanceId);
   if (sockets === undefined) {
@@ -21,12 +20,9 @@ export const subscribeToLogStream = (
 };
 
 export const unsubscribeFromLogStream = (
-  socket: ServerWebSocket<LogStreamSocketData>,
+  instanceId: string,
+  socket: LogStreamSocket,
 ) => {
-  const instanceId = socket.data?.instanceId;
-  if (instanceId === undefined) {
-    return;
-  }
   const sockets = listeners.get(instanceId);
   if (sockets === undefined) {
     return;

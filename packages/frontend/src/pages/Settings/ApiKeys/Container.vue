@@ -111,6 +111,17 @@ const formatDate = (timestamp?: number) => {
     year: "numeric",
     month: "short",
     day: "numeric",
+  });
+};
+
+const formatDateTime = (timestamp?: number) => {
+  if (timestamp === undefined) {
+    return "Never";
+  }
+  return new Date(timestamp).toLocaleString("en-US", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
     hour: "2-digit",
     minute: "2-digit",
   });
@@ -279,35 +290,50 @@ const formatScopes = (scopes: ApiKeyScope[]) => {
       />
     </div>
     <div v-else class="overflow-x-auto">
-      <DataTable :value="activeApiKeys" striped-rows class="min-w-[760px]">
-        <Column field="name" header="Name" style="width: 18%" />
-        <Column field="prefix" header="Prefix" style="width: 18%">
-          <template #body="{ data }">
-            <span class="font-mono text-sm">{{ data.prefix }}</span>
-          </template>
-        </Column>
-        <Column field="scopes" header="Scopes" style="width: 32%">
+      <DataTable :value="activeApiKeys" striped-rows class="min-w-[640px]">
+        <Column field="name" header="Name" style="width: 22%" />
+        <Column field="scopes" header="Scopes" style="width: 40%">
           <template #body="{ data }">
             <span class="text-sm text-surface-600 dark:text-surface-300">
               {{ formatScopes(data.scopes) }}
             </span>
           </template>
         </Column>
-        <Column field="createdAt" header="Created" style="width: 14%">
+        <Column
+          field="createdAt"
+          header="Created"
+          style="width: 14%"
+          header-style="white-space: nowrap"
+        >
           <template #body="{ data }">
-            <span class="whitespace-nowrap">{{
-              formatDate(data.createdAt)
-            }}</span>
+            <span
+              v-tooltip.top="formatDateTime(data.createdAt)"
+              class="whitespace-nowrap"
+            >
+              {{ formatDate(data.createdAt) }}
+            </span>
           </template>
         </Column>
-        <Column field="lastUsedAt" header="Last Used" style="width: 14%">
+        <Column
+          field="lastUsedAt"
+          header="Last Used"
+          style="width: 14%"
+          header-style="white-space: nowrap"
+        >
           <template #body="{ data }">
-            <span class="whitespace-nowrap">{{
-              formatDate(data.lastUsedAt)
-            }}</span>
+            <span
+              v-tooltip.top="formatDateTime(data.lastUsedAt)"
+              class="whitespace-nowrap"
+            >
+              {{ formatDate(data.lastUsedAt) }}
+            </span>
           </template>
         </Column>
-        <Column header="Actions" style="width: 8%">
+        <Column
+          header="Actions"
+          style="width: 10%"
+          header-style="white-space: nowrap"
+        >
           <template #body="{ data }">
             <Button
               icon="pi pi-trash"

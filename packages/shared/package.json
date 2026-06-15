@@ -3,6 +3,9 @@
   "version": "0.0.0",
   "main": "src/index.ts",
   "type": "module",
+  "scripts": {
+    "typecheck": "tsgo --noEmit"
+  },
   "dependencies": {
     "zod": "^4.1.11"
   }

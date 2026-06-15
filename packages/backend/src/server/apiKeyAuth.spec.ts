@@ -1,19 +1,18 @@
-import { beforeEach, describe, expect, test, vi } from "vitest";
+import { beforeEach, describe, expect, mock, test } from "bun:test";
 import type { ApiKey, ApiKeyScope, UserRecord } from "shared";
 
 process.env.JWT_SECRET = "api-key-auth-test-secret";
-(globalThis as { Bun: unknown }).Bun = { env: process.env };
 
 type ApiKeySecretRecord = ApiKey & {
   secretHash: string;
 };
 
-const state = vi.hoisted(() => ({
+const state = {
   apiKeys: new Map<string, ApiKeySecretRecord>(),
   users: new Map<string, UserRecord>(),
-}));
+};
 
-vi.mock("../storage", () => ({
+mock.module("../storage", () => ({
   addApiKey: (input: {
     id: string;
     userId: string;
@@ -64,10 +63,7 @@ vi.mock("../storage", () => ({
   }),
 }));
 
-const loadAuthModule = async () => {
-  vi.resetModules();
-  return await import("./apiKeyAuth");
-};
+const loadAuthModule = async () => await import("./apiKeyAuth");
 
 describe("API key auth", () => {
   beforeEach(() => {
