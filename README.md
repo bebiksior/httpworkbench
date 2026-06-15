@@ -27,7 +27,7 @@ One thing stays the same: it will be as easy as before to create new instances. 
 
 - [ ] Username/password authentication for self-hosted deployments
 - [x] DNS support
-- [ ] better documentation
+- [x] better documentation
 - [ ] better self host setup process
 - [ ] multi-domain setup
 
@@ -51,18 +51,14 @@ HTTP Workbench exposes a public REST API for managing instances and reading thei
 
 ### Authentication
 
-Create a scoped API key in the dashboard under **Settings → API Keys** (the full key is shown only once). Send it as a bearer token:
+Create a scoped API key in the dashboard under **Settings → API Keys**. To test, send this:
 
 ```bash
-curl https://yourdomain.com/api/instances \
+curl https://httpworkbench.com/api/instances \
   -H "Authorization: Bearer hwb_<id>_<secret>"
 ```
 
-The same key also works with the MCP server at `/mcp`. Keys are stored hashed, can be revoked at any time, and are limited to 300 requests per minute. They only grant access to instance and log endpoints — never to account-sensitive routes like key or webhook management, which require a logged-in dashboard session.
-
 ### Scopes
-
-Each key is minted with a subset of scopes; a request that needs a scope the key lacks is rejected with `403`.
 
 | Scope              | Grants                                                         |
 | ------------------ | -------------------------------------------------------------- |
@@ -74,17 +70,17 @@ Each key is minted with a subset of scopes; a request that needs a scope the key
 
 ### Reference
 
-The full OpenAPI 3.1 specification is served at `/api/openapi.json` and can be rendered with any OpenAPI viewer.
+The full OpenAPI specification is served at `/api/openapi.json`
 
 ```bash
 # Create a static instance
-curl -X POST https://yourdomain.com/api/instances \
+curl -X POST https://httpworkbench.com/api/instances \
   -H "Authorization: Bearer hwb_<id>_<secret>" \
   -H "Content-Type: application/json" \
   -d '{"kind":"static","raw":"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\nhello"}'
 
 # Read its logs (paginate with nextCursor)
-curl "https://yourdomain.com/api/instances/<id>/logs?limit=50" \
+curl "https://httpworkbench.com/api/instances/<id>/logs?limit=50" \
   -H "Authorization: Bearer hwb_<id>_<secret>"
 ```
 
