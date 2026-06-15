@@ -136,7 +136,7 @@ describe("addLog", () => {
         {
           instanceId: "inst-1",
           window5mStartMs: 1_000,
-          requestsInWindow5m: 299,
+          requestsInWindow5m: 349,
           strikeCommittedForWindow: false,
           strikeTimestampsMs: [],
           window15mStartMs: 1_000,

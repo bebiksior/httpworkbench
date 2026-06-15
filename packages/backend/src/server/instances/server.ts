@@ -76,8 +76,11 @@ const tryLogInteraction = <T>(
   }
 };
 
-export const createInstancesServer = (port: number) => {
-  const server = listen<SocketData>({
+export const createInstancesServer = (
+  port: number,
+  listenFn: typeof listen = listen,
+) => {
+  const server = listenFn<SocketData>({
     hostname: "0.0.0.0",
     port,
     socket: {

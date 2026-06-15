@@ -13,8 +13,9 @@ describe("buildPublicConfig", () => {
     ).toEqual({
       isHosted: true,
       allowGuest: false,
-      ttlMs: 30 * 24 * 60 * 60 * 1000,
-      maxInstancesPerOwner: 50,
+      defaultTtlMs: 14 * 24 * 60 * 60 * 1000,
+      maxTtlMs: 30 * 24 * 60 * 60 * 1000,
+      maxInstancesPerOwner: 100,
       rawLimitBytes: 10 * 1024 * 1024,
       dnsEnabled: true,
       instancesDomain: "instances.example.com",
@@ -29,7 +30,8 @@ describe("buildPublicConfig", () => {
     ).toEqual({
       isHosted: false,
       allowGuest: false,
-      ttlMs: undefined,
+      defaultTtlMs: undefined,
+      maxTtlMs: undefined,
       maxInstancesPerOwner: undefined,
       rawLimitBytes: 10 * 1024 * 1024,
       dnsEnabled: false,

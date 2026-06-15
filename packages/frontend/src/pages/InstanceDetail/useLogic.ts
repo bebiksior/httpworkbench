@@ -44,7 +44,8 @@ export const useInstanceDetailLogic = (
   const lastHeartbeatAt = ref(0);
   const lastPingSentAt = ref<number | undefined>(undefined);
 
-  const { data, isLoading, error, refetch } = useInstanceDetail(instanceId);
+  const { data, isPending, isFetched, error, refetch } =
+    useInstanceDetail(instanceId);
 
   watch(
     data,
@@ -344,7 +345,13 @@ export const useInstanceDetailLogic = (
   return {
     instance: computed(() => data.value?.instance),
     logs: computed(() => [...streamLogs.value].reverse()),
-    isLoading,
+    showNotFound: computed(
+      () =>
+        isFetched.value &&
+        !isPending.value &&
+        data.value?.instance === undefined &&
+        error.value === undefined,
+    ),
     error,
   };
 };

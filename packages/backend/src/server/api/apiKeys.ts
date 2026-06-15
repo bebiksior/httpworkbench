@@ -1,10 +1,9 @@
-import type { BunRequest } from "bun";
+import { Elysia, status } from "elysia";
 import { CreateApiKeySchema } from "shared";
 import { deleteApiKey, getApiKeyById, getApiKeysByOwner } from "../../storage";
 import { createApiKeyForUser } from "../apiKeyAuth";
-import { withAuth } from "../auth";
+import { authPlugin } from "../auth";
 import { createFixedWindowRateLimiter } from "../rateLimit";
-import { parseJsonRequest } from "../utils";
 
 const apiKeyCreationWindowMs = 60 * 60 * 1000;
 const maxApiKeyCreationsPerWindow = 10;
@@ -15,23 +14,17 @@ const apiKeyCreationRateLimiter = createFixedWindowRateLimiter({
   windowMs: apiKeyCreationWindowMs,
 });
 
-export const API_KEYS_ROUTES = {
-  "/api/api-keys": {
-    GET: withAuth(async (_req: BunRequest<"/api/api-keys">, user) => {
-      const apiKeys = getApiKeysByOwner(user.id);
-      return Response.json(apiKeys, { status: 200 });
-    }),
-    POST: withAuth(async (req: BunRequest<"/api/api-keys">, user) => {
-      const parsed = await parseJsonRequest(req, CreateApiKeySchema);
-      if (parsed.kind === "error") {
-        return parsed.response;
-      }
-
+export const apiKeysRoutes = new Elysia({ name: "routes/api-keys" })
+  .use(authPlugin)
+  .guard({ detail: { hide: true } })
+  .get("/api/api-keys", ({ user }) => getApiKeysByOwner(user.id), {
+    session: true,
+  })
+  .post(
+    "/api/api-keys",
+    ({ body, user }) => {
       if (!apiKeyCreationRateLimiter.check(user.id)) {
-        return Response.json(
-          { error: "API key creation rate limit exceeded" },
-          { status: 429 },
-        );
+        return status(429, { error: "API key creation rate limit exceeded" });
       }
 
       const now = Date.now();
@@ -39,49 +32,35 @@ export const API_KEYS_ROUTES = {
         (apiKey) => apiKey.expiresAt === undefined || apiKey.expiresAt > now,
       );
       if (activeKeys.length >= maxActiveApiKeysPerUser) {
-        return Response.json(
-          { error: "Active API key limit reached" },
-          { status: 403 },
-        );
+        return status(403, { error: "Active API key limit reached" });
       }
 
-      if (parsed.data.expiresAt !== undefined && parsed.data.expiresAt <= now) {
-        return Response.json(
-          { error: "Expiration must be in the future" },
-          { status: 400 },
-        );
+      if (body.expiresAt !== undefined && body.expiresAt <= now) {
+        return status(400, { error: "Expiration must be in the future" });
       }
 
       const created = createApiKeyForUser({
         userId: user.id,
-        name: parsed.data.name.trim(),
+        name: body.name.trim(),
         scopes:
-          parsed.data.scopes === undefined
+          body.scopes === undefined
             ? undefined
-            : Array.from(new Set(parsed.data.scopes)),
-        expiresAt: parsed.data.expiresAt,
+            : Array.from(new Set(body.scopes)),
+        expiresAt: body.expiresAt,
       });
-
-      return Response.json(created, { status: 201 });
-    }),
-  },
-  "/api/api-keys/:id": {
-    DELETE: withAuth(async (req: BunRequest<"/api/api-keys/:id">, user) => {
-      const id = req.params.id;
-      if (id === "") {
-        return Response.json({ error: "Invalid id" }, { status: 400 });
+      return status(201, created);
+    },
+    { session: true, body: CreateApiKeySchema },
+  )
+  .delete(
+    "/api/api-keys/:id",
+    ({ params, user }) => {
+      const current = getApiKeyById(params.id);
+      if (current?.userId !== user.id) {
+        return status(404, { error: "Not found" });
       }
-
-      const current = getApiKeyById(id);
-      if (current === undefined) {
-        return Response.json({ error: "Not found" }, { status: 404 });
-      }
-      if (current.userId !== user.id) {
-        return Response.json({ error: "Not found" }, { status: 404 });
-      }
-
-      deleteApiKey(id);
-      return Response.json({ message: "Deleted" }, { status: 200 });
-    }),
-  },
-} as const;
+      deleteApiKey(params.id);
+      return { message: "Deleted" };
+    },
+    { session: true },
+  );

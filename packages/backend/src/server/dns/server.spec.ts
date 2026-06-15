@@ -2,7 +2,7 @@ import { createConnection } from "node:net";
 import dgram from "node:dgram";
 import * as dnsPacket from "dns-packet";
 import type { Packet } from "dns-packet";
-import { describe, expect, test, vi } from "vitest";
+import { describe, expect, spyOn, test } from "bun:test";
 import type { DnsConfig } from "../../config";
 import {
   createDnsServer,
@@ -673,9 +673,9 @@ describe("handleDnsRequest", () => {
   });
 
   test("returns undefined for dns packets that are too short to identify", async () => {
-    const consoleError = vi
-      .spyOn(console, "error")
-      .mockImplementation(() => undefined);
+    const consoleError = spyOn(console, "error").mockImplementation(
+      () => undefined,
+    );
 
     const response = await handleDnsRequest({
       payload: new Uint8Array([1, 2, 3]),
@@ -691,9 +691,9 @@ describe("handleDnsRequest", () => {
   });
 
   test("returns FORMERR without logging for a malformed dns question name", async () => {
-    const consoleError = vi
-      .spyOn(console, "error")
-      .mockImplementation(() => undefined);
+    const consoleError = spyOn(console, "error").mockImplementation(
+      () => undefined,
+    );
     const payload = Buffer.concat([
       createDnsHeader({
         id: 27,
@@ -729,9 +729,9 @@ describe("handleDnsRequest", () => {
   });
 
   test("returns FORMERR without logging for a truncated dns question", async () => {
-    const consoleError = vi
-      .spyOn(console, "error")
-      .mockImplementation(() => undefined);
+    const consoleError = spyOn(console, "error").mockImplementation(
+      () => undefined,
+    );
     const payload = Buffer.concat([
       createDnsHeader({ id: 28, questions: 1 }),
       Buffer.from([0]),
@@ -760,9 +760,9 @@ describe("handleDnsRequest", () => {
   });
 
   test("returns FORMERR without logging for a malformed dns answer section", async () => {
-    const consoleError = vi
-      .spyOn(console, "error")
-      .mockImplementation(() => undefined);
+    const consoleError = spyOn(console, "error").mockImplementation(
+      () => undefined,
+    );
     const payload = Buffer.concat([
       createDnsHeader({ id: 29, answers: 1 }),
       Buffer.from([0, 0, 99, 0, 1, 0, 0, 0, 60, 0]),

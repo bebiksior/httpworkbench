@@ -1,10 +1,14 @@
+import { Elysia, t } from "elysia";
 import { Google, generateCodeVerifier, generateState } from "arctic";
 import * as jose from "jose";
 import { ApiKeySignInSchema } from "shared";
 import { addUser, getUserByGoogleId } from "../../storage";
-import { authenticateApiKeyValue } from "../apiKeyAuth";
-import { issueAuthToken, withAuth } from "../auth";
-import { parseJsonRequest } from "../utils";
+import {
+  API_KEY_SCOPES,
+  authenticateApiKeyValue,
+  hasApiKeyScope,
+} from "../apiKeyAuth";
+import { authPlugin, issueAuthToken } from "../auth";
 
 const googleClientId = Bun.env.GOOGLE_CLIENT_ID;
 const googleClientSecret = Bun.env.GOOGLE_CLIENT_SECRET;
@@ -31,86 +35,98 @@ const google = new Google(
 
 const isSecure = frontendUrl.startsWith("https://");
 
-export const OAUTH_ROUTES = {
-  "/api/auth/api-key": {
-    POST: async (req: Request) => {
-      const parsed = await parseJsonRequest(req, ApiKeySignInSchema);
-      if (parsed.kind === "error") {
-        return parsed.response;
-      }
+const sessionCookie = {
+  httpOnly: true,
+  secure: isSecure,
+  sameSite: "lax",
+  path: "/",
+  maxAge: 2592000,
+} as const;
 
-      const auth = authenticateApiKeyValue(parsed.data.apiKey.trim());
+const oauthFlowCookie = {
+  httpOnly: true,
+  secure: isSecure,
+  path: "/",
+  maxAge: 300,
+} as const;
+
+const cookieSchema = t.Cookie({
+  auth_token: t.Optional(t.String()),
+  oauth_state: t.Optional(t.String()),
+  oauth_code_verifier: t.Optional(t.String()),
+});
+
+export const oauthRoutes = new Elysia({ name: "routes/oauth" })
+  .use(authPlugin)
+  .guard({ detail: { hide: true } })
+  .post(
+    "/api/auth/api-key",
+    async ({ body, cookie, status }) => {
+      const auth = authenticateApiKeyValue(body.apiKey.trim());
       if (auth === undefined) {
-        return Response.json({ error: "Invalid API key" }, { status: 401 });
+        return status(401, { error: "Invalid API key" });
       }
-
-      const appToken = await issueAuthToken(auth.user.id);
-      const response = Response.json(auth.user, { status: 200 });
-      response.headers.set(
-        "Set-Cookie",
-        `auth_token=${appToken}; HttpOnly${isSecure ? "; Secure" : ""}; SameSite=Lax; Path=/; Max-Age=2592000`,
+      const hasAllScopes = API_KEY_SCOPES.every((scope) =>
+        hasApiKeyScope(auth.apiKey, scope),
       );
-      return response;
+      if (!hasAllScopes) {
+        return status(403, {
+          error:
+            "This API key is scoped; dashboard sign-in requires a key with all scopes",
+        });
+      }
+      cookie.auth_token.set({
+        value: await issueAuthToken(auth.user.id),
+        ...sessionCookie,
+      });
+      return auth.user;
     },
-  },
-  "/api/auth/google": {
-    GET: async () => {
+    { body: ApiKeySignInSchema, cookie: cookieSchema },
+  )
+  .get(
+    "/api/auth/google",
+    ({ cookie, redirect }) => {
       const state = generateState();
       const codeVerifier = generateCodeVerifier();
-
       const authUrl = google.createAuthorizationURL(state, codeVerifier, [
         "openid",
         "email",
         "profile",
       ]);
 
-      const response = new Response(null, {
-        status: 302,
-        headers: {
-          Location: authUrl.toString(),
-        },
+      cookie.oauth_state.set({ value: state, ...oauthFlowCookie });
+      cookie.oauth_code_verifier.set({
+        value: codeVerifier,
+        ...oauthFlowCookie,
       });
 
-      response.headers.set(
-        "Set-Cookie",
-        `oauth_state=${state}; HttpOnly${isSecure ? "; Secure" : ""}; Path=/; Max-Age=300`,
-      );
-      response.headers.append(
-        "Set-Cookie",
-        `oauth_code_verifier=${codeVerifier}; HttpOnly${isSecure ? "; Secure" : ""}; Path=/; Max-Age=300`,
-      );
-
-      return response;
+      return redirect(authUrl.toString());
     },
-  },
-  "/api/auth/google/callback": {
-    GET: async (_req: Request) => {
+    { cookie: cookieSchema },
+  )
+  .get(
+    "/api/auth/google/callback",
+    async ({ request, cookie, redirect, status }) => {
       try {
-        const url = new URL(_req.url);
+        const url = new URL(request.url);
         const code = url.searchParams.get("code");
         const state = url.searchParams.get("state");
 
         if (code === null || code === "" || state === null || state === "") {
-          return new Response("Missing code/state", { status: 400 });
+          return status(400, "Missing code/state");
         }
-
-        const cookieHeader = _req.headers.get("cookie") ?? "";
-        const cookies = new Bun.CookieMap(cookieHeader);
-
-        if (cookies.get("oauth_state") !== state) {
-          return new Response("Invalid state", { status: 400 });
+        if (cookie.oauth_state.value !== state) {
+          return status(400, "Invalid state");
         }
-
-        const codeVerifier = cookies.get("oauth_code_verifier") ?? "";
-        if (codeVerifier === undefined || codeVerifier === "") {
-          return new Response("Missing code verifier", { status: 400 });
+        const codeVerifier = cookie.oauth_code_verifier.value ?? "";
+        if (codeVerifier === "") {
+          return status(400, "Missing code verifier");
         }
 
         const tokens = await google.validateAuthorizationCode(
           code,
           codeVerifier,
         );
-
         const idToken = tokens.idToken();
         const jwks = jose.createRemoteJWKSet(
           new URL("https://www.googleapis.com/oauth2/v3/certs"),
@@ -122,7 +138,7 @@ export const OAUTH_ROUTES = {
 
         const googleId = typeof payload.sub === "string" ? payload.sub : "";
         if (googleId === "") {
-          return new Response("Invalid id_token", { status: 400 });
+          return status(400, "Invalid id_token");
         }
 
         let user = getUserByGoogleId(googleId);
@@ -134,38 +150,23 @@ export const OAUTH_ROUTES = {
           });
         }
 
-        const appToken = await issueAuthToken(user.id);
-
-        const response = new Response(undefined, {
-          status: 302,
-          headers: [
-            ["Location", frontendUrl],
-            [
-              "Set-Cookie",
-              `auth_token=${appToken}; HttpOnly${isSecure ? "; Secure" : ""}; SameSite=Lax; Path=/; Max-Age=2592000`,
-            ],
-          ],
+        cookie.auth_token.set({
+          value: await issueAuthToken(user.id),
+          ...sessionCookie,
         });
-
-        return response;
+        return redirect(frontendUrl);
       } catch (error) {
         console.error(error);
-        return new Response("Failed to process user authentication", {
-          status: 500,
-        });
+        return status(500, "Failed to process user authentication");
       }
     },
-  },
-  "/api/auth/logout": {
-    POST: withAuth(async (_req, _user) => {
-      const response = new Response(null, {
-        status: 200,
-      });
-      response.headers.set(
-        "Set-Cookie",
-        `auth_token=; HttpOnly${isSecure ? "; Secure" : ""}; SameSite=Lax; Path=/; Max-Age=0`,
-      );
-      return response;
-    }),
-  },
-};
+    { cookie: cookieSchema },
+  )
+  .post(
+    "/api/auth/logout",
+    ({ cookie }) => {
+      cookie.auth_token.set({ value: "", ...sessionCookie, maxAge: 0 });
+      return { message: "Logged out" };
+    },
+    { session: true, cookie: cookieSchema },
+  );

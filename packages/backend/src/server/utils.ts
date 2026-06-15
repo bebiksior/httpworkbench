@@ -1,5 +1,5 @@
-import type { ZodTypeAny } from "zod";
 import { instancePolicies } from "../config";
+import type { LogsPageCursor } from "../storage";
 
 const encoder = new TextEncoder();
 const staticResponseLimitBytes = instancePolicies.rawLimitBytes;
@@ -16,66 +16,19 @@ export const generateInstanceID = () => {
   return id;
 };
 
-type ParseJsonSuccess<Schema extends ZodTypeAny> = {
-  kind: "ok";
-  data: Schema["_output"];
-};
-
-type ParseJsonError = {
-  kind: "error";
-  response: Response;
-};
-
-export const parseJsonRequest = async <Schema extends ZodTypeAny>(
-  req: Request,
-  schema: Schema,
-): Promise<ParseJsonSuccess<Schema> | ParseJsonError> => {
-  let body: unknown;
-  try {
-    body = await req.json();
-  } catch {
-    return {
-      kind: "error",
-      response: Response.json({ error: "Invalid JSON" }, { status: 400 }),
-    };
-  }
-
-  const parsed = schema.safeParse(body);
-  if (!parsed.success) {
-    return {
-      kind: "error",
-      response: Response.json({ error: "Invalid body" }, { status: 400 }),
-    };
-  }
-
-  return {
-    kind: "ok",
-    data: parsed.data,
-  };
-};
-
-type StaticResponseLimitResult =
-  | { kind: "ok" }
-  | { kind: "error"; response: Response };
+type StaticRawError = { status: number; error: string };
 
 export const ensureStaticResponseWithinLimit = (
   raw: string,
-): StaticResponseLimitResult => {
+): StaticRawError | undefined => {
   if (encoder.encode(raw).length > staticResponseLimitBytes) {
     return {
-      kind: "error",
-      response: Response.json(
-        { error: `Static response exceeds ${staticResponseLimitMb}MB limit` },
-        { status: 413 },
-      ),
+      status: 413,
+      error: `Static response exceeds ${staticResponseLimitMb}MB limit`,
     };
   }
-  return { kind: "ok" };
+  return undefined;
 };
-
-type StaticHttpValidationResult =
-  | { kind: "ok" }
-  | { kind: "error"; response: Response };
 
 const staticHttpLineBreakPattern = /\r?\n/;
 const staticHttpHeaderSeparatorPattern = /\r?\n\r?\n/;
@@ -92,53 +45,77 @@ export const normalizeStaticHttpRaw = (raw: string): string => {
   return `${headerBlock.split(staticHttpLineBreakPattern).join("\r\n")}\r\n\r\n${body}`;
 };
 
+const DEFAULT_LOG_LIMIT = 50;
+export const MAX_LOG_LIMIT = 500;
+
+export const clampLogLimit = (limit?: number): number => {
+  return Math.min(Math.max(limit ?? DEFAULT_LOG_LIMIT, 1), MAX_LOG_LIMIT);
+};
+
+export const encodeLogsCursor = (cursor: LogsPageCursor): string => {
+  return Buffer.from(JSON.stringify(cursor), "utf8").toString("base64url");
+};
+
+export const decodeLogsCursor = (
+  cursor: string,
+): LogsPageCursor | undefined => {
+  try {
+    const decoded = JSON.parse(
+      Buffer.from(cursor, "base64url").toString("utf8"),
+    );
+    if (
+      decoded !== null &&
+      typeof decoded === "object" &&
+      typeof decoded.seq === "number" &&
+      Number.isInteger(decoded.seq) &&
+      decoded.seq >= 0
+    ) {
+      return { seq: decoded.seq };
+    }
+  } catch {
+    return undefined;
+  }
+  return undefined;
+};
+
 export const ensureValidStaticHttpRaw = (
   raw: string,
-): StaticHttpValidationResult => {
+): StaticRawError | undefined => {
   const trimmedStart = raw.trimStart();
   if (!trimmedStart.startsWith("HTTP/")) {
     return {
-      kind: "error",
-      response: Response.json(
-        {
-          error:
-            "Static response must start with an HTTP status line (e.g. HTTP/1.1 200 OK)",
-        },
-        { status: 400 },
-      ),
+      status: 400,
+      error:
+        "Static response must start with an HTTP status line (e.g. HTTP/1.1 200 OK)",
     };
   }
   const headerSeparatorMatch = staticHttpHeaderSeparatorPattern.exec(raw);
   if (headerSeparatorMatch === null) {
     return {
-      kind: "error",
-      response: Response.json(
-        {
-          error:
-            "Static response must include a blank line between headers and body (\\r\\n\\r\\n)",
-        },
-        { status: 400 },
-      ),
+      status: 400,
+      error:
+        "Static response must include a blank line between headers and body (\\r\\n\\r\\n)",
     };
   }
   const firstLine = raw.split(staticHttpLineBreakPattern)[0];
   if (firstLine === undefined || firstLine === "") {
-    return {
-      kind: "error",
-      response: Response.json(
-        { error: "Invalid HTTP status line" },
-        { status: 400 },
-      ),
-    };
+    return { status: 400, error: "Invalid HTTP status line" };
   }
   if (!/^HTTP\/\d+\.\d+\s+\d{3}/.test(firstLine)) {
-    return {
-      kind: "error",
-      response: Response.json(
-        { error: "Invalid HTTP status line" },
-        { status: 400 },
-      ),
-    };
+    return { status: 400, error: "Invalid HTTP status line" };
   }
-  return { kind: "ok" };
+  return undefined;
+};
+
+export const validateStaticRaw = (
+  raw: string,
+): { ok: true; raw: string } | { ok: false; status: number; error: string } => {
+  const normalized = normalizeStaticHttpRaw(raw);
+  const error =
+    ensureStaticResponseWithinLimit(normalized) ??
+    ensureValidStaticHttpRaw(normalized);
+  if (error !== undefined) {
+    return { ok: false, ...error };
+  }
+  return { ok: true, raw: normalized };
 };

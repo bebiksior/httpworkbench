@@ -4,6 +4,7 @@ import { storeToRefs } from "pinia";
 import type {
   CreateInstanceInput,
   Instance,
+  InstanceDetailResponse,
   RenameInstanceInput,
   SetInstanceLockedInput,
   SetInstancePublicInput,
@@ -225,17 +226,37 @@ export const useClearLogs = () => {
   const { isGuest } = storeToRefs(authStore);
 
   return useMutation({
+    onMutate: async (id) => {
+      const queryKey = queryKeys.instances.detail(id);
+      await queryClient.cancelQueries({ queryKey });
+      const previousDetails =
+        queryClient.getQueriesData<InstanceDetailResponse>({ queryKey });
+      queryClient.setQueriesData<InstanceDetailResponse>(
+        { queryKey },
+        (detail) => {
+          if (detail === undefined) {
+            return undefined;
+          }
+          return { ...detail, logs: [] };
+        },
+      );
+      return { previousDetails };
+    },
     mutationFn: (id: string) => {
       if (isGuest.value) {
         return guestInstancesApi.clearLogs(id);
       }
       return instancesApi.clearLogs(id);
     },
-    onSuccess: (_, id) => {
+    onError: (_error, _id, context) => {
+      for (const [queryKey, detail] of context?.previousDetails ?? []) {
+        queryClient.setQueryData(queryKey, detail);
+      }
+    },
+    onSettled: (_data, _error, id) =>
       queryClient.invalidateQueries({
         queryKey: queryKeys.instances.detail(id),
-      });
-    },
+      }),
   });
 };
 

@@ -14,7 +14,8 @@ const appConfig = buildPublicConfig(env);
 export const instancePolicies = {
   isHosted: appConfig.isHosted,
   allowGuest: appConfig.allowGuest,
-  ttlMs: appConfig.ttlMs,
+  defaultTtlMs: appConfig.defaultTtlMs,
+  maxTtlMs: appConfig.maxTtlMs,
   maxInstancesPerOwner: appConfig.maxInstancesPerOwner,
   rawLimitBytes: appConfig.rawLimitBytes,
 };
@@ -60,7 +61,7 @@ const parseNameservers = (
   return names;
 };
 
-export const buildDnsConfig = (
+const buildDnsConfig = (
   runtimeEnv: Record<string, string | undefined>,
 ): DnsConfig => {
   const normalizedDomain = resolveDomain(runtimeEnv.DOMAIN);

@@ -11,7 +11,7 @@ import { InstanceLog } from "./components/InstanceLog";
 
 const route = useRoute();
 const instanceId = computed(() => route.params.id as string);
-const { instance, logs, isLoading } = useInstanceDetailLogic(instanceId);
+const { instance, logs, showNotFound } = useInstanceDetailLogic(instanceId);
 const {
   isHidden: isSidePanelHidden,
   isTransitioning: isSidePanelTransitioning,
@@ -43,23 +43,14 @@ const {
       <div
         class="instance-detail-side-panel-content flex h-full min-h-0 flex-col"
       >
-        <div
-          v-if="isLoading"
-          class="flex flex-1 items-center justify-center px-6 py-10"
-        >
-          <i
-            class="pi pi-spinner pi-spin text-4xl text-surface-500 dark:text-surface-400"
-          />
-        </div>
-
         <InstanceData
-          v-else-if="instance"
+          v-if="instance"
           :instance="instance"
           @hide-panel="setSidePanelHidden(true)"
         />
 
         <div
-          v-else
+          v-else-if="showNotFound"
           class="flex flex-1 items-center justify-center px-6 py-10 text-center text-surface-700 dark:text-surface-400"
         >
           Instance not found
