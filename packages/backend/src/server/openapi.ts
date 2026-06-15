@@ -37,7 +37,8 @@ const description = [
 
 export const openApiPlugin = () =>
   openapi({
-    provider: null,
+    provider: "scalar",
+    path: "/docs",
     specPath: "/api/openapi.json",
     documentation: {
       info: {

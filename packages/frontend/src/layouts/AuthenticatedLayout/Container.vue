@@ -101,6 +101,15 @@ const goSettings = () => {
               @click="themeStore.toggle"
             />
             <a
+              href="/docs"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="inline-flex h-10 w-10 items-center justify-center rounded-full text-surface-600 transition-colors hover:bg-surface-100 hover:text-surface-800 dark:text-surface-400 dark:hover:bg-surface-700 dark:hover:text-surface-200"
+              aria-label="API docs"
+            >
+              <i class="pi pi-book text-xl" />
+            </a>
+            <a
               href="https://github.com/bebiksior/httpworkbench"
               target="_blank"
               rel="noopener noreferrer"

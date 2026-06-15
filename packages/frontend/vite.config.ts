@@ -61,6 +61,10 @@ export default defineConfig(({ mode }) => {
           target: `http://localhost:${env.API_PORT || "8081"}`,
           changeOrigin: true,
         },
+        "/docs": {
+          target: `http://localhost:${env.API_PORT || "8081"}`,
+          changeOrigin: true,
+        },
       },
     },
     define: {

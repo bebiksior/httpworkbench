@@ -33,6 +33,15 @@ http://{$DOMAIN}, https://{$DOMAIN} {
 		}
 	}
 
+	handle /docs* {
+		reverse_proxy backend:8081 {
+			header_up -X-Forwarded-For
+			header_up -X-Forwarded-Host
+			header_up -X-Forwarded-Proto
+			header_up -Via
+		}
+	}
+
 	handle {
 		root * /srv/frontend
 		try_files {path} /index.html
