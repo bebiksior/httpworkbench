@@ -50,16 +50,17 @@ const formatDate = (timestamp: number) => {
     year: "numeric",
     month: "short",
     day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
   });
 };
 
-const truncateUrl = (url: string, maxLength = 50) => {
-  if (url.length <= maxLength) {
-    return url;
-  }
-  return url.substring(0, maxLength) + "...";
+const formatDateTime = (timestamp: number) => {
+  return new Date(timestamp).toLocaleString("en-US", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 };
 
 const truncateMessage = (message?: string, maxLength = 45) => {
@@ -81,17 +82,10 @@ const truncateMessage = (message?: string, maxLength = 45) => {
       :value="webhooks"
       :loading="isLoading"
       striped-rows
-      class="min-w-[760px]"
+      class="min-w-[560px]"
     >
-      <Column field="name" header="Name" style="width: 18%" />
-      <Column field="url" header="Webhook URL" style="width: 32%">
-        <template #body="{ data }">
-          <span class="block truncate font-mono text-sm" :title="data.url">
-            {{ truncateUrl(data.url, 60) }}
-          </span>
-        </template>
-      </Column>
-      <Column field="message" header="Message" style="width: 25%">
+      <Column field="name" header="Name" style="width: 25%" />
+      <Column field="message" header="Message" style="width: 45%">
         <template #body="{ data }">
           <span
             class="block truncate text-sm"
@@ -106,14 +100,26 @@ const truncateMessage = (message?: string, maxLength = 45) => {
           </span>
         </template>
       </Column>
-      <Column field="createdAt" header="Created" style="width: 15%">
+      <Column
+        field="createdAt"
+        header="Created"
+        style="width: 18%"
+        header-style="white-space: nowrap"
+      >
         <template #body="{ data }">
-          <span class="whitespace-nowrap">{{
-            formatDate(data.createdAt)
-          }}</span>
+          <span
+            v-tooltip.top="formatDateTime(data.createdAt)"
+            class="whitespace-nowrap"
+          >
+            {{ formatDate(data.createdAt) }}
+          </span>
         </template>
       </Column>
-      <Column header="Actions" style="width: 10%">
+      <Column
+        header="Actions"
+        style="width: 12%"
+        header-style="white-space: nowrap"
+      >
         <template #body="{ data }">
           <div class="flex gap-1">
             <Button
