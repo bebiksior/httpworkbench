@@ -14,17 +14,63 @@ const themeStore = useThemeStore();
 const router = useRouter();
 const menu = ref();
 
-const items = computed(() => [
-  {
-    label: authStore.isGuest ? "Exit Guest Mode" : "Logout",
-    icon: "pi pi-sign-out",
-    command: () => {
-      authStore.logout();
-    },
-  },
-]);
+const goSettings = () => {
+  void router.push({ name: "settings" });
+};
 
-const toggle = (event: Event) => {
+const accountLabel = computed(() => {
+  if (authStore.user) {
+    return authStore.user.googleId;
+  }
+  if (authStore.isGuest) {
+    return "Guest session";
+  }
+  return undefined;
+});
+
+const menuItems = computed(() => {
+  const sessionItems = authStore.hasSession
+    ? [
+        {
+          label: "Settings",
+          icon: "pi pi-cog",
+          command: goSettings,
+        },
+      ]
+    : [];
+
+  const linkItems = [
+    {
+      label: "API Docs",
+      icon: "pi pi-book",
+      url: "/docs",
+      target: "_blank",
+    },
+    {
+      label: "GitHub",
+      icon: "pi pi-github",
+      url: "https://github.com/bebiksior/httpworkbench",
+      target: "_blank",
+    },
+  ];
+
+  const logoutItems = authStore.hasSession
+    ? [
+        { separator: true },
+        {
+          label: authStore.isGuest ? "Exit Guest Mode" : "Logout",
+          icon: "pi pi-sign-out",
+          command: () => {
+            authStore.logout();
+          },
+        },
+      ]
+    : [];
+
+  return [...sessionItems, ...linkItems, ...logoutItems];
+});
+
+const toggleMenu = (event: Event) => {
   menu.value.toggle(event);
 };
 
@@ -39,10 +85,6 @@ const goHome = (event: MouseEvent) => {
 
 const goLogin = () => {
   router.push({ name: "login" });
-};
-
-const goSettings = () => {
-  void router.push({ name: "settings" });
 };
 </script>
 
@@ -82,61 +124,22 @@ const goSettings = () => {
             </button>
           </div>
 
-          <div class="flex shrink-0 items-center gap-1 sm:gap-2">
-            <Button
-              v-if="authStore.hasSession"
-              type="button"
-              icon="pi pi-cog"
-              rounded
-              text
-              aria-label="Settings"
-              @click="goSettings"
-            />
+          <div class="flex shrink-0 items-center gap-1">
             <Button
               type="button"
               :icon="themeStore.mode === 'dark' ? 'pi pi-sun' : 'pi pi-moon'"
               rounded
               text
-              aria-label="Toggle theme"
+              :aria-label="
+                themeStore.mode === 'dark'
+                  ? 'Switch to light mode'
+                  : 'Switch to dark mode'
+              "
               @click="themeStore.toggle"
             />
-            <a
-              href="/docs"
-              target="_blank"
-              rel="noopener noreferrer"
-              class="inline-flex h-10 w-10 items-center justify-center rounded-full text-surface-600 transition-colors hover:bg-surface-100 hover:text-surface-800 dark:text-surface-400 dark:hover:bg-surface-700 dark:hover:text-surface-200"
-              aria-label="API docs"
-            >
-              <i class="pi pi-book text-xl" />
-            </a>
-            <a
-              href="https://github.com/bebiksior/httpworkbench"
-              target="_blank"
-              rel="noopener noreferrer"
-              class="inline-flex h-10 w-10 items-center justify-center rounded-full text-surface-600 transition-colors hover:bg-surface-100 hover:text-surface-800 dark:text-surface-400 dark:hover:bg-surface-700 dark:hover:text-surface-200"
-              aria-label="GitHub"
-            >
-              <i class="pi pi-github text-xl" />
-            </a>
-            <span
-              v-if="authStore.user"
-              class="text-sm text-surface-400 hidden sm:inline"
-            >
-              {{ authStore.user.googleId }}
-            </span>
-            <template v-if="authStore.hasSession">
-              <Button
-                type="button"
-                icon="pi pi-user"
-                rounded
-                text
-                aria-label="User"
-                @mousedown="toggle"
-              />
-              <Menu ref="menu" :model="items" popup />
-            </template>
+
             <Button
-              v-else
+              v-if="!authStore.hasSession"
               type="button"
               label="Login"
               icon="pi pi-sign-in"
@@ -144,6 +147,31 @@ const goSettings = () => {
               size="small"
               @click="goLogin"
             />
+
+            <Button
+              type="button"
+              icon="pi pi-bars"
+              rounded
+              text
+              aria-label="Menu"
+              aria-haspopup="true"
+              @click="toggleMenu"
+            />
+            <Menu ref="menu" :model="menuItems" popup>
+              <template #start>
+                <div
+                  v-if="accountLabel !== undefined"
+                  class="border-b border-surface-200 px-3 py-2.5 dark:border-surface-700"
+                >
+                  <p
+                    class="max-w-[220px] truncate text-sm text-surface-600 dark:text-surface-400"
+                    :title="accountLabel"
+                  >
+                    {{ accountLabel }}
+                  </p>
+                </div>
+              </template>
+            </Menu>
           </div>
         </div>
       </div>
