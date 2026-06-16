@@ -35,6 +35,7 @@ describe("frontend config", () => {
         VITE_IS_HOSTED: "true",
         VITE_ALLOW_GUEST: "false",
         VITE_DNS_ENABLED: "true",
+        VITE_SMTP_ENABLED: "true",
         VITE_DOMAIN: "example.com",
       },
       "test-version",
@@ -47,5 +48,6 @@ describe("frontend config", () => {
     expect(config.maxInstancesPerOwner).toBe(100);
     expect(config.rawLimitBytes).toBe(10 * 1024 * 1024);
     expect(config.dnsEnabled).toBe(true);
+    expect(config.smtpEnabled).toBe(true);
   });
 });

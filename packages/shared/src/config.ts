@@ -11,6 +11,7 @@ export type PublicConfigEnv = {
   IS_HOSTED?: string;
   ALLOW_GUEST?: string;
   DNS_ENABLED?: string;
+  SMTP_ENABLED?: string;
   DOMAIN?: string;
   INSTANCES_DOMAIN?: string;
 };
@@ -73,6 +74,7 @@ export const buildPublicConfig = (env: PublicConfigEnv): Config => {
     maxInstancesPerOwner: isHosted ? hostedInstanceLimit : undefined,
     rawLimitBytes: staticInstanceRawLimitBytes,
     dnsEnabled: parseBooleanEnv(env.DNS_ENABLED) ?? false,
+    smtpEnabled: parseBooleanEnv(env.SMTP_ENABLED) ?? false,
     instancesDomain: resolveInstancesDomain(env),
   };
 };

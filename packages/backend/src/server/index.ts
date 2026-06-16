@@ -5,7 +5,7 @@ import {
   getInstanceById,
   removeExpiredInstances,
 } from "../storage";
-import { dnsConfig, instancePolicies } from "../config";
+import { dnsConfig, instancePolicies, smtpConfig } from "../config";
 import {
   apiKeysRoutes,
   guestInstancesRoutes,
@@ -30,6 +30,7 @@ import {
   unsubscribeFromLogStream,
 } from "./instances";
 import { createDnsServer } from "./dns";
+import { createSmtpServer } from "./smtp";
 import { version } from "../version";
 
 const buildApiServer = (port: number) => {
@@ -130,6 +131,19 @@ export const initServer = async () => {
       })
     : undefined;
 
+  const smtpServer = smtpConfig.smtpEnabled
+    ? await createSmtpServer({
+        config: smtpConfig,
+        deps: {
+          getInstanceById: async (id) => getInstanceById(id),
+          addLog: async (log) => addLog(log),
+          broadcastLog,
+          createId: () => crypto.randomUUID(),
+          now: () => Date.now(),
+        },
+      })
+    : undefined;
+
   let cleanupInterval: ReturnType<typeof setInterval> | undefined;
   const defaultTtlMs = instancePolicies.defaultTtlMs;
   if (defaultTtlMs !== undefined) {
@@ -160,6 +174,7 @@ export const initServer = async () => {
     apiServer,
     instancesServer,
     dnsServer,
+    smtpServer,
     stopMaintenance,
     drainBackgroundWork,
   };

@@ -113,7 +113,7 @@ export const logs = sqliteTable(
     instanceId: text("instanceId")
       .notNull()
       .references(() => instances.id, { onDelete: "cascade" }),
-    type: text("type", { enum: ["dns", "http"] })
+    type: text("type", { enum: ["dns", "http", "smtp"] })
       .$type<LogType>()
       .notNull(),
     timestamp: integer("timestamp", { mode: "number" }).notNull(),

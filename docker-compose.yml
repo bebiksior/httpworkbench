@@ -26,6 +26,8 @@ services:
       - DNS_PORT=${DNS_PORT:-53}
       - DNS_NAMESERVERS=${DNS_NAMESERVERS:-}
       - PUBLIC_IP=${PUBLIC_IP:-}
+      - SMTP_ENABLED=${SMTP_ENABLED:-false}
+      - SMTP_PORT=${SMTP_PORT:-25}
     volumes:
       - backend_data:/app/data
 
@@ -39,6 +41,7 @@ services:
         - IS_HOSTED=${IS_HOSTED:-false}
         - ALLOW_GUEST=${ALLOW_GUEST:-false}
         - DNS_ENABLED=${DNS_ENABLED:-false}
+        - SMTP_ENABLED=${SMTP_ENABLED:-false}
     restart: unless-stopped
     ports:
       - "80:80"

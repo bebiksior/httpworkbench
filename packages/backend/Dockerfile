@@ -17,6 +17,6 @@ COPY packages/shared packages/shared
 WORKDIR /app/packages/backend
 ENV NODE_ENV=production
 ENV DATA_DIR=/app/data
-EXPOSE 8081 8082
+EXPOSE 8081 8082 25
 
 CMD ["bun", "run", "src/index.ts"]

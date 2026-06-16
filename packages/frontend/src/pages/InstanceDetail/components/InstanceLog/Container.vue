@@ -5,12 +5,26 @@ import { useTimeAgo } from "@vueuse/core";
 import dayjs from "dayjs";
 import { HTTPLog } from "./components/HTTPLog";
 import { DNSLog } from "./components/DNSLog";
+import { SMTPLog } from "./components/SMTPLog";
 
 const props = defineProps<{
   log: Log;
 }>();
 
 const { log } = toRefs(props);
+
+const badgeClass = computed(() => {
+  switch (log.value.type) {
+    case "http":
+      return "border-sky-400/30 bg-sky-400/10 text-sky-600 dark:text-sky-300";
+    case "dns":
+      return "border-amber-400/30 bg-amber-400/10 text-amber-700 dark:text-amber-300";
+    case "smtp":
+      return "border-violet-400/30 bg-violet-400/10 text-violet-600 dark:text-violet-300";
+    default:
+      return "border-surface-300/40 bg-surface-300/10 text-surface-600 dark:text-surface-300";
+  }
+});
 
 const relativeTimestamp = useTimeAgo(() => log.value.timestamp);
 const formattedTimestamp = computed(() => {
@@ -36,11 +50,7 @@ const absoluteTimestamp = computed(() =>
       <div class="flex min-w-0 flex-1 items-center gap-2">
         <span
           class="shrink-0 rounded border px-1.5 py-0.5 font-semibold leading-none"
-          :class="
-            log.type === 'http'
-              ? 'border-sky-400/30 bg-sky-400/10 text-sky-600 dark:text-sky-300'
-              : 'border-amber-400/30 bg-amber-400/10 text-amber-700 dark:text-amber-300'
-          "
+          :class="badgeClass"
         >
           {{ log.type.toUpperCase() }}
         </span>
@@ -64,6 +74,7 @@ const absoluteTimestamp = computed(() =>
     <div class="p-0">
       <HTTPLog v-if="log.type === 'http'" :log="log" />
       <DNSLog v-else-if="log.type === 'dns'" :log="log" />
+      <SMTPLog v-else-if="log.type === 'smtp'" :log="log" />
       <div v-else class="p-4 text-surface-700 dark:text-surface-400">
         Unknown log type
       </div>

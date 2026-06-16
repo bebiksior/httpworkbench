@@ -77,6 +77,9 @@ export default defineConfig(({ mode }) => {
       "import.meta.env.VITE_DNS_ENABLED": JSON.stringify(
         readBuildEnv("DNS_ENABLED", "false"),
       ),
+      "import.meta.env.VITE_SMTP_ENABLED": JSON.stringify(
+        readBuildEnv("SMTP_ENABLED", "false"),
+      ),
       "import.meta.env.VITE_DOMAIN": JSON.stringify(
         readBuildEnv("DOMAIN", "localhost"),
       ),

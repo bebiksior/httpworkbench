@@ -30,7 +30,7 @@ const mcpRateLimitWindowMs = 60_000;
 const mcpRateLimitMaxRequests = 120;
 const unauthMcpRateLimitMaxRequests = 600;
 const mcpServerInstructions = `
-HTTP Workbench helps pentesters and security researchers create temporary hosted HTTP proof-of-concept pages and observe HTTP/DNS interactions for authorized security testing.
+HTTP Workbench helps pentesters and security researchers create temporary hosted HTTP proof-of-concept pages and observe HTTP/DNS/SMTP interactions for authorized security testing.
 
 An instance is a hosted subdomain under the configured instances domain. Static instances serve an exact raw HTTP response and record incoming HTTP requests. Deployments with DNS enabled also record DNS lookups for instance hostnames.
 
@@ -170,7 +170,7 @@ const readLogsPage = (input: {
   instanceId: string;
   limit?: number;
   cursor?: string;
-  type?: "http" | "dns";
+  type?: "http" | "dns" | "smtp";
   sinceTimestamp?: number;
 }) => {
   getOwnedInstance(input.instanceId, input.auth);
@@ -410,7 +410,7 @@ const createMcpServer = () => {
     {
       title: "Clear Instance Logs",
       description:
-        "Clear all recorded HTTP/DNS logs for an owned instance while leaving the hosted instance itself intact. Use this when the user wants a clean slate before reproducing an interaction. Side effects: permanently removes stored logs for the instance; it does not change the served response or public URL.",
+        "Clear all recorded HTTP/DNS/SMTP logs for an owned instance while leaving the hosted instance itself intact. Use this when the user wants a clean slate before reproducing an interaction. Side effects: permanently removes stored logs for the instance; it does not change the served response or public URL.",
       inputSchema: {
         instanceId: z
           .string()
@@ -438,7 +438,7 @@ const createMcpServer = () => {
     {
       title: "Read Instance Logs",
       description:
-        "Read historical paginated HTTP/DNS interaction logs for an owned instance. Use this when the user asks what requests, callbacks, DNS lookups, headers, paths, bodies, or source addresses reached an instance. This is read-only, but returned logs can contain sensitive request data. Use nextCursor to fetch additional pages.",
+        "Read historical paginated HTTP/DNS/SMTP interaction logs for an owned instance. Use this when the user asks what requests, callbacks, DNS lookups, headers, paths, bodies, or source addresses reached an instance. This is read-only, but returned logs can contain sensitive request data. Use nextCursor to fetch additional pages.",
       inputSchema: {
         instanceId: z
           .string()
@@ -458,7 +458,7 @@ const createMcpServer = () => {
           .optional()
           .describe("Opaque cursor returned by a previous log read."),
         type: z
-          .enum(["http", "dns"])
+          .enum(["http", "dns", "smtp"])
           .optional()
           .describe("Optional log type filter."),
         sinceTimestamp: z
@@ -486,7 +486,7 @@ const createMcpServer = () => {
     {
       title: "Watch Instance Logs",
       description:
-        "Poll for new HTTP/DNS logs from an owned instance while the user is waiting for an interaction to arrive. This is read-only, but returned logs can contain sensitive request data. Call again after pollAfterMs using the returned nextCursor to continue watching without replaying older entries.",
+        "Poll for new HTTP/DNS/SMTP logs from an owned instance while the user is waiting for an interaction to arrive. This is read-only, but returned logs can contain sensitive request data. Call again after pollAfterMs using the returned nextCursor to continue watching without replaying older entries.",
       inputSchema: {
         instanceId: z
           .string()
@@ -508,7 +508,7 @@ const createMcpServer = () => {
             "Opaque cursor returned by a previous log read or watch call.",
           ),
         type: z
-          .enum(["http", "dns"])
+          .enum(["http", "dns", "smtp"])
           .optional()
           .describe("Optional log type filter."),
         sinceTimestamp: z

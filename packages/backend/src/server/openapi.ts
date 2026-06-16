@@ -11,7 +11,7 @@ const resolveServerUrl = (): string => {
 };
 
 const description = [
-  "Programmatic access to HTTP Workbench instances and their recorded HTTP/DNS interaction logs.",
+  "Programmatic access to HTTP Workbench instances and their recorded HTTP/DNS/SMTP interaction logs.",
   "",
   "## Authentication",
   "",
@@ -56,7 +56,8 @@ export const openApiPlugin = () =>
         },
         {
           name: "Logs",
-          description: "Read and clear recorded HTTP/DNS interaction logs.",
+          description:
+            "Read and clear recorded HTTP/DNS/SMTP interaction logs.",
         },
       ],
       components: {

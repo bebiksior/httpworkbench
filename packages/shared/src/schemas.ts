@@ -51,7 +51,7 @@ export type InstanceKind = Instance["kind"];
 export const LogSchema = z.object({
   id: z.string(),
   instanceId: z.string(),
-  type: z.union([z.literal("dns"), z.literal("http")]),
+  type: z.union([z.literal("dns"), z.literal("http"), z.literal("smtp")]),
   timestamp: z.number(),
   address: z.string(),
   addressVerified: z.boolean().optional(),
@@ -134,6 +134,7 @@ export const ConfigSchema = z.object({
   maxInstancesPerOwner: z.number().optional(),
   rawLimitBytes: z.number(),
   dnsEnabled: z.boolean(),
+  smtpEnabled: z.boolean(),
   instancesDomain: z.string(),
 });
 

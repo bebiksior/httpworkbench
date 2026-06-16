@@ -2,6 +2,12 @@ import type { Log } from "shared";
 
 const DISCORD_HTTP_COLOR = 0x3b82f6;
 const DISCORD_DNS_COLOR = 0x10b981;
+const DISCORD_SMTP_COLOR = 0x8b5cf6;
+const DISCORD_LOG_COLORS: Record<Log["type"], number> = {
+  http: DISCORD_HTTP_COLOR,
+  dns: DISCORD_DNS_COLOR,
+  smtp: DISCORD_SMTP_COLOR,
+};
 const MAX_MESSAGE_CONTENT_LENGTH = 2000;
 const MAX_RAW_CONTENT_LENGTH = 1024 - 8;
 const MAX_ADDRESS_LENGTH = 1024;
@@ -77,7 +83,7 @@ export const buildDiscordNotificationPayload = (
   log: Log,
   messageTemplate?: string,
 ) => {
-  const color = log.type === "http" ? DISCORD_HTTP_COLOR : DISCORD_DNS_COLOR;
+  const color = DISCORD_LOG_COLORS[log.type];
   const timestamp = new Date(log.timestamp).toISOString();
   const footerText = truncateDiscordField(
     `Instance: ${log.instanceId}`,

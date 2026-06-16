@@ -147,21 +147,39 @@ export const buildDnsInstanceAnswers = (
 ): {
   answers: Answer[];
 } => {
-  if (question.type !== "A") {
+  const name = normalizeDnsName(question.name);
+
+  if (question.type === "A") {
     return {
-      answers: [],
+      answers: [
+        {
+          type: "A" as const,
+          name,
+          ttl: defaultDnsMinimumSeconds,
+          data: config.publicIp,
+        },
+      ],
+    };
+  }
+
+  if (question.type === "MX") {
+    return {
+      answers: [
+        {
+          type: "MX" as const,
+          name,
+          ttl: defaultDnsMinimumSeconds,
+          data: {
+            preference: 10,
+            exchange: name,
+          },
+        },
+      ],
     };
   }
 
   return {
-    answers: [
-      {
-        type: "A" as const,
-        name: normalizeDnsName(question.name),
-        ttl: defaultDnsMinimumSeconds,
-        data: config.publicIp,
-      },
-    ],
+    answers: [],
   };
 };
 

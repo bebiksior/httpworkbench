@@ -7,6 +7,7 @@ import {
 } from "shared";
 
 const defaultDnsPort = 53;
+const defaultSmtpPort = 25;
 const env: Record<string, string | undefined> =
   typeof Bun !== "undefined" ? Bun.env : process.env;
 const appConfig = buildPublicConfig(env);
@@ -97,3 +98,30 @@ const buildDnsConfig = (
 };
 
 export const dnsConfig = buildDnsConfig(env);
+
+export type SmtpConfig = {
+  smtpEnabled: boolean;
+  instancesDomain: string;
+  smtpPort?: number;
+};
+
+const buildSmtpConfig = (
+  runtimeEnv: Record<string, string | undefined>,
+): SmtpConfig => {
+  const instancesDomain = resolveInstancesDomain(runtimeEnv);
+  const smtpEnabled = parseBooleanEnv(runtimeEnv.SMTP_ENABLED) ?? false;
+  if (!smtpEnabled) {
+    return {
+      smtpEnabled: false,
+      instancesDomain,
+    };
+  }
+
+  return {
+    smtpEnabled: true,
+    instancesDomain,
+    smtpPort: parseIntegerEnv(runtimeEnv.SMTP_PORT, defaultSmtpPort),
+  };
+};
+
+export const smtpConfig = buildSmtpConfig(env);

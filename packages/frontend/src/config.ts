@@ -10,6 +10,7 @@ export const buildConfig = (
     VITE_IS_HOSTED?: string;
     VITE_ALLOW_GUEST?: string;
     VITE_DNS_ENABLED?: string;
+    VITE_SMTP_ENABLED?: string;
     VITE_DOMAIN?: string;
     VITE_INSTANCES_DOMAIN?: string;
   },
@@ -20,6 +21,7 @@ export const buildConfig = (
     IS_HOSTED: env.VITE_IS_HOSTED,
     ALLOW_GUEST: env.VITE_ALLOW_GUEST,
     DNS_ENABLED: env.VITE_DNS_ENABLED,
+    SMTP_ENABLED: env.VITE_SMTP_ENABLED,
     DOMAIN: env.VITE_DOMAIN,
     INSTANCES_DOMAIN: env.VITE_INSTANCES_DOMAIN,
   });
@@ -40,6 +42,7 @@ export const config = buildConfig(
     VITE_IS_HOSTED: import.meta.env.VITE_IS_HOSTED,
     VITE_ALLOW_GUEST: import.meta.env.VITE_ALLOW_GUEST,
     VITE_DNS_ENABLED: import.meta.env.VITE_DNS_ENABLED,
+    VITE_SMTP_ENABLED: import.meta.env.VITE_SMTP_ENABLED,
     VITE_DOMAIN: import.meta.env.VITE_DOMAIN,
     VITE_INSTANCES_DOMAIN: import.meta.env.VITE_INSTANCES_DOMAIN,
   },

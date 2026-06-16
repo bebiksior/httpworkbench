@@ -168,6 +168,27 @@ docker compose -f docker-compose.yml -f docker-compose.dns.yml up -d --build
 
 The main app certificate still uses Cloudflare DNS challenge. Instance subdomains under the delegated interaction zone are issued directly with on-demand TLS by Caddy the first time they are requested, stored in Caddy's persistent data volume, and renewed automatically.
 
+### Email (SMTP) interaction logging
+
+HTTP Workbench can also receive email sent to any instance hostname and record it as an `SMTP` interaction alongside HTTP and DNS hits. A message sent to `anything@abc.instances.yourdomain.com` is logged against instance `abc`. The server only accepts and logs mail — it never relays or delivers it anywhere.
+
+To enable it:
+
+- Set `SMTP_ENABLED=true` (and optionally `SMTP_PORT`, default `25`) in your `.env`
+- Open public TCP port `25` directly to the backend with the SMTP overlay:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.smtp.yml up -d --build
+```
+
+You can combine it with the DNS overlay:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.dns.yml -f docker-compose.smtp.yml up -d --build
+```
+
+No extra DNS records are required. Sending mail servers fall back to a host's `A` record when it has no `MX` record (RFC 5321 "implicit MX"), and instance hostnames already resolve to your server. The only requirements are that instance `A` records point at the real origin IP (a Cloudflare-proxied/orange-cloud record will not work for SMTP) and that public TCP port `25` reaches the backend. The server accepts plaintext on port 25 and does not advertise STARTTLS, so senders deliver over plaintext.
+
 ## Your Data
 
 HTTP Workbench stores just the basics in a local SQLite database: your Google ID for login (not the email), when you created your account, your PoC pages, webhooks, API keys, and the HTTP/DNS interaction logs (including IPs, headers, DNS questions, and request details). This is all needed for the app to work properly.

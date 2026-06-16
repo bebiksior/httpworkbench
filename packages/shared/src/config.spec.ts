@@ -8,6 +8,7 @@ describe("buildPublicConfig", () => {
         IS_HOSTED: "true",
         ALLOW_GUEST: "false",
         DNS_ENABLED: "true",
+        SMTP_ENABLED: "true",
         DOMAIN: "example.com",
       }),
     ).toEqual({
@@ -18,6 +19,7 @@ describe("buildPublicConfig", () => {
       maxInstancesPerOwner: 100,
       rawLimitBytes: 10 * 1024 * 1024,
       dnsEnabled: true,
+      smtpEnabled: true,
       instancesDomain: "instances.example.com",
     });
   });
@@ -35,6 +37,7 @@ describe("buildPublicConfig", () => {
       maxInstancesPerOwner: undefined,
       rawLimitBytes: 10 * 1024 * 1024,
       dnsEnabled: false,
+      smtpEnabled: false,
       instancesDomain: "instances.localhost",
     });
   });

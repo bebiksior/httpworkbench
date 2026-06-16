@@ -8,7 +8,7 @@ export const useLogsPanelControls = (
 ) => {
   const route = useRoute();
   const searchQuery = ref("");
-  const selectedTypes = ref<LogType[]>(["http", "dns"]);
+  const selectedTypes = ref<LogType[]>(["http", "dns", "smtp"]);
 
   const viewQuery = computed(() => {
     const raw = route.query.view;

@@ -129,6 +129,20 @@ describe("addLog", () => {
     expect(getModerationForInstance("inst-1")?.requestsInCurrentMinute).toBe(1);
   });
 
+  test("persists smtp logs", () => {
+    seedStorage({ instances: [createInstance()] });
+
+    const log = createLog({
+      id: "smtp-1",
+      type: "smtp",
+      raw: "CLIENT: 198.51.100.5\nMAIL FROM: <a@evil.test>\n\nSubject: hi\r\n\r\nbody\r\n",
+    });
+    const returned = addLog(log);
+
+    expect(returned).toEqual(log);
+    expect(getLogsForInstance("inst-1")).toEqual([log]);
+  });
+
   test("tombstones noisy instances immediately in memory", () => {
     seedStorage({
       instances: [createInstance()],

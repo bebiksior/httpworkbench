@@ -5,7 +5,7 @@ import { simpleMode } from "@codemirror/legacy-modes/mode/simple-mode";
 import { responseBodyJsonHelpers } from "./extensions/responseBodyJsonHelpers";
 import { responseBodyHighlighting } from "./extensions/responseBodyHighlighting";
 
-export type EditorSyntax = "dns" | "http" | "response";
+export type EditorSyntax = "dns" | "http" | "response" | "smtp";
 
 const dns = simpleMode({
   start: [
@@ -24,8 +24,26 @@ const dns = simpleMode({
   ],
 });
 
+const smtp = simpleMode({
+  start: [
+    {
+      regex: /(CLIENT:|EHLO:|SIZE:|ZONE:)(\s+.+)/,
+      token: ["propertyName", "string"],
+    },
+    {
+      regex: /(MAIL FROM:|RCPT TO:)(\s+.+)/,
+      token: ["propertyName", "atom"],
+    },
+    {
+      regex: /([A-Za-z][\w-]*:)(\s+.+)/,
+      token: ["keyword", "variableName"],
+    },
+  ],
+});
+
 const editorLanguageExtensions: Record<EditorSyntax, Extension> = {
   dns: StreamLanguage.define(dns),
+  smtp: StreamLanguage.define(smtp),
   http: StreamLanguage.define(http),
   response: [
     StreamLanguage.define(http),

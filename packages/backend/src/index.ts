@@ -23,6 +23,7 @@ async function init() {
     apiServer,
     instancesServer,
     dnsServer,
+    smtpServer,
     stopMaintenance,
     drainBackgroundWork,
   } = await initServer();
@@ -35,6 +36,7 @@ async function init() {
       apiServer.stop();
       instancesServer.stop();
       await dnsServer?.stop();
+      await smtpServer?.stop();
       stopMaintenance();
       await drainBackgroundWork();
       closeDb();

@@ -144,7 +144,7 @@ const {
               </label>
 
               <div
-                class="grid shrink-0 grid-cols-2 gap-2 sm:flex sm:items-center"
+                class="grid shrink-0 grid-cols-3 gap-2 sm:flex sm:items-center"
               >
                 <button
                   type="button"
@@ -161,6 +161,14 @@ const {
                   @click="toggleType('dns')"
                 >
                   DNS
+                </button>
+                <button
+                  type="button"
+                  :aria-pressed="isTypeSelected('smtp')"
+                  :class="getFilterButtonClass(isTypeSelected('smtp'))"
+                  @click="toggleType('smtp')"
+                >
+                  SMTP
                 </button>
               </div>
             </div>

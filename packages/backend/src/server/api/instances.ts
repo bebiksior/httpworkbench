@@ -40,7 +40,7 @@ import {
 const LogsQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(500).optional(),
   cursor: z.string().optional(),
-  type: z.enum(["http", "dns"]).optional(),
+  type: z.enum(["http", "dns", "smtp"]).optional(),
   sinceTimestamp: z.coerce.number().int().min(0).optional(),
 });
 
@@ -331,7 +331,7 @@ export const instancesRoutes = new Elysia({ name: "routes/instances" })
         tags: ["Logs"],
         summary: "Read instance logs",
         description:
-          "Read a page of HTTP/DNS logs (oldest first). Page with nextCursor.",
+          "Read a page of HTTP/DNS/SMTP logs (oldest first). Page with nextCursor.",
       },
     },
   )

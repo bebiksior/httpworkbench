@@ -167,6 +167,35 @@ describe("buildDnsInstanceAnswers", () => {
       },
     ]);
   });
+
+  test("returns a self-referential MX answer for a known instance hostname", () => {
+    expect(
+      buildDnsInstanceAnswers(
+        {
+          name: "demo.instances.example.com",
+          type: "MX",
+        },
+        {
+          instancesDomain: "instances.example.com",
+          instancesAcmeChallengeDomain:
+            "_acme-challenge.instances-wildcard.example.com",
+          dnsPort: 53,
+          dnsNameservers: ["ns1.example.com", "ns2.example.com"],
+          publicIp: "203.0.113.10",
+        },
+      ).answers,
+    ).toEqual([
+      {
+        type: "MX",
+        name: "demo.instances.example.com",
+        ttl: 60,
+        data: {
+          preference: 10,
+          exchange: "demo.instances.example.com",
+        },
+      },
+    ]);
+  });
 });
 
 describe("buildDnsResponse", () => {
