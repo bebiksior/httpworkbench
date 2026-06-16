@@ -8,5 +8,5 @@ defineProps<{
 </script>
 
 <template>
-  <HttpEditor :model-value="log.raw" syntax="smtp" readonly height="600px" />
+  <HttpEditor :model-value="log.raw" syntax="smtp" readonly height="500px" />
 </template>

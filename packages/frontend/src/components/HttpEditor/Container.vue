@@ -62,6 +62,14 @@ const extensions = computed(() => {
   if (readonly.value) {
     exts.push(...readonlyEditorExtensions);
   }
+  if (height.value !== undefined) {
+    exts.push(
+      EditorView.theme({
+        "&": { height: height.value },
+        ".cm-scroller": { overflow: "auto" },
+      }),
+    );
+  }
   return exts;
 });
 
@@ -121,7 +129,7 @@ watch(modelValue, async () => {
 
 const editorStyle = computed(() => {
   if (height.value !== undefined) {
-    return { height: height.value };
+    return {};
   }
 
   const style: Record<string, string> = {
