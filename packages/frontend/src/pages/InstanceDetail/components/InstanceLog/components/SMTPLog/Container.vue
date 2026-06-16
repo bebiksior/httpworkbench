@@ -8,5 +8,11 @@ defineProps<{
 </script>
 
 <template>
-  <HttpEditor :model-value="log.raw" syntax="smtp" readonly auto-height />
+  <HttpEditor
+    :model-value="log.raw"
+    syntax="smtp"
+    readonly
+    auto-height
+    max-height="600px"
+  />
 </template>

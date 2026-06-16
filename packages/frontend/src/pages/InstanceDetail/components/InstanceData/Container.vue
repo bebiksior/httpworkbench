@@ -243,8 +243,8 @@ const isWebhooksDialogVisible = ref(false);
           />
         </div>
         <p class="text-xs text-surface-600 dark:text-surface-400">
-          Send HTTP, HTTPS, and DNS requests to this host to see them appear in
-          the logs.
+          Send HTTP, HTTPS, DNS, and SMTP requests to this host to see them
+          appear in the logs.
         </p>
       </div>
     </div>
