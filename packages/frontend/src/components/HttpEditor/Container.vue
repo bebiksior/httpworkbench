@@ -23,6 +23,7 @@ const props = defineProps<{
   readonly?: boolean;
   autoHeight?: boolean;
   maxHeight?: string;
+  height?: string;
   isDirty?: boolean;
   syntax?: EditorSyntax;
 }>();
@@ -32,7 +33,7 @@ const emit = defineEmits<{
   (e: "save"): void;
 }>();
 
-const { modelValue, readonly, autoHeight, maxHeight, isDirty, syntax } =
+const { modelValue, readonly, autoHeight, maxHeight, height, isDirty, syntax } =
   toRefs(props);
 const editorView = ref<EditorView>();
 const preservedSelection = ref<EditorSelection>();
@@ -119,6 +120,10 @@ watch(modelValue, async () => {
 });
 
 const editorStyle = computed(() => {
+  if (height.value !== undefined) {
+    return { height: height.value };
+  }
+
   const style: Record<string, string> = {
     height: autoHeight.value ? "auto" : "100%",
     minHeight: autoHeight.value ? "50px" : "200px",
@@ -135,7 +140,7 @@ const editorStyle = computed(() => {
 <template>
   <div
     class="http-editor overflow-hidden rounded-md border border-surface-200 dark:border-surface-700"
-    :class="{ 'h-full': !autoHeight }"
+    :class="{ 'h-full': !autoHeight && height === undefined }"
   >
     <Codemirror
       :model-value="modelValue"

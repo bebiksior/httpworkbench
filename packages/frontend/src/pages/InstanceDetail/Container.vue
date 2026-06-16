@@ -204,6 +204,7 @@ const {
               <DynamicScrollerItem
                 :item="item"
                 :active="active"
+                :index="index"
                 :data-index="index"
                 :size-dependencies="[item.id]"
                 class="pb-4"
