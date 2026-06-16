@@ -5,7 +5,7 @@ import { simpleMode } from "@codemirror/legacy-modes/mode/simple-mode";
 import { responseBodyJsonHelpers } from "./extensions/responseBodyJsonHelpers";
 import { responseBodyHighlighting } from "./extensions/responseBodyHighlighting";
 
-export type EditorSyntax = "dns" | "http" | "response" | "smtp";
+export type EditorSyntax = "dns" | "http" | "request" | "response" | "smtp";
 
 const dns = simpleMode({
   start: [
@@ -45,6 +45,7 @@ const editorLanguageExtensions: Record<EditorSyntax, Extension> = {
   dns: StreamLanguage.define(dns),
   smtp: StreamLanguage.define(smtp),
   http: StreamLanguage.define(http),
+  request: [StreamLanguage.define(http), responseBodyHighlighting()],
   response: [
     StreamLanguage.define(http),
     responseBodyHighlighting(),

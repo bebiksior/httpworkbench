@@ -10,7 +10,7 @@ defineProps<{
 <template>
   <HttpEditor
     :model-value="log.raw"
-    syntax="http"
+    syntax="request"
     readonly
     auto-height
     max-height="600px"
