@@ -147,7 +147,7 @@ const editorStyle = computed(() => {
 
 <template>
   <div
-    class="http-editor overflow-hidden rounded-md border border-surface-200 transition-colors focus-within:border-primary/60 dark:border-surface-700"
+    class="http-editor overflow-hidden rounded-md border border-surface-200 transition-colors focus-within:border-surface-400 dark:border-surface-700 dark:focus-within:border-surface-500"
     :class="{ 'h-full': !autoHeight && height === undefined }"
   >
     <Codemirror

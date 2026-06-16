@@ -1,4 +1,4 @@
-import { RangeSetBuilder } from "@codemirror/state";
+import { RangeSetBuilder, Transaction } from "@codemirror/state";
 import type { EditorState, Extension } from "@codemirror/state";
 import { Decoration, ViewPlugin, WidgetType } from "@codemirror/view";
 import type { DecorationSet, EditorView, ViewUpdate } from "@codemirror/view";
@@ -109,6 +109,7 @@ export const createInlineHint = ({
           pluginState.suggestion.replaceFrom +
           pluginState.suggestion.insert.length,
       },
+      annotations: Transaction.userEvent.of("input.complete"),
     });
 
     return true;
