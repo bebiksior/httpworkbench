@@ -172,8 +172,8 @@ const editorStyle = computed(() => {
   font-family: "Menlo", "Monaco", "Courier New", monospace;
 }
 .http-editor .cm-scroller::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
+  width: 8px;
+  height: 8px;
 }
 .http-editor .cm-scroller::-webkit-scrollbar-thumb {
   background-color: rgba(120, 120, 135, 0.45);
