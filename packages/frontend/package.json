@@ -26,6 +26,7 @@
     "@primeuix/themes": "^2.0.3",
     "@tailwindcss/vite": "^4.2.1",
     "@tanstack/vue-query": "^5.92.9",
+    "@tanstack/vue-virtual": "^3.13.29",
     "@types/dompurify": "^3.2.0",
     "@types/markdown-it": "^14.1.2",
     "@vueuse/core": "^14.2.1",
@@ -45,7 +46,6 @@
     "vue-codemirror": "^6.1.1",
     "vue-command-palette": "^0.2.3",
     "vue-router": "^4.6.4",
-    "vue-virtual-scroller": "^3.0.4",
     "zod": "^4.3.6"
   },
   "devDependencies": {

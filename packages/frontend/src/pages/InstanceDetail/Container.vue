@@ -1,8 +1,8 @@
 <script setup lang="ts">
+import { useVirtualizer } from "@tanstack/vue-virtual";
 import Button from "primevue/button";
-import { computed } from "vue";
+import { computed, ref } from "vue";
 import { useRoute } from "vue-router";
-import { DynamicScroller, DynamicScrollerItem } from "vue-virtual-scroller";
 import { useInstanceDetailLogic } from "./useLogic";
 import { useLogsPanelControls } from "./useLogsPanelControls";
 import { useSidePanel } from "./useSidePanel";
@@ -26,6 +26,38 @@ const {
   getFilterButtonClass,
 } = useLogsPanelControls(logs, setSidePanelHidden);
 
+const scrollerRef = ref<HTMLElement | null>(null);
+
+const estimateLogSize = (index: number) => {
+  switch (filteredLogs.value[index]?.type) {
+    case "dns":
+      return 220;
+    case "smtp":
+      return 340;
+    default:
+      return 480;
+  }
+};
+
+const rowVirtualizer = useVirtualizer(
+  computed(() => ({
+    count: filteredLogs.value.length,
+    getScrollElement: () => scrollerRef.value,
+    estimateSize: estimateLogSize,
+    overscan: 4,
+    getItemKey: (index: number) => filteredLogs.value[index]?.id ?? index,
+  })),
+);
+
+const virtualRows = computed(() => rowVirtualizer.value.getVirtualItems());
+const totalSize = computed(() => rowVirtualizer.value.getTotalSize());
+
+const measureRow = (el: unknown) => {
+  if (el instanceof Element) {
+    rowVirtualizer.value.measureElement(el);
+  }
+};
+
 const redirectWheelToList = (event: WheelEvent) => {
   const target = event.target as HTMLElement | null;
   const editor = target?.closest(".cm-editor");
@@ -35,9 +67,8 @@ const redirectWheelToList = (event: WheelEvent) => {
   if (editor.classList.contains("cm-focused")) {
     return;
   }
-  const wrapper = event.currentTarget as HTMLElement | null;
-  const scroller = wrapper?.querySelector(".vue-recycle-scroller");
-  if (scroller === null || scroller === undefined) {
+  const scroller = scrollerRef.value;
+  if (scroller === null) {
     return;
   }
   scroller.scrollTop +=
@@ -49,7 +80,8 @@ const blurFocusedLog = () => {
   const active = document.activeElement;
   if (
     active instanceof HTMLElement &&
-    active.closest(".vue-recycle-scroller .cm-editor") !== null
+    scrollerRef.value?.contains(active) === true &&
+    active.closest(".cm-editor") !== null
   ) {
     active.blur();
   }
@@ -231,27 +263,20 @@ const exitLogOnEscape = (event: KeyboardEvent) => {
             No logs match the current search and filters.
           </div>
 
-          <DynamicScroller
-            v-else
-            :items="filteredLogs"
-            :min-item-size="200"
-            :buffer="400"
-            key-field="id"
-            class="h-full"
-          >
-            <template #default="{ item, index, active }">
-              <DynamicScrollerItem
-                :item="item"
-                :active="active"
-                :index="index"
-                :data-index="index"
-                :size-dependencies="[item.id]"
-                class="pb-4"
+          <div v-else ref="scrollerRef" class="h-full overflow-y-auto">
+            <div class="relative w-full" :style="{ height: `${totalSize}px` }">
+              <div
+                v-for="virtualRow in virtualRows"
+                :key="String(virtualRow.key)"
+                :ref="measureRow"
+                :data-index="virtualRow.index"
+                class="absolute left-0 top-0 w-full pb-4"
+                :style="{ transform: `translateY(${virtualRow.start}px)` }"
               >
-                <InstanceLog :log="item" />
-              </DynamicScrollerItem>
-            </template>
-          </DynamicScroller>
+                <InstanceLog :log="filteredLogs[virtualRow.index]" />
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>

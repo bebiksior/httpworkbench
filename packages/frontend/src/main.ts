@@ -1,7 +1,6 @@
 import { createApp } from "vue";
 import "./style.css";
 import "primeicons/primeicons.css";
-import "vue-virtual-scroller/dist/vue-virtual-scroller.css";
 import { definePreset } from "@primeuix/themes";
 import Aura from "@primeuix/themes/aura";
 import { VueQueryPlugin } from "@tanstack/vue-query";
@@ -10,7 +9,6 @@ import PrimeVue from "primevue/config";
 import ConfirmationService from "primevue/confirmationservice";
 import ToastService from "primevue/toastservice";
 import Tooltip from "primevue/tooltip";
-import VueVirtualScroller from "vue-virtual-scroller";
 import App from "./App.vue";
 import router from "./router";
 
@@ -78,6 +76,5 @@ app.use(PrimeVue, {
 });
 app.use(ConfirmationService);
 app.use(ToastService);
-app.use(VueVirtualScroller);
 app.directive("tooltip", Tooltip);
 app.mount("#app");

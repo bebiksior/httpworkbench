@@ -69,6 +69,13 @@ const extensions = computed(() => {
         ".cm-scroller": { overflow: "auto" },
       }),
     );
+  } else if (maxHeight.value !== undefined) {
+    exts.push(
+      EditorView.theme({
+        "&": { maxHeight: maxHeight.value },
+        ".cm-scroller": { overflow: "auto" },
+      }),
+    );
   }
   return exts;
 });
