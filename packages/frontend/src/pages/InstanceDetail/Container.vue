@@ -25,6 +25,25 @@ const {
   toggleType,
   getFilterButtonClass,
 } = useLogsPanelControls(logs, setSidePanelHidden);
+
+const redirectWheelToList = (event: WheelEvent) => {
+  const target = event.target as HTMLElement | null;
+  const editor = target?.closest(".cm-editor");
+  if (editor === null || editor === undefined) {
+    return;
+  }
+  if (editor.classList.contains("cm-focused")) {
+    return;
+  }
+  const wrapper = event.currentTarget as HTMLElement | null;
+  const scroller = wrapper?.querySelector(".vue-recycle-scroller");
+  if (scroller === null || scroller === undefined) {
+    return;
+  }
+  scroller.scrollTop +=
+    event.deltaMode === 1 ? event.deltaY * 16 : event.deltaY;
+  event.preventDefault();
+};
 </script>
 
 <template>
@@ -175,7 +194,10 @@ const {
           </div>
         </div>
 
-        <div class="relative mt-4 flex-1 min-h-0 overflow-hidden">
+        <div
+          class="relative mt-4 flex-1 min-h-0 overflow-hidden"
+          @wheel.capture="redirectWheelToList"
+        >
           <div
             v-if="logs.length === 0"
             class="flex h-full flex-col items-center justify-center text-center text-surface-700 dark:text-surface-400"
