@@ -147,7 +147,7 @@ const editorStyle = computed(() => {
 
 <template>
   <div
-    class="http-editor overflow-hidden rounded-md border border-surface-200 dark:border-surface-700"
+    class="http-editor overflow-hidden rounded-md border border-surface-200 transition-colors focus-within:border-primary dark:border-surface-700"
     :class="{ 'h-full': !autoHeight && height === undefined }"
   >
     <Codemirror
@@ -170,6 +170,24 @@ const editorStyle = computed(() => {
 }
 .http-editor .cm-scroller {
   font-family: "Menlo", "Monaco", "Courier New", monospace;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(120, 120, 135, 0.45) transparent;
+}
+.http-editor .cm-scroller::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+.http-editor .cm-scroller::-webkit-scrollbar-thumb {
+  background-color: rgba(120, 120, 135, 0.45);
+  border-radius: 9999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+.http-editor .cm-scroller::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(120, 120, 135, 0.7);
+}
+.http-editor .cm-scroller::-webkit-scrollbar-track {
+  background: transparent;
 }
 .cm-inline-hint {
   opacity: 0.4;

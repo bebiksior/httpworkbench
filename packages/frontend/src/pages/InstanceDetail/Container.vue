@@ -44,6 +44,22 @@ const redirectWheelToList = (event: WheelEvent) => {
     event.deltaMode === 1 ? event.deltaY * 16 : event.deltaY;
   event.preventDefault();
 };
+
+const blurFocusedLog = () => {
+  const active = document.activeElement;
+  if (
+    active instanceof HTMLElement &&
+    active.closest(".vue-recycle-scroller .cm-editor") !== null
+  ) {
+    active.blur();
+  }
+};
+
+const exitLogOnEscape = (event: KeyboardEvent) => {
+  if (event.key === "Escape") {
+    blurFocusedLog();
+  }
+};
 </script>
 
 <template>
@@ -197,6 +213,7 @@ const redirectWheelToList = (event: WheelEvent) => {
         <div
           class="relative mt-4 flex-1 min-h-0 overflow-hidden"
           @wheel.capture="redirectWheelToList"
+          @keydown="exitLogOnEscape"
         >
           <div
             v-if="logs.length === 0"

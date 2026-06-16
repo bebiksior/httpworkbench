@@ -38,11 +38,25 @@ const formattedTimestamp = computed(() => {
 const absoluteTimestamp = computed(() =>
   dayjs(log.value.timestamp).format("MMM D, YYYY h:mm:ss A"),
 );
+
+const handleMouseLeave = (event: MouseEvent) => {
+  const card = event.currentTarget;
+  const active = document.activeElement;
+  if (
+    card instanceof HTMLElement &&
+    active instanceof HTMLElement &&
+    card.contains(active) &&
+    active.closest(".cm-editor") !== null
+  ) {
+    active.blur();
+  }
+};
 </script>
 
 <template>
   <div
     class="border border-surface-200 dark:border-surface-700 rounded-lg overflow-hidden bg-white dark:bg-surface-800 shadow-sm"
+    @mouseleave="handleMouseLeave"
   >
     <div
       class="flex items-center justify-between gap-2 border-b border-surface-200 bg-surface-50 px-3 py-2 text-xs text-surface-700 dark:border-surface-700 dark:bg-surface-900/50 dark:text-surface-400 sm:px-4 sm:py-3"
