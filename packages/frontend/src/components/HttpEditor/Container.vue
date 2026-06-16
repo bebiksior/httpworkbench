@@ -165,9 +165,6 @@ const editorStyle = computed(() => {
 </template>
 
 <style>
-.http-editor .cm-editor {
-  height: 100%;
-}
 .http-editor.h-full .cm-editor {
   height: 100%;
 }
