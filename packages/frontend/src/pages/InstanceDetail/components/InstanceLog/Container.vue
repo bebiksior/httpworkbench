@@ -5,13 +5,19 @@ import { useTimeAgo } from "@vueuse/core";
 import dayjs from "dayjs";
 import { HTTPLog } from "./components/HTTPLog";
 import { DNSLog } from "./components/DNSLog";
-import { SMTPLog } from "./components/SMTPLog";
+import { SMTPLog, useSmtpLogDisplay } from "./components/SMTPLog";
 
 const props = defineProps<{
   log: Log;
 }>();
 
 const { log } = toRefs(props);
+const {
+  displayModeLabel: smtpDisplayModeLabel,
+  displayedRaw: smtpDisplayedRaw,
+  nextDisplayModeLabel: nextSmtpDisplayModeLabel,
+  toggleDisplayMode: toggleSmtpDisplayMode,
+} = useSmtpLogDisplay(() => log.value.raw);
 
 const badgeClass = computed(() => {
   switch (log.value.type) {
@@ -37,6 +43,14 @@ const formattedTimestamp = computed(() => {
 
 const absoluteTimestamp = computed(() =>
   dayjs(log.value.timestamp).format("MMM D, YYYY h:mm:ss A"),
+);
+
+const smtpDisplayModeTitle = computed(
+  () => `Switch to ${nextSmtpDisplayModeLabel.value} SMTP log`,
+);
+
+const smtpDisplayModeIcon = computed(() =>
+  smtpDisplayModeLabel.value === "decoded" ? "pi pi-code" : "pi pi-file",
 );
 
 const handleMouseLeave = (event: MouseEvent) => {
@@ -83,12 +97,29 @@ const handleMouseLeave = (event: MouseEvent) => {
           :title="absoluteTimestamp"
           >{{ absoluteTimestamp }}</span
         >
+        <template v-if="log.type === 'smtp'">
+          <span class="text-surface-500 dark:text-surface-500">•</span>
+          <button
+            type="button"
+            class="inline-flex h-6 cursor-pointer items-center gap-1 rounded-md border border-surface-300 bg-white px-2 text-[11px] font-semibold capitalize leading-none text-surface-700 shadow-sm transition-colors hover:border-surface-400 hover:bg-surface-100 hover:text-surface-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 dark:border-surface-700 dark:bg-surface-800 dark:text-surface-200 dark:hover:border-surface-500 dark:hover:bg-surface-700 dark:hover:text-surface-0"
+            :aria-label="smtpDisplayModeTitle"
+            :title="smtpDisplayModeTitle"
+            @click.stop="toggleSmtpDisplayMode"
+          >
+            <i
+              :class="smtpDisplayModeIcon"
+              class="text-[10px]"
+              aria-hidden="true"
+            />
+            {{ smtpDisplayModeLabel }}
+          </button>
+        </template>
       </div>
     </div>
     <div class="p-0">
       <HTTPLog v-if="log.type === 'http'" :log="log" />
       <DNSLog v-else-if="log.type === 'dns'" :log="log" />
-      <SMTPLog v-else-if="log.type === 'smtp'" :log="log" />
+      <SMTPLog v-else-if="log.type === 'smtp'" :raw="smtpDisplayedRaw" />
       <div v-else class="p-4 text-surface-700 dark:text-surface-400">
         Unknown log type
       </div>
