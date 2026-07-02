@@ -1,15 +1,14 @@
 <script setup lang="ts">
 import { HttpEditor } from "@/components/HttpEditor";
-import type { Log } from "shared";
 
 defineProps<{
-  log: Log;
+  raw: string;
 }>();
 </script>
 
 <template>
   <HttpEditor
-    :model-value="log.raw"
+    :model-value="raw"
     syntax="smtp"
     readonly
     auto-height
