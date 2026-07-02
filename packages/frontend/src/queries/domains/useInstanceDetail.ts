@@ -1,4 +1,8 @@
-import { useQuery, useQueryClient } from "@tanstack/vue-query";
+import {
+  useQuery,
+  useQueryClient,
+  type QueryClient,
+} from "@tanstack/vue-query";
 import { computed, toValue, type MaybeRefOrGetter } from "vue";
 import { storeToRefs } from "pinia";
 import type { Instance, InstanceDetailResponse } from "shared";
@@ -9,16 +13,56 @@ import { queryKeys } from "@/queries/keys";
 import { useAuthStore } from "@/stores/auth";
 import { useGuestInstancesStore } from "@/stores/guestInstances";
 
+const INSTANCE_QUERY_SCOPE = new Set(["guest", "user"]);
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null;
+
+const isCacheInstance = (value: unknown): value is Instance => {
+  if (!isRecord(value) || typeof value.id !== "string") {
+    return false;
+  }
+
+  if (value.kind === "static") {
+    return typeof value.raw === "string";
+  }
+
+  if (value.kind === "dynamic") {
+    return Array.isArray(value.processors);
+  }
+
+  return false;
+};
+
+const isCacheInstanceDetail = (
+  value: unknown,
+): value is InstanceDetailResponse =>
+  isRecord(value) &&
+  isCacheInstance(value.instance) &&
+  Array.isArray(value.logs);
+
+const isInstanceListQueryKey = (queryKey: readonly unknown[]) =>
+  queryKey[0] === queryKeys.instances.all[0] &&
+  INSTANCE_QUERY_SCOPE.has(String(queryKey[1]));
+
+const isInstanceDetailQueryKey = (queryKey: readonly unknown[], id: string) =>
+  queryKey[0] === queryKeys.instances.all[0] &&
+  queryKey[1] === id &&
+  INSTANCE_QUERY_SCOPE.has(String(queryKey[2]));
+
 const getCachedInstanceDetail = (
-  queryClient: ReturnType<typeof useQueryClient>,
+  queryClient: QueryClient,
   id: string,
 ): InstanceDetailResponse | undefined => {
-  const cachedQueries = queryClient.getQueriesData<InstanceDetailResponse>({
+  const cachedQueries = queryClient.getQueriesData<unknown>({
     queryKey: queryKeys.instances.detail(id),
   });
 
-  for (const [, detail] of cachedQueries) {
-    if (detail !== undefined) {
+  for (const [queryKey, detail] of cachedQueries) {
+    if (
+      isInstanceDetailQueryKey(queryKey, id) &&
+      isCacheInstanceDetail(detail)
+    ) {
       return detail;
     }
   }
@@ -27,25 +71,30 @@ const getCachedInstanceDetail = (
 };
 
 const findCachedInstance = (
-  queryClient: ReturnType<typeof useQueryClient>,
+  queryClient: QueryClient,
   id: string,
 ): Instance | undefined => {
-  const listQueries = queryClient.getQueriesData<Instance[]>({
+  const listQueries = queryClient.getQueriesData<unknown>({
     queryKey: queryKeys.instances.all,
   });
 
-  for (const [, instances] of listQueries) {
-    const match = instances?.find((instance) => instance.id === id);
-    if (match !== undefined) {
-      return match;
+  for (const [queryKey, instances] of listQueries) {
+    if (!isInstanceListQueryKey(queryKey) || !Array.isArray(instances)) {
+      continue;
+    }
+
+    for (const instance of instances) {
+      if (isCacheInstance(instance) && instance.id === id) {
+        return instance;
+      }
     }
   }
 
   return undefined;
 };
 
-const buildInstanceDetailPlaceholder = (
-  queryClient: ReturnType<typeof useQueryClient>,
+export const buildInstanceDetailPlaceholder = (
+  queryClient: QueryClient,
   id: string,
 ): InstanceDetailResponse | undefined => {
   const cachedDetail = getCachedInstanceDetail(queryClient, id);
