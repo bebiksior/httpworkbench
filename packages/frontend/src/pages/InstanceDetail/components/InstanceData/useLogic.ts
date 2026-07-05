@@ -68,7 +68,6 @@ export const useInstanceDataLogic = (instance: Ref<Instance>) => {
 
   const rawContent = ref("");
   const savedRawContent = ref("");
-  const pendingSavedRawContent = ref<string | undefined>(undefined);
   const isDirty = ref(false);
   const fileInputRef = ref<HTMLInputElement | null>(null);
   const selectedWebhookIds = ref<string[]>([]);
@@ -113,23 +112,19 @@ export const useInstanceDataLogic = (instance: Ref<Instance>) => {
   const showExpirationNotice = computed(() =>
     isPresent(instance.value.expiresAt),
   );
+  const hasUnsavedRawChanges = (value: string) =>
+    value.replace(/\r\n/g, "\n") !==
+    savedRawContent.value.replace(/\r\n/g, "\n");
 
   watch(
     instance,
     (newInstance) => {
       if (newInstance?.kind === "static") {
-        const isStaleRawAfterSave =
-          pendingSavedRawContent.value !== undefined &&
-          newInstance.raw !== pendingSavedRawContent.value;
-
-        if (!isStaleRawAfterSave) {
-          pendingSavedRawContent.value = undefined;
-          savedRawContent.value = newInstance.raw;
-          if (!isDirty.value) {
-            rawContent.value = newInstance.raw;
-          }
-          isDirty.value = rawContent.value !== savedRawContent.value;
+        savedRawContent.value = newInstance.raw;
+        if (!isDirty.value) {
+          rawContent.value = newInstance.raw;
         }
+        isDirty.value = hasUnsavedRawChanges(rawContent.value);
       }
       if (isPresent(newInstance)) {
         selectedWebhookIds.value = newInstance.webhookIds;
@@ -192,8 +187,7 @@ export const useInstanceDataLogic = (instance: Ref<Instance>) => {
         });
         savedRawContent.value =
           updatedInstance.kind === "static" ? updatedInstance.raw : rawToSave;
-        pendingSavedRawContent.value = savedRawContent.value;
-        isDirty.value = rawContent.value !== savedRawContent.value;
+        isDirty.value = hasUnsavedRawChanges(rawContent.value);
         notify.success("Raw response updated");
       } catch (e) {
         notify.error("Update failed", e);
@@ -314,7 +308,7 @@ export const useInstanceDataLogic = (instance: Ref<Instance>) => {
     }
 
     rawContent.value = value;
-    isDirty.value = value !== savedRawContent.value;
+    isDirty.value = hasUnsavedRawChanges(value);
   };
 
   const triggerFileUpload = () => {
@@ -333,7 +327,7 @@ export const useInstanceDataLogic = (instance: Ref<Instance>) => {
     try {
       const { raw } = await processFile(file);
       rawContent.value = raw;
-      isDirty.value = raw !== savedRawContent.value;
+      isDirty.value = hasUnsavedRawChanges(raw);
     } catch (e) {
       notify.error("Failed to process file", e);
     } finally {

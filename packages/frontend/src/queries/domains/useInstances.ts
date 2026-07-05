@@ -1,9 +1,4 @@
-import {
-  useMutation,
-  useQuery,
-  useQueryClient,
-  type QueryClient,
-} from "@tanstack/vue-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/vue-query";
 import { computed } from "vue";
 import { storeToRefs } from "pinia";
 import type {
@@ -129,41 +124,6 @@ const getCloneLabel = (label: string) => {
   return `${trimmed.slice(0, maxBaseLength)}${suffix}`;
 };
 
-const isInstanceListQuery = (queryKey: readonly unknown[]) =>
-  queryKey[0] === queryKeys.instances.all[0] &&
-  (queryKey[1] === "guest" || queryKey[1] === "user");
-
-const isInstanceDetailQuery = (queryKey: readonly unknown[], id: string) =>
-  queryKey[0] === queryKeys.instances.all[0] &&
-  queryKey[1] === id &&
-  (queryKey[2] === "guest" || queryKey[2] === "user");
-
-const syncUpdatedInstance = (
-  queryClient: QueryClient,
-  updatedInstance: Instance,
-) => {
-  queryClient.setQueriesData<Instance[]>(
-    {
-      predicate: (query) => isInstanceListQuery(query.queryKey),
-    },
-    (instances) =>
-      instances?.map((instance) =>
-        instance.id === updatedInstance.id ? updatedInstance : instance,
-      ),
-  );
-
-  queryClient.setQueriesData<InstanceDetailResponse>(
-    {
-      predicate: (query) =>
-        isInstanceDetailQuery(query.queryKey, updatedInstance.id),
-    },
-    (detail) =>
-      detail === undefined
-        ? undefined
-        : { ...detail, instance: updatedInstance },
-  );
-};
-
 export const useCloneInstance = () => {
   const queryClient = useQueryClient();
   const authStore = useAuthStore();
@@ -230,7 +190,6 @@ export const useUpdateInstance = () => {
       return instancesApi.update(id, input);
     },
     onSuccess: (data) => {
-      syncUpdatedInstance(queryClient, data);
       queryClient.invalidateQueries({ queryKey: queryKeys.instances.all });
       queryClient.invalidateQueries({
         queryKey: queryKeys.instances.detail(data.id),
