@@ -256,10 +256,10 @@ const isWebhooksDialogVisible = ref(false);
       <div class="flex justify-between items-end">
         <div>
           <h3 class="font-semibold text-surface-900 dark:text-surface-0">
-            Response Body
+            Raw Response
           </h3>
           <p class="text-xs text-surface-600 dark:text-surface-400 mt-1">
-            Customize the response returned by this instance.
+            Customize the raw HTTP response returned by this instance.
           </p>
         </div>
       </div>
@@ -301,7 +301,7 @@ const isWebhooksDialogVisible = ref(false);
           outlined
           class="min-w-0 justify-center"
           :loading="isUpdating"
-          :disabled="!isDirty"
+          :disabled="!isDirty || isUpdating"
           @click="handleSave"
         />
       </div>

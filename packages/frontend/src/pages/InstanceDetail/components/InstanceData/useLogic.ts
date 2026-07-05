@@ -67,6 +67,7 @@ export const useInstanceDataLogic = (instance: Ref<Instance>) => {
   });
 
   const rawContent = ref("");
+  const savedRawContent = ref("");
   const isDirty = ref(false);
   const fileInputRef = ref<HTMLInputElement | null>(null);
   const selectedWebhookIds = ref<string[]>([]);
@@ -115,8 +116,12 @@ export const useInstanceDataLogic = (instance: Ref<Instance>) => {
   watch(
     instance,
     (newInstance) => {
-      if (newInstance?.kind === "static" && !isDirty.value) {
-        rawContent.value = newInstance.raw;
+      if (newInstance?.kind === "static") {
+        savedRawContent.value = newInstance.raw;
+        if (!isDirty.value) {
+          rawContent.value = newInstance.raw;
+        }
+        isDirty.value = rawContent.value !== savedRawContent.value;
       }
       if (isPresent(newInstance)) {
         selectedWebhookIds.value = newInstance.webhookIds;
@@ -162,22 +167,25 @@ export const useInstanceDataLogic = (instance: Ref<Instance>) => {
   };
 
   const handleSave = async () => {
-    if (!canManageInstance.value) {
+    if (!canManageInstance.value || isUpdating.value) {
       return;
     }
 
     if (instance.value?.kind === "static") {
+      const rawToSave = rawContent.value;
       try {
-        await updateInstanceMutation({
+        const updatedInstance = await updateInstanceMutation({
           id: instance.value.id,
           input: {
             kind: "static",
-            raw: rawContent.value,
+            raw: rawToSave,
             webhookIds: instance.value.webhookIds,
           },
         });
-        isDirty.value = false;
-        notify.success("Response body updated");
+        savedRawContent.value =
+          updatedInstance.kind === "static" ? updatedInstance.raw : rawToSave;
+        isDirty.value = rawContent.value !== savedRawContent.value;
+        notify.success("Raw response updated");
       } catch (e) {
         notify.error("Update failed", e);
       }
@@ -297,7 +305,7 @@ export const useInstanceDataLogic = (instance: Ref<Instance>) => {
     }
 
     rawContent.value = value;
-    isDirty.value = true;
+    isDirty.value = value !== savedRawContent.value;
   };
 
   const triggerFileUpload = () => {
@@ -316,7 +324,7 @@ export const useInstanceDataLogic = (instance: Ref<Instance>) => {
     try {
       const { raw } = await processFile(file);
       rawContent.value = raw;
-      isDirty.value = true;
+      isDirty.value = raw !== savedRawContent.value;
     } catch (e) {
       notify.error("Failed to process file", e);
     } finally {
