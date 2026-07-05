@@ -68,6 +68,7 @@ export const useInstanceDataLogic = (instance: Ref<Instance>) => {
 
   const rawContent = ref("");
   const savedRawContent = ref("");
+  const pendingSavedRawContent = ref<string | undefined>(undefined);
   const isDirty = ref(false);
   const fileInputRef = ref<HTMLInputElement | null>(null);
   const selectedWebhookIds = ref<string[]>([]);
@@ -117,11 +118,18 @@ export const useInstanceDataLogic = (instance: Ref<Instance>) => {
     instance,
     (newInstance) => {
       if (newInstance?.kind === "static") {
-        savedRawContent.value = newInstance.raw;
-        if (!isDirty.value) {
-          rawContent.value = newInstance.raw;
+        const isStaleRawAfterSave =
+          pendingSavedRawContent.value !== undefined &&
+          newInstance.raw !== pendingSavedRawContent.value;
+
+        if (!isStaleRawAfterSave) {
+          pendingSavedRawContent.value = undefined;
+          savedRawContent.value = newInstance.raw;
+          if (!isDirty.value) {
+            rawContent.value = newInstance.raw;
+          }
+          isDirty.value = rawContent.value !== savedRawContent.value;
         }
-        isDirty.value = rawContent.value !== savedRawContent.value;
       }
       if (isPresent(newInstance)) {
         selectedWebhookIds.value = newInstance.webhookIds;
@@ -184,6 +192,7 @@ export const useInstanceDataLogic = (instance: Ref<Instance>) => {
         });
         savedRawContent.value =
           updatedInstance.kind === "static" ? updatedInstance.raw : rawToSave;
+        pendingSavedRawContent.value = savedRawContent.value;
         isDirty.value = rawContent.value !== savedRawContent.value;
         notify.success("Raw response updated");
       } catch (e) {
