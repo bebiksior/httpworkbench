@@ -10,6 +10,7 @@ import {
 import { useRouter } from "vue-router";
 import { NotFoundError } from "@/api/errors";
 import { useNotify } from "@/composables";
+import { apiPaths } from "@/api/paths";
 import { useInstanceDetail } from "@/queries/domains/useInstanceDetail";
 import { useAuthStore } from "@/stores";
 import { isPresent } from "@/utils/types";
@@ -173,7 +174,7 @@ export const useInstanceDetailLogic = (
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
     const generation = connectionGeneration.value;
     const ws = new WebSocket(
-      `${protocol}//${window.location.host}/api/instances/${id}/stream`,
+      `${protocol}//${window.location.host}${apiPaths.instanceStream(id)}`,
     );
     lastHeartbeatAt.value = Date.now();
     lastPingSentAt.value = undefined;

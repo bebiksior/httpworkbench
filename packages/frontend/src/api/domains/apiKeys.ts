@@ -11,10 +11,11 @@ import {
 } from "shared";
 import { apiClient } from "../client";
 import { ValidationError } from "../errors";
+import { apiPaths } from "../paths";
 
 export const apiKeysApi = {
   fetchApiKeys: async (): Promise<ApiKeysResponse> => {
-    const data = await apiClient.get<unknown>("/api/api-keys");
+    const data = await apiClient.get<unknown>(apiPaths.apiKeys);
     const result = ApiKeysResponseSchema.safeParse(data);
 
     if (!result.success) {
@@ -28,7 +29,10 @@ export const apiKeysApi = {
 
   createApiKey: async (input: CreateApiKeyInput): Promise<CreatedApiKey> => {
     const validatedInput = CreateApiKeySchema.parse(input);
-    const data = await apiClient.post<unknown>("/api/api-keys", validatedInput);
+    const data = await apiClient.post<unknown>(
+      apiPaths.apiKeys,
+      validatedInput,
+    );
     const result = CreatedApiKeySchema.safeParse(data);
 
     if (!result.success) {
@@ -41,6 +45,6 @@ export const apiKeysApi = {
   },
 
   revokeApiKey: async (id: ApiKey["id"]): Promise<void> => {
-    await apiClient.delete<void>(`/api/api-keys/${id}`);
+    await apiClient.delete<void>(apiPaths.apiKey(id));
   },
 };

@@ -14,13 +14,15 @@ import {
 } from "shared";
 import { apiClient } from "../client";
 import { ValidationError } from "../errors";
-
-const basePath = "/api/guest/instances";
+import { apiPaths } from "../paths";
 
 export const guestInstancesApi = {
   create: async (input: CreateInstanceInput): Promise<Instance> => {
     const validatedInput = CreateInstanceSchema.parse(input);
-    const data = await apiClient.post<unknown>(basePath, validatedInput);
+    const data = await apiClient.post<unknown>(
+      apiPaths.guestInstances,
+      validatedInput,
+    );
     const result = InstanceSchema.safeParse(data);
 
     if (!result.success) {
@@ -32,7 +34,7 @@ export const guestInstancesApi = {
     return result.data;
   },
   getById: async (id: string): Promise<InstanceDetailResponse> => {
-    const data = await apiClient.get<unknown>(`${basePath}/${id}`);
+    const data = await apiClient.get<unknown>(apiPaths.guestInstance(id));
     const result = InstanceDetailResponseSchema.safeParse(data);
 
     if (!result.success) {
@@ -46,7 +48,7 @@ export const guestInstancesApi = {
   update: async (id: string, input: UpdateInstanceInput): Promise<Instance> => {
     const validatedInput = UpdateInstanceSchema.parse(input);
     const data = await apiClient.put<unknown>(
-      `${basePath}/${id}`,
+      apiPaths.guestInstance(id),
       validatedInput,
     );
     const result = InstanceSchema.safeParse(data);
@@ -60,10 +62,10 @@ export const guestInstancesApi = {
     return result.data;
   },
   delete: async (id: string): Promise<void> => {
-    await apiClient.delete<void>(`${basePath}/${id}`);
+    await apiClient.delete<void>(apiPaths.guestInstance(id));
   },
   clearLogs: async (id: string): Promise<void> => {
-    await apiClient.delete<void>(`${basePath}/${id}/logs`);
+    await apiClient.delete<void>(apiPaths.guestInstanceLogs(id));
   },
   setLocked: async (
     id: string,
@@ -71,7 +73,7 @@ export const guestInstancesApi = {
   ): Promise<Instance> => {
     const validatedInput = SetInstanceLockedSchema.parse(input);
     const data = await apiClient.patch<unknown>(
-      `${basePath}/${id}/lock`,
+      apiPaths.guestInstanceLock(id),
       validatedInput,
     );
     const result = InstanceSchema.safeParse(data);

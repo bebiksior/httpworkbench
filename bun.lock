@@ -38,6 +38,7 @@
         "http-z": "^8.1.1",
         "jose": "^6.2.3",
         "shared": "workspace:*",
+        "urlguard": "^1.0.0",
         "zod": "^4.3.6",
       },
       "devDependencies": {
@@ -84,6 +85,7 @@
         "shared": "workspace:*",
         "tailwindcss": "^4.2.1",
         "tailwindcss-primeui": "^0.6.1",
+        "urlguard": "^1.0.0",
         "vue": "^3.5.29",
         "vue-codemirror": "^6.1.1",
         "vue-command-palette": "^0.2.3",
@@ -1137,6 +1139,8 @@
     "unpipe": ["unpipe@1.0.0", "", {}, "sha512-pjy2bYhSsufwWlKwPc+l3cN7+wuJlK6uz0YdJEOlQDbl6jo/YlPi4mb8agUkVC8BF7V8NuzeyPNqRksA3hztKQ=="],
 
     "uri-js": ["uri-js@4.4.1", "", { "dependencies": { "punycode": "^2.1.0" } }, "sha512-7rKUyy33Q1yc98pQ1DAmLtwX109F7TIfWlW1Ydo8Wl1ii1SeHieeh0HHfPeL2fMXK6z0s8ecKs9frCuLJvndBg=="],
+
+    "urlguard": ["urlguard@1.0.0", "", {}, "sha512-5afPiaRBUhYO/XQzYUBVAoioTSIbEHdSqxAdo52FihTZEFe5EVU+72W8FRPX1rvF70fiqRxV3G5tTXlLBzfTow=="],
 
     "util-deprecate": ["util-deprecate@1.0.2", "", {}, "sha512-EPD5q1uXyFxJpCrLnCc1nHnq3gOa6DZBocAIiI2TaSCA7VCJ1UJDMagCzIkXNsUYfD1daK//LTEQ8xiIbrHtcw=="],
 

@@ -35,6 +35,39 @@ describe("validateDiscordWebhookUrl", () => {
     });
   });
 
+  test("rejects non-https webhook urls", () => {
+    expect(
+      validateDiscordWebhookUrl(
+        "http://discord.com/api/webhooks/123456/token-value",
+      ),
+    ).toEqual({
+      valid: false,
+      error: "URL must be a Discord webhook URL",
+    });
+  });
+
+  test("rejects webhook urls with embedded credentials", () => {
+    expect(
+      validateDiscordWebhookUrl(
+        "https://user:pass@discord.com/api/webhooks/123456/token-value",
+      ),
+    ).toEqual({
+      valid: false,
+      error: "URL must be a Discord webhook URL",
+    });
+  });
+
+  test("rejects webhook urls on unexpected ports", () => {
+    expect(
+      validateDiscordWebhookUrl(
+        "https://discord.com:444/api/webhooks/123456/token-value",
+      ),
+    ).toEqual({
+      valid: false,
+      error: "URL must be a Discord webhook URL",
+    });
+  });
+
   test("rejects invalid webhook paths", () => {
     expect(
       validateDiscordWebhookUrl("https://discord.com/channels/123456/token"),

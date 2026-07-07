@@ -1,10 +1,11 @@
 import { UserNoticesListResponseSchema } from "shared";
 import { apiClient } from "../client";
 import { ValidationError } from "../errors";
+import { apiPaths } from "../paths";
 
 export const userNoticesApi = {
   getPending: async () => {
-    const data = await apiClient.get<unknown>("/api/user/notices");
+    const data = await apiClient.get<unknown>(apiPaths.userNotices);
     const result = UserNoticesListResponseSchema.safeParse(data);
     if (!result.success) {
       throw new ValidationError(
@@ -14,6 +15,6 @@ export const userNoticesApi = {
     return result.data.notices;
   },
   acknowledge: async (noticeId: string): Promise<void> => {
-    await apiClient.post<unknown>(`/api/user/notices/${noticeId}/ack`, {});
+    await apiClient.post<unknown>(apiPaths.userNoticeAck(noticeId), {});
   },
 };

@@ -19,10 +19,11 @@ import {
 } from "shared";
 import { apiClient } from "../client";
 import { ValidationError } from "../errors";
+import { apiPaths } from "../paths";
 
 export const instancesApi = {
   getAll: async (): Promise<Instance[]> => {
-    const data = await apiClient.get<unknown>("/api/instances");
+    const data = await apiClient.get<unknown>(apiPaths.instances);
     const result = InstancesResponseSchema.safeParse(data);
 
     if (!result.success) {
@@ -35,7 +36,7 @@ export const instancesApi = {
   },
 
   getById: async (id: string): Promise<InstanceDetailResponse> => {
-    const data = await apiClient.get<unknown>(`/api/instances/${id}`);
+    const data = await apiClient.get<unknown>(apiPaths.instance(id));
     const result = InstanceDetailResponseSchema.safeParse(data);
 
     if (!result.success) {
@@ -50,7 +51,7 @@ export const instancesApi = {
   create: async (input: CreateInstanceInput): Promise<Instance> => {
     const validatedInput = CreateInstanceSchema.parse(input);
     const data = await apiClient.post<unknown>(
-      "/api/instances",
+      apiPaths.instances,
       validatedInput,
     );
     const result = InstanceSchema.safeParse(data);
@@ -67,7 +68,7 @@ export const instancesApi = {
   update: async (id: string, input: UpdateInstanceInput): Promise<Instance> => {
     const validatedInput = UpdateInstanceSchema.parse(input);
     const data = await apiClient.put<unknown>(
-      `/api/instances/${id}`,
+      apiPaths.instance(id),
       validatedInput,
     );
     const result = InstanceSchema.safeParse(data);
@@ -82,18 +83,15 @@ export const instancesApi = {
   },
 
   delete: async (id: string): Promise<void> => {
-    await apiClient.delete<void>(`/api/instances/${id}`);
+    await apiClient.delete<void>(apiPaths.instance(id));
   },
 
   clearLogs: async (id: string): Promise<void> => {
-    await apiClient.delete<void>(`/api/instances/${id}/logs`);
+    await apiClient.delete<void>(apiPaths.instanceLogs(id));
   },
 
   extend: async (id: string): Promise<Instance> => {
-    const data = await apiClient.post<unknown>(
-      `/api/instances/${id}/extend`,
-      {},
-    );
+    const data = await apiClient.post<unknown>(apiPaths.instanceExtend(id), {});
     const result = InstanceSchema.safeParse(data);
 
     if (!result.success) {
@@ -108,7 +106,7 @@ export const instancesApi = {
   rename: async (id: string, input: RenameInstanceInput): Promise<Instance> => {
     const validatedInput = RenameInstanceSchema.parse(input);
     const data = await apiClient.patch<unknown>(
-      `/api/instances/${id}/rename`,
+      apiPaths.instanceRename(id),
       validatedInput,
     );
     const result = InstanceSchema.safeParse(data);
@@ -128,7 +126,7 @@ export const instancesApi = {
   ): Promise<Instance> => {
     const validatedInput = SetInstanceLockedSchema.parse(input);
     const data = await apiClient.patch<unknown>(
-      `/api/instances/${id}/lock`,
+      apiPaths.instanceLock(id),
       validatedInput,
     );
     const result = InstanceSchema.safeParse(data);
@@ -148,7 +146,7 @@ export const instancesApi = {
   ): Promise<Instance> => {
     const validatedInput = SetInstancePublicSchema.parse(input);
     const data = await apiClient.patch<unknown>(
-      `/api/instances/${id}/public`,
+      apiPaths.instancePublic(id),
       validatedInput,
     );
     const result = InstanceSchema.safeParse(data);

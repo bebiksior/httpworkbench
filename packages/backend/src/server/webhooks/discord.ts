@@ -1,4 +1,5 @@
 import type { Log } from "shared";
+import { trySafeExternalUrl } from "urlguard";
 
 const DISCORD_HTTP_COLOR = 0x3b82f6;
 const DISCORD_DNS_COLOR = 0x10b981;
@@ -14,29 +15,33 @@ const MAX_ADDRESS_LENGTH = 1024;
 const MAX_FOOTER_LENGTH = 2048;
 const DISCORD_MESSAGE_PLACEHOLDER_PATTERN = /\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g;
 const DISCORD_MENTION_BREAK = "\u200B";
+const DISCORD_WEBHOOK_URL_POLICY = {
+  allowedHosts: ["discord.com", "discordapp.com"],
+  allowedPorts: [443],
+  allowedProtocols: ["https"],
+} as const;
 
 export function validateDiscordWebhookUrl(url: string): {
   valid: boolean;
   error?: string;
 } {
+  let parsed: URL;
   try {
-    const parsed = new URL(url);
-
-    if (
-      parsed.hostname !== "discord.com" &&
-      parsed.hostname !== "discordapp.com"
-    ) {
-      return { valid: false, error: "URL must be a Discord webhook URL" };
-    }
-
-    if (!parsed.pathname.startsWith("/api/webhooks/")) {
-      return { valid: false, error: "Invalid Discord webhook URL format" };
-    }
-
-    return { valid: true };
+    parsed = new URL(url);
   } catch {
     return { valid: false, error: "Invalid URL format" };
   }
+
+  const policyCheck = trySafeExternalUrl(parsed, DISCORD_WEBHOOK_URL_POLICY);
+  if (policyCheck.kind !== "Ok") {
+    return { valid: false, error: "URL must be a Discord webhook URL" };
+  }
+
+  if (!parsed.pathname.startsWith("/api/webhooks/")) {
+    return { valid: false, error: "Invalid Discord webhook URL format" };
+  }
+
+  return { valid: true };
 }
 
 export const truncateDiscordField = (
