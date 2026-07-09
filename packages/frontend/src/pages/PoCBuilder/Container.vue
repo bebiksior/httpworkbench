@@ -4,7 +4,6 @@ import { useRoute, onBeforeRouteLeave } from "vue-router";
 import { useRouter } from "vue-router";
 import { useMagicKeys } from "@vueuse/core";
 import { useConfirm } from "primevue/useconfirm";
-import ConfirmDialog from "primevue/confirmdialog";
 import { storeToRefs } from "pinia";
 import { useBuilderStore, useAgentsStore } from "@/stores";
 import { ThreePanelLayout, TwoPanelLayout, MobileLayout } from "./layouts";
@@ -94,7 +93,6 @@ onBeforeRouteLeave((to, _from, next) => {
 </script>
 
 <template>
-  <ConfirmDialog />
   <div class="h-full overflow-hidden p-2 pt-0">
     <div
       v-if="isLoading"
@@ -103,19 +101,12 @@ onBeforeRouteLeave((to, _from, next) => {
       <i class="pi pi-spinner pi-spin text-4xl text-surface-400" />
     </div>
 
-    <template v-else-if="instance?.kind === 'static'">
+    <template v-else-if="instance">
       <ThreePanelLayout v-if="isLargeScreen && showPreview" />
 
       <TwoPanelLayout v-else-if="isLargeScreen" />
 
       <MobileLayout v-else />
     </template>
-
-    <div
-      v-else
-      class="w-full h-full flex items-center justify-center text-center text-surface-500 px-6"
-    >
-      Builder is available for static instances only.
-    </div>
   </div>
 </template>

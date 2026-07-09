@@ -47,6 +47,11 @@ export const formatStaticHttpResponse = (params: {
   ].join("\r\n");
 };
 
+export const DEFAULT_HTTP_RESPONSE = formatStaticHttpResponse({
+  body: "<h1>Hello World</h1>",
+  contentType: "text/html",
+});
+
 export const splitHttpResponse = (
   raw: string | undefined,
 ): HttpResponseSections | undefined => {

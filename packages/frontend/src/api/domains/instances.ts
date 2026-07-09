@@ -18,34 +18,18 @@ import {
   UpdateInstanceSchema,
 } from "shared";
 import { apiClient } from "../client";
-import { ValidationError } from "../errors";
+import { parseResponse } from "../parseResponse";
 import { apiPaths } from "../paths";
 
 export const instancesApi = {
   getAll: async (): Promise<Instance[]> => {
     const data = await apiClient.get<unknown>(apiPaths.instances);
-    const result = InstancesResponseSchema.safeParse(data);
-
-    if (!result.success) {
-      throw new ValidationError(
-        `Invalid instances response: ${result.error.message}`,
-      );
-    }
-
-    return result.data;
+    return parseResponse(InstancesResponseSchema, data, "instances");
   },
 
   getById: async (id: string): Promise<InstanceDetailResponse> => {
     const data = await apiClient.get<unknown>(apiPaths.instance(id));
-    const result = InstanceDetailResponseSchema.safeParse(data);
-
-    if (!result.success) {
-      throw new ValidationError(
-        `Invalid instance detail response: ${result.error.message}`,
-      );
-    }
-
-    return result.data;
+    return parseResponse(InstanceDetailResponseSchema, data, "instance detail");
   },
 
   create: async (input: CreateInstanceInput): Promise<Instance> => {
@@ -54,15 +38,7 @@ export const instancesApi = {
       apiPaths.instances,
       validatedInput,
     );
-    const result = InstanceSchema.safeParse(data);
-
-    if (!result.success) {
-      throw new ValidationError(
-        `Invalid create instance response: ${result.error.message}`,
-      );
-    }
-
-    return result.data;
+    return parseResponse(InstanceSchema, data, "create instance");
   },
 
   update: async (id: string, input: UpdateInstanceInput): Promise<Instance> => {
@@ -71,15 +47,7 @@ export const instancesApi = {
       apiPaths.instance(id),
       validatedInput,
     );
-    const result = InstanceSchema.safeParse(data);
-
-    if (!result.success) {
-      throw new ValidationError(
-        `Invalid update instance response: ${result.error.message}`,
-      );
-    }
-
-    return result.data;
+    return parseResponse(InstanceSchema, data, "update instance");
   },
 
   delete: async (id: string): Promise<void> => {
@@ -92,15 +60,7 @@ export const instancesApi = {
 
   extend: async (id: string): Promise<Instance> => {
     const data = await apiClient.post<unknown>(apiPaths.instanceExtend(id), {});
-    const result = InstanceSchema.safeParse(data);
-
-    if (!result.success) {
-      throw new ValidationError(
-        `Invalid extend instance response: ${result.error.message}`,
-      );
-    }
-
-    return result.data;
+    return parseResponse(InstanceSchema, data, "extend instance");
   },
 
   rename: async (id: string, input: RenameInstanceInput): Promise<Instance> => {
@@ -109,15 +69,7 @@ export const instancesApi = {
       apiPaths.instanceRename(id),
       validatedInput,
     );
-    const result = InstanceSchema.safeParse(data);
-
-    if (!result.success) {
-      throw new ValidationError(
-        `Invalid rename instance response: ${result.error.message}`,
-      );
-    }
-
-    return result.data;
+    return parseResponse(InstanceSchema, data, "rename instance");
   },
 
   setLocked: async (
@@ -129,15 +81,7 @@ export const instancesApi = {
       apiPaths.instanceLock(id),
       validatedInput,
     );
-    const result = InstanceSchema.safeParse(data);
-
-    if (!result.success) {
-      throw new ValidationError(
-        `Invalid set locked response: ${result.error.message}`,
-      );
-    }
-
-    return result.data;
+    return parseResponse(InstanceSchema, data, "set locked");
   },
 
   setPublic: async (
@@ -149,14 +93,6 @@ export const instancesApi = {
       apiPaths.instancePublic(id),
       validatedInput,
     );
-    const result = InstanceSchema.safeParse(data);
-
-    if (!result.success) {
-      throw new ValidationError(
-        `Invalid set public response: ${result.error.message}`,
-      );
-    }
-
-    return result.data;
+    return parseResponse(InstanceSchema, data, "set public");
   },
 };

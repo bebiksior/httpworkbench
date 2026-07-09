@@ -1,13 +1,10 @@
 import { existsSync, mkdirSync, rmSync } from "node:fs";
+import path from "node:path";
 import { Database } from "bun:sqlite";
 import { count } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/bun-sqlite";
 import { migrate } from "drizzle-orm/bun-sqlite/migrator";
-import type { LegacyStorageData } from "./legacyData";
-import { resolveDataDir } from "./legacyData";
 import {
-  instanceWebhooks,
-  instanceModerations,
   instances,
   apiKeys,
   logs,
@@ -16,15 +13,12 @@ import {
   users,
   webhooks,
 } from "./schema";
-import {
-  toInstanceRow,
-  toModerationRow,
-  toUserNoticeRow,
-  toWebhookRow,
-} from "./records";
 
 const SQLITE_DB_FILENAME = "db.sqlite";
 const MIGRATIONS_FOLDER = `${import.meta.dir}/../../drizzle`;
+
+const resolveDataDir = (dataDir?: string) =>
+  dataDir ?? Bun.env.DATA_DIR ?? path.join(process.cwd(), "data");
 
 type InitDbOptions = {
   dataDir?: string;
@@ -46,15 +40,54 @@ type DbState = {
 
 let dbState: DbState | undefined;
 
+const countAppliedMigrations = (sqlite: Database) => {
+  const migrationsTable = sqlite
+    .query(
+      "SELECT name FROM sqlite_master WHERE type = 'table' AND name = '__drizzle_migrations'",
+    )
+    .get();
+  if (migrationsTable === null) {
+    return 0;
+  }
+
+  return (
+    sqlite
+      .query<
+        { count: number },
+        []
+      >("SELECT COUNT(*) AS count FROM __drizzle_migrations")
+      .get()?.count ?? 0
+  );
+};
+
 const openDatabase = (dbPath: string) => {
   const sqlite = new Database(dbPath, { strict: true });
-  sqlite.run("PRAGMA foreign_keys = ON");
   sqlite.run("PRAGMA journal_mode = WAL");
   sqlite.run("PRAGMA synchronous = NORMAL");
   sqlite.run("PRAGMA busy_timeout = 5000");
   const db = createDrizzleDb(sqlite);
-  migrate(db, { migrationsFolder: MIGRATIONS_FOLDER });
-  return { sqlite, db };
+  try {
+    // Table-rebuild migrations must run with foreign keys disabled at the
+    // connection level; changing this pragma inside Drizzle's transaction is
+    // ignored by SQLite.
+    sqlite.run("PRAGMA foreign_keys = OFF");
+    const migrationCountBefore = countAppliedMigrations(sqlite);
+    migrate(db, { migrationsFolder: MIGRATIONS_FOLDER });
+    sqlite.run("PRAGMA foreign_keys = ON");
+    const migrationCountAfter = countAppliedMigrations(sqlite);
+    if (migrationCountAfter > migrationCountBefore) {
+      const violations = sqlite.query("PRAGMA foreign_key_check").all();
+      if (violations.length > 0) {
+        throw new Error(
+          `Database migration produced foreign key violations: ${JSON.stringify(violations)}`,
+        );
+      }
+    }
+    return { sqlite, db };
+  } catch (error) {
+    sqlite.close();
+    throw error;
+  }
 };
 
 const getStats = (db: DrizzleDb) => {
@@ -150,59 +183,4 @@ export const getDb = () => {
     })();
 
   return initialized.db;
-};
-
-export const replaceData = (data: LegacyStorageData) => {
-  const db = getDb();
-
-  db.transaction(
-    (tx) => {
-      tx.delete(logs).run();
-      tx.delete(instanceWebhooks).run();
-      tx.delete(instanceModerations).run();
-      tx.delete(userNotices).run();
-      tx.delete(apiKeys).run();
-      tx.delete(webhooks).run();
-      tx.delete(instances).run();
-      tx.delete(users).run();
-
-      for (const user of data.users) {
-        tx.insert(users).values(user).run();
-      }
-
-      for (const webhook of data.webhooks) {
-        tx.insert(webhooks).values(toWebhookRow(webhook)).run();
-      }
-
-      for (const instance of data.instances) {
-        tx.insert(instances).values(toInstanceRow(instance)).run();
-        instance.webhookIds.forEach((webhookId, position) => {
-          tx.insert(instanceWebhooks)
-            .values({
-              instanceId: instance.id,
-              webhookId,
-              position,
-            })
-            .run();
-        });
-      }
-
-      for (const log of data.logs) {
-        tx.insert(logs).values(log).run();
-      }
-
-      for (const moderation of data.instanceModerations) {
-        tx.insert(instanceModerations)
-          .values(toModerationRow(moderation))
-          .run();
-      }
-
-      for (const notice of data.userNotices) {
-        tx.insert(userNotices).values(toUserNoticeRow(notice)).run();
-      }
-    },
-    {
-      behavior: "immediate",
-    },
-  );
 };

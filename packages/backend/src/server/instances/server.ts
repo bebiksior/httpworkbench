@@ -156,15 +156,8 @@ export const createInstancesServer = (
           broadcastLog(log);
           didLog = true;
 
-          switch (instance.kind) {
-            case "static": {
-              const adjustedResponse = adjustContentLength(instance.raw);
-              respond(socket, new TextEncoder().encode(adjustedResponse));
-              break;
-            }
-            case "dynamic":
-              throw new Error("Dynamic instances are not supported yet");
-          }
+          const adjustedResponse = adjustContentLength(instance.raw);
+          respond(socket, new TextEncoder().encode(adjustedResponse));
         } catch (error) {
           console.error(error);
           if (!didLog) {

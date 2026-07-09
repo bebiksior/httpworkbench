@@ -3,8 +3,13 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { Database } from "bun:sqlite";
+import { readMigrationFiles } from "drizzle-orm/migrator";
 import type { Instance, Log, UserRecord, Webhook } from "shared";
-import { closeDb, initDb, replaceData, resolveSqliteDbPath } from "./db";
+import { closeDb, getDb, initDb, resolveSqliteDbPath } from "./db";
+import { addInstance } from "./repositories/instances";
+import { addUser } from "./repositories/users";
+import { addWebhook } from "./repositories/webhooks";
+import { logs } from "./schema";
 
 const createUser = (): UserRecord => ({
   id: "user-1",
@@ -27,7 +32,6 @@ const createInstance = (): Instance => ({
   webhookIds: ["webhook-1"],
   public: false,
   locked: false,
-  kind: "static",
   raw: "HTTP/1.1 200 OK\r\n\r\nok",
 });
 
@@ -95,14 +99,10 @@ describe("storage db migrations", () => {
     const first = initDb({ dataDir, reset: true });
     expect(first.kind).toBe("ok");
 
-    replaceData({
-      users: [createUser()],
-      instances: [createInstance()],
-      logs: [createLog()],
-      webhooks: [createWebhook()],
-      instanceModerations: [],
-      userNotices: [],
-    });
+    addUser(createUser());
+    addWebhook(createWebhook());
+    addInstance(createInstance());
+    getDb().insert(logs).values(createLog()).run();
     closeDb();
 
     const reopened = initDb({ dataDir });
@@ -124,14 +124,10 @@ describe("storage db migrations", () => {
     const first = initDb({ dataDir, reset: true });
     expect(first.kind).toBe("ok");
 
-    replaceData({
-      users: [createUser()],
-      instances: [createInstance()],
-      logs: [createLog()],
-      webhooks: [createWebhook()],
-      instanceModerations: [],
-      userNotices: [],
-    });
+    addUser(createUser());
+    addWebhook(createWebhook());
+    addInstance(createInstance());
+    getDb().insert(logs).values(createLog()).run();
 
     const reset = initDb({ dataDir, reset: true });
 
@@ -146,5 +142,98 @@ describe("storage db migrations", () => {
         apiKeysLength: 0,
       },
     });
+  });
+
+  test("reopening an already migrated database does not revalidate historical orphans", () => {
+    const first = initDb({ dataDir, reset: true });
+    expect(first.kind).toBe("ok");
+    closeDb();
+
+    const sqlite = new Database(resolveSqliteDbPath(dataDir));
+    sqlite.run("PRAGMA foreign_keys = OFF");
+    sqlite
+      .query(
+        "INSERT INTO logs (id, instanceId, type, timestamp, address, raw) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+      )
+      .run("orphan", "missing", "http", 1, "127.0.0.1", "GET /");
+    sqlite.close();
+
+    const reopened = initDb({ dataDir });
+    expect(reopened.kind).toBe("ok");
+    if (reopened.kind === "ok") {
+      expect(reopened.stats.logsLength).toBe(1);
+    }
+  });
+
+  test("static-only migration removes unusable instances and preserves valid associations", () => {
+    const dbPath = resolveSqliteDbPath(dataDir);
+    const sqlite = new Database(dbPath);
+    const migrations = readMigrationFiles({
+      migrationsFolder: path.join(import.meta.dir, "../../drizzle"),
+    });
+    for (const migration of migrations.slice(0, 3)) {
+      for (const statement of migration.sql) {
+        sqlite.exec(statement);
+      }
+    }
+    sqlite.exec(`
+      CREATE TABLE __drizzle_migrations (
+        id SERIAL PRIMARY KEY,
+        hash TEXT NOT NULL,
+        created_at NUMERIC
+      );
+      INSERT INTO webhooks (id, name, url, message, ownerId, createdAt)
+        VALUES ('webhook-1', 'Alerts', 'https://example.com', NULL, 'owner', 1);
+      INSERT INTO instances VALUES
+        ('valid', 'owner', 1, NULL, NULL, 0, 0, 'static', 'HTTP/1.1 200 OK\r\n\r\nvalid', NULL),
+        ('dynamic', 'owner', 2, NULL, NULL, 0, 0, 'dynamic', NULL, '[]'),
+        ('null-raw', 'owner', 3, NULL, NULL, 0, 0, 'static', NULL, NULL);
+      INSERT INTO instanceWebhooks VALUES ('valid', 'webhook-1', 0);
+      INSERT INTO instanceWebhooks VALUES ('dynamic', 'webhook-1', 0);
+      INSERT INTO logs (id, instanceId, type, timestamp, address, raw) VALUES
+        ('log-valid', 'valid', 'http', 1, '127.0.0.1', 'valid'),
+        ('log-dynamic', 'dynamic', 'http', 2, '127.0.0.1', 'dynamic'),
+        ('log-null', 'null-raw', 'http', 3, '127.0.0.1', 'null');
+      INSERT INTO instanceModerations VALUES
+        ('valid', 0, 0, 0, '[]', NULL, 0, 0, 0, 0),
+        ('dynamic', 0, 0, 0, '[]', NULL, 0, 0, 0, 0);
+    `);
+    for (const migration of migrations.slice(0, 3)) {
+      sqlite
+        .query(
+          "INSERT INTO __drizzle_migrations (hash, created_at) VALUES (?1, ?2)",
+        )
+        .run(migration.hash, migration.folderMillis);
+    }
+    sqlite.close();
+
+    const upgraded = initDb({ dataDir });
+    expect(upgraded.kind).toBe("ok");
+    closeDb();
+
+    const migrated = new Database(dbPath);
+    expect(migrated.query("SELECT id, raw FROM instances").all()).toEqual([
+      { id: "valid", raw: "HTTP/1.1 200 OK\r\n\r\nvalid" },
+    ]);
+    expect(
+      migrated.query("SELECT instanceId FROM instanceWebhooks").all(),
+    ).toEqual([{ instanceId: "valid" }]);
+    expect(migrated.query("SELECT instanceId FROM logs").all()).toEqual([
+      { instanceId: "valid" },
+    ]);
+    expect(
+      migrated.query("SELECT instanceId FROM instanceModerations").all(),
+    ).toEqual([{ instanceId: "valid" }]);
+
+    const columns = migrated
+      .query("PRAGMA table_info(instances)")
+      .all() as Array<{ name: string; notnull: number }>;
+    expect(columns.some((column) => column.name === "kind")).toBe(false);
+    expect(columns.some((column) => column.name === "processorsJson")).toBe(
+      false,
+    );
+    expect(columns.find((column) => column.name === "raw")?.notnull).toBe(1);
+    expect(migrated.query("PRAGMA foreign_key_check").all()).toEqual([]);
+    migrated.close();
   });
 });

@@ -17,7 +17,6 @@ const createInstance = (id: string) => ({
   webhookIds: [] as string[],
   public: false,
   locked: false,
-  kind: "static" as const,
   raw: "HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n",
 });
 

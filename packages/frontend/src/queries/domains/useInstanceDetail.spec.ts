@@ -2,7 +2,10 @@ import { QueryClient } from "@tanstack/vue-query";
 import { describe, expect, test } from "vitest";
 import type { Instance, InstanceDetailResponse, Log } from "shared";
 import { queryKeys } from "@/queries/keys";
-import { buildInstanceDetailPlaceholder } from "./useInstanceDetail";
+import {
+  buildInstanceDetailPlaceholder,
+  selectInstanceDetailPlaceholder,
+} from "./useInstanceDetail";
 
 const makeInstance = (id: string): Instance => ({
   id,
@@ -11,7 +14,6 @@ const makeInstance = (id: string): Instance => ({
   webhookIds: [],
   public: false,
   locked: false,
-  kind: "static",
   raw: "HTTP/1.1 200 OK\r\n\r\nok",
 });
 
@@ -61,5 +63,19 @@ describe("buildInstanceDetailPlaceholder", () => {
     expect(buildInstanceDetailPlaceholder(queryClient, "target")).toEqual(
       targetDetail,
     );
+  });
+
+  test("does not reuse previous detail data for another instance", () => {
+    const queryClient = new QueryClient();
+    const target = makeInstance("target");
+    queryClient.setQueryData([...queryKeys.instances.all, "user"], [target]);
+
+    expect(
+      selectInstanceDetailPlaceholder(
+        queryClient,
+        "target",
+        makeDetail("other"),
+      ),
+    ).toEqual({ instance: target, logs: [] });
   });
 });

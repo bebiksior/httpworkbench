@@ -1,10 +1,4 @@
-import type {
-  ApiKeyScope,
-  InstanceKind,
-  LogType,
-  Processor,
-  UserNoticeKind,
-} from "shared";
+import type { ApiKeyScope, LogType, UserNoticeKind } from "shared";
 import {
   index,
   integer,
@@ -34,13 +28,7 @@ export const instances = sqliteTable(
     label: text("label"),
     isPublic: integer("isPublic", { mode: "boolean" }).notNull(),
     isLocked: integer("isLocked", { mode: "boolean" }).notNull(),
-    kind: text("kind", { enum: ["static", "dynamic"] })
-      .$type<InstanceKind>()
-      .notNull(),
-    raw: text("raw"),
-    processorsJson: text("processorsJson", { mode: "json" }).$type<
-      Processor[] | null
-    >(),
+    raw: text("raw").notNull(),
   },
   (table) => [
     index("instances_by_owner").on(table.ownerId),

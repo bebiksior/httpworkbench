@@ -13,7 +13,7 @@ import {
   UpdateInstanceSchema,
 } from "shared";
 import { apiClient } from "../client";
-import { ValidationError } from "../errors";
+import { parseResponse } from "../parseResponse";
 import { apiPaths } from "../paths";
 
 export const guestInstancesApi = {
@@ -23,27 +23,15 @@ export const guestInstancesApi = {
       apiPaths.guestInstances,
       validatedInput,
     );
-    const result = InstanceSchema.safeParse(data);
-
-    if (!result.success) {
-      throw new ValidationError(
-        `Invalid guest create instance response: ${result.error.message}`,
-      );
-    }
-
-    return result.data;
+    return parseResponse(InstanceSchema, data, "guest create instance");
   },
   getById: async (id: string): Promise<InstanceDetailResponse> => {
     const data = await apiClient.get<unknown>(apiPaths.guestInstance(id));
-    const result = InstanceDetailResponseSchema.safeParse(data);
-
-    if (!result.success) {
-      throw new ValidationError(
-        `Invalid guest instance detail response: ${result.error.message}`,
-      );
-    }
-
-    return result.data;
+    return parseResponse(
+      InstanceDetailResponseSchema,
+      data,
+      "guest instance detail",
+    );
   },
   update: async (id: string, input: UpdateInstanceInput): Promise<Instance> => {
     const validatedInput = UpdateInstanceSchema.parse(input);
@@ -51,15 +39,7 @@ export const guestInstancesApi = {
       apiPaths.guestInstance(id),
       validatedInput,
     );
-    const result = InstanceSchema.safeParse(data);
-
-    if (!result.success) {
-      throw new ValidationError(
-        `Invalid guest update instance response: ${result.error.message}`,
-      );
-    }
-
-    return result.data;
+    return parseResponse(InstanceSchema, data, "guest update instance");
   },
   delete: async (id: string): Promise<void> => {
     await apiClient.delete<void>(apiPaths.guestInstance(id));
@@ -76,14 +56,6 @@ export const guestInstancesApi = {
       apiPaths.guestInstanceLock(id),
       validatedInput,
     );
-    const result = InstanceSchema.safeParse(data);
-
-    if (!result.success) {
-      throw new ValidationError(
-        `Invalid guest set locked response: ${result.error.message}`,
-      );
-    }
-
-    return result.data;
+    return parseResponse(InstanceSchema, data, "guest set locked");
   },
 };

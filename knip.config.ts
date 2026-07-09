@@ -16,7 +16,6 @@ const config: KnipConfig = {
   vue: {
     enabled: true,
   },
-  ignore: ["**/*.d.ts"],
   ignoreDependencies: [
     "@types/dompurify",
     "tailwindcss",

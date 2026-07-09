@@ -73,11 +73,11 @@ curl https://httpworkbench.com/api/instances \
 The full OpenAPI specification is served at `/api/openapi.json`
 
 ```bash
-# Create a static instance
+# Create an instance
 curl -X POST https://httpworkbench.com/api/instances \
   -H "Authorization: Bearer hwb_<id>_<secret>" \
   -H "Content-Type: application/json" \
-  -d '{"kind":"static","raw":"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\nhello"}'
+  -d '{"raw":"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\nhello"}'
 
 # Read its logs (paginate with nextCursor)
 curl "https://httpworkbench.com/api/instances/<id>/logs?limit=50" \

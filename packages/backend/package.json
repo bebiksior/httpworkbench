@@ -14,8 +14,7 @@
   "scripts": {
     "dev": "bun --env-file=../../.env src/index.ts",
     "typecheck": "tsgo --noEmit",
-    "drizzle:generate": "drizzle-kit generate --config drizzle.config.ts",
-    "migrate:sqlite": "bun --env-file=../../.env src/storage/importLegacyDb.ts"
+    "drizzle:generate": "drizzle-kit generate --config drizzle.config.ts"
   },
   "dependencies": {
     "@elysiajs/openapi": "^1.4.15",

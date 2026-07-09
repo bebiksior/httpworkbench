@@ -8,7 +8,6 @@ import {
   type Ref,
 } from "vue";
 import { useRouter } from "vue-router";
-import { useConfirm } from "primevue/useconfirm";
 import type { Instance } from "shared";
 import { useNotify } from "@/composables";
 import { config } from "@/config";
@@ -37,7 +36,6 @@ const builderPageSymbol: InjectionKey<BuilderPageContext> =
 export const useBuilderPage = (instanceIdRef: Ref<string>) => {
   const notify = useNotify();
   const router = useRouter();
-  const confirm = useConfirm();
   const builderStore = useBuilderStore();
   const responseEditorStore = useResponseEditorStore();
 
@@ -89,14 +87,6 @@ export const useBuilderPage = (instanceIdRef: Ref<string>) => {
       if (isAbsent(newInstance)) {
         return;
       }
-      if (newInstance.kind !== "static") {
-        notify.warn(
-          "Unsupported instance",
-          "PoC Builder is available for static instances only.",
-        );
-        router.push({ name: "instanceDetail", params: { id: newInstance.id } });
-        return;
-      }
       if (builderStore.isDirty) {
         return;
       }
@@ -107,14 +97,13 @@ export const useBuilderPage = (instanceIdRef: Ref<string>) => {
 
   const handleSave = async () => {
     const currentInstance = instance.value;
-    if (currentInstance?.kind !== "static") {
+    if (currentInstance === undefined) {
       return;
     }
     try {
       await updateInstanceMutation({
         id: currentInstance.id,
         input: {
-          kind: "static",
           raw: formatResponse(builderStore.editorContent),
           webhookIds: currentInstance.webhookIds,
         },
@@ -137,25 +126,7 @@ export const useBuilderPage = (instanceIdRef: Ref<string>) => {
   };
 
   const handleBack = () => {
-    if (builderStore.isDirty) {
-      confirm.require({
-        message: "You have unsaved changes. Are you sure you want to leave?",
-        header: "Unsaved Changes",
-        icon: "pi pi-exclamation-triangle",
-        rejectProps: {
-          label: "Cancel",
-          severity: "secondary",
-          outlined: true,
-        },
-        acceptProps: {
-          label: "Leave",
-          severity: "danger",
-        },
-        accept: performNavigation,
-      });
-    } else {
-      performNavigation();
-    }
+    performNavigation();
   };
 
   const context: BuilderPageContext = {

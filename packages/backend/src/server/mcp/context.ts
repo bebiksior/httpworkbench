@@ -1,0 +1,58 @@
+import type { AuthInfo } from "@modelcontextprotocol/sdk/server/auth/types.js";
+import type { ApiKeyScope, Instance } from "shared";
+import type { ApiKeyAuthContext } from "../apiKeyAuth";
+import { hasApiKeyScope } from "../apiKeyAuth";
+import { getOwnedInstance } from "../instances/service";
+
+export const jsonToolResult = (value: Record<string, unknown>) => ({
+  content: [{ type: "text" as const, text: JSON.stringify(value, null, 2) }],
+  structuredContent: value,
+});
+
+export const toolError = (message: string) => ({
+  content: [{ type: "text" as const, text: message }],
+  isError: true,
+});
+
+export const getAuthContext = (extra: {
+  authInfo?: AuthInfo;
+}): ApiKeyAuthContext => {
+  const context = extra.authInfo?.extra?.httpworkbenchAuth;
+  if (context === undefined) {
+    throw new Error("Unauthorized");
+  }
+  return context as ApiKeyAuthContext;
+};
+
+export const requireScope = (auth: ApiKeyAuthContext, scope: ApiKeyScope) => {
+  if (!hasApiKeyScope(auth.apiKey, scope)) {
+    throw new Error(`Missing API key scope: ${scope}`);
+  }
+};
+
+export const requireOwnedInstance = (
+  instanceId: string,
+  auth: ApiKeyAuthContext,
+) => {
+  const result = getOwnedInstance(instanceId, auth.user.id);
+  if (!result.ok) {
+    throw new Error("Instance not found");
+  }
+  return result.value;
+};
+
+export const serializeInstance = (instance: Instance) => ({
+  ...instance,
+  url: `${instance.id}.${Bun.env.INSTANCES_DOMAIN ?? ""}`,
+});
+
+export const serializeInstanceSummary = (instance: Instance) => ({
+  id: instance.id,
+  ownerId: instance.ownerId,
+  createdAt: instance.createdAt,
+  expiresAt: instance.expiresAt,
+  label: instance.label,
+  public: instance.public,
+  locked: instance.locked,
+  url: `${instance.id}.${Bun.env.INSTANCES_DOMAIN ?? ""}`,
+});

@@ -17,7 +17,6 @@ const otherUser: User = {
 
 const privateInstance: Instance = {
   id: "instance-1",
-  kind: "static",
   ownerId: user.id,
   createdAt: 1,
   raw: "HTTP/1.1 200 OK\r\n\r\nok",

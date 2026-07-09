@@ -1,13 +1,23 @@
 import type { Instance } from "shared";
 import { InstanceSchema } from "shared";
-import { and, asc, eq, inArray, isNotNull, lte } from "drizzle-orm";
+import {
+  and,
+  asc,
+  count,
+  eq,
+  gt,
+  inArray,
+  isNotNull,
+  isNull,
+  lte,
+  or,
+} from "drizzle-orm";
 import { getDb } from "../db";
 import { toDomainInstance, toInstanceRow } from "../records";
 import { instances, instanceWebhooks } from "../schema";
 
-const isInstanceExpired = (instance: Instance, now: number) => {
-  return instance.expiresAt !== undefined && instance.expiresAt <= now;
-};
+const activeInstanceCondition = (now: number) =>
+  or(isNull(instances.expiresAt), gt(instances.expiresAt, now));
 
 type WebhookMutationStore = Pick<ReturnType<typeof getDb>, "delete" | "insert">;
 
@@ -58,13 +68,9 @@ const getActiveInstanceById = (
   const row = getDb()
     .select()
     .from(instances)
-    .where(eq(instances.id, id))
+    .where(and(eq(instances.id, id), activeInstanceCondition(now)))
     .get();
-  const instance = row === undefined ? undefined : hydrateInstances([row])[0];
-  if (instance === undefined) {
-    return undefined;
-  }
-  return isInstanceExpired(instance, now) ? undefined : instance;
+  return row === undefined ? undefined : hydrateInstances([row])[0];
 };
 
 const replaceInstanceWebhooks = (
@@ -102,10 +108,25 @@ export function getInstancesByOwner(ownerId: string): Instance[] {
     getDb()
       .select()
       .from(instances)
-      .where(eq(instances.ownerId, ownerId))
+      .where(and(eq(instances.ownerId, ownerId), activeInstanceCondition(now)))
       .orderBy(asc(instances.createdAt), asc(instances.id))
       .all(),
-  ).filter((instance) => !isInstanceExpired(instance, now));
+  );
+}
+
+export function countActiveInstancesByOwner(ownerId: string): number {
+  return (
+    getDb()
+      .select({ count: count() })
+      .from(instances)
+      .where(
+        and(
+          eq(instances.ownerId, ownerId),
+          activeInstanceCondition(Date.now()),
+        ),
+      )
+      .get()?.count ?? 0
+  );
 }
 
 export function getInstanceById(id: string): Instance | undefined {

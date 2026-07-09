@@ -5,27 +5,47 @@ import type {
   Webhook,
   WebhooksResponse,
 } from "shared";
+import {
+  CreateWebhookSchema,
+  TestWebhookSchema,
+  UpdateWebhookSchema,
+  WebhookSchema,
+  WebhooksResponseSchema,
+} from "shared";
 import { apiClient } from "../client";
+import { parseResponse } from "../parseResponse";
 import { apiPaths } from "../paths";
 
 export const webhooksApi = {
   fetchWebhooks: async (): Promise<WebhooksResponse> => {
-    return apiClient.get<WebhooksResponse>(apiPaths.webhooks);
+    const data = await apiClient.get<unknown>(apiPaths.webhooks);
+    return parseResponse(WebhooksResponseSchema, data, "webhooks");
   },
 
   createWebhook: async (input: CreateWebhookInput): Promise<Webhook> => {
-    return apiClient.post<Webhook>(apiPaths.webhooks, input);
+    const data = await apiClient.post<unknown>(
+      apiPaths.webhooks,
+      CreateWebhookSchema.parse(input),
+    );
+    return parseResponse(WebhookSchema, data, "create webhook");
   },
 
   testWebhook: async (input: TestWebhookInput): Promise<void> => {
-    return apiClient.post<void>(apiPaths.webhookTest, input);
+    return apiClient.post<void>(
+      apiPaths.webhookTest,
+      TestWebhookSchema.parse(input),
+    );
   },
 
   updateWebhook: async (
     id: string,
     input: UpdateWebhookInput,
   ): Promise<Webhook> => {
-    return apiClient.patch<Webhook>(apiPaths.webhook(id), input);
+    const data = await apiClient.patch<unknown>(
+      apiPaths.webhook(id),
+      UpdateWebhookSchema.parse(input),
+    );
+    return parseResponse(WebhookSchema, data, "update webhook");
   },
 
   deleteWebhook: async (id: string): Promise<void> => {

@@ -19,19 +19,11 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null;
 
 const isCacheInstance = (value: unknown): value is Instance => {
-  if (!isRecord(value) || typeof value.id !== "string") {
-    return false;
-  }
-
-  if (value.kind === "static") {
-    return typeof value.raw === "string";
-  }
-
-  if (value.kind === "dynamic") {
-    return Array.isArray(value.processors);
-  }
-
-  return false;
+  return (
+    isRecord(value) &&
+    typeof value.id === "string" &&
+    typeof value.raw === "string"
+  );
 };
 
 const isCacheInstanceDetail = (
@@ -113,6 +105,15 @@ export const buildInstanceDetailPlaceholder = (
   };
 };
 
+export const selectInstanceDetailPlaceholder = (
+  queryClient: QueryClient,
+  id: string,
+  previousData: InstanceDetailResponse | undefined,
+) =>
+  previousData?.instance.id === id
+    ? previousData
+    : buildInstanceDetailPlaceholder(queryClient, id);
+
 export const useInstanceDetail = (instanceId: MaybeRefOrGetter<string>) => {
   const queryClient = useQueryClient();
   const authStore = useAuthStore();
@@ -142,12 +143,11 @@ export const useInstanceDetail = (instanceId: MaybeRefOrGetter<string>) => {
       }
     },
     retry: false,
-    placeholderData: (previousData) => {
-      if (previousData !== undefined) {
-        return previousData;
-      }
-
-      return buildInstanceDetailPlaceholder(queryClient, toValue(instanceId));
-    },
+    placeholderData: (previousData) =>
+      selectInstanceDetailPlaceholder(
+        queryClient,
+        toValue(instanceId),
+        previousData,
+      ),
   });
 };

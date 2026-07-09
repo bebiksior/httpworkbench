@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import Button from "primevue/button";
 import InputText from "primevue/inputtext";
-import ConfirmDialog from "primevue/confirmdialog";
 import Dialog from "primevue/dialog";
 import MultiSelect from "primevue/multiselect";
 import Tag from "primevue/tag";
@@ -48,6 +47,7 @@ const {
   triggerFileUpload,
   handleCopy,
   selectedWebhookIds,
+  handleWebhookChange,
   showExpirationNotice,
   expirationText,
   expirationExact,
@@ -117,7 +117,6 @@ const isWebhooksDialogVisible = ref(false);
 </script>
 
 <template>
-  <ConfirmDialog />
   <div class="flex h-full min-h-0 flex-col gap-5 p-3 sm:gap-8 sm:p-4">
     <div class="flex flex-col gap-5 sm:gap-6">
       <div>
@@ -249,10 +248,7 @@ const isWebhooksDialogVisible = ref(false);
       </div>
     </div>
 
-    <div
-      v-if="instance.kind === 'static'"
-      class="flex min-h-[260px] flex-1 flex-col gap-3 lg:min-h-0"
-    >
+    <div class="flex min-h-[260px] flex-1 flex-col gap-3 lg:min-h-0">
       <div class="flex justify-between items-end">
         <div>
           <h3 class="font-semibold text-surface-900 dark:text-surface-0">
@@ -444,7 +440,7 @@ const isWebhooksDialogVisible = ref(false);
     >
       <div class="flex flex-col gap-3">
         <MultiSelect
-          v-model="selectedWebhookIds"
+          :model-value="selectedWebhookIds"
           :options="webhookOptions"
           option-label="label"
           option-value="value"
@@ -453,6 +449,9 @@ const isWebhooksDialogVisible = ref(false);
           class="w-full"
           size="small"
           display="chip"
+          :loading="isUpdating"
+          :disabled="isUpdating"
+          @update:model-value="handleWebhookChange"
         />
         <p class="text-xs text-surface-600 dark:text-surface-400">
           Selected Discord webhooks will be notified when logs are created for

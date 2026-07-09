@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import Button from "primevue/button";
-import ConfirmDialog from "primevue/confirmdialog";
 import Divider from "primevue/divider";
 import IconField from "primevue/iconfield";
 import InputIcon from "primevue/inputicon";
@@ -40,7 +39,6 @@ const showDesktopDivider = useMediaQuery("(min-width: 640px)");
 </script>
 
 <template>
-  <ConfirmDialog />
   <div class="h-full overflow-y-auto bg-surface-50 dark:bg-surface-900">
     <div class="mx-auto max-w-7xl px-3 pt-4 pb-2 sm:px-6 sm:pt-8">
       <div

@@ -1,6 +1,6 @@
 import { useConfirm } from "primevue/useconfirm";
 import { GUEST_OWNER_ID, type Instance } from "shared";
-import { computed, ref, watch, type Ref } from "vue";
+import { computed, ref, type Ref } from "vue";
 import { useRouter } from "vue-router";
 import { storeToRefs } from "pinia";
 import { useTimeAgo } from "@vueuse/core";
@@ -15,19 +15,15 @@ import {
   useRenameInstance,
   useSetInstanceLocked,
   useSetInstancePublic,
-  useUpdateInstance,
 } from "@/queries/domains/useInstances";
 import { useAuthStore, useGuestInstancesStore } from "@/stores";
 import { isAbsent, isPresent } from "@/utils/types";
-import { useFileUpload } from "./useFileUpload";
+import { useInstanceEditor } from "./useInstanceEditor";
 
 export const useInstanceDataLogic = (instance: Ref<Instance>) => {
   const notify = useNotify();
   const confirm = useConfirm();
   const router = useRouter();
-  const { processFile } = useFileUpload();
-  const { mutateAsync: updateInstanceMutation, isPending: isUpdating } =
-    useUpdateInstance();
   const { mutateAsync: deleteInstanceMutation, isPending: isDeleting } =
     useDeleteInstance();
   const { mutateAsync: cloneInstanceMutation, isPending: isCloning } =
@@ -66,15 +62,10 @@ export const useInstanceDataLogic = (instance: Ref<Instance>) => {
     return authStore.user?.id === instance.value.ownerId;
   });
 
-  const rawContent = ref("");
-  const savedRawContent = ref("");
-  const isDirty = ref(false);
-  const fileInputRef = ref<HTMLInputElement | null>(null);
-  const selectedWebhookIds = ref<string[]>([]);
   const isEditingLabel = ref(false);
   const editLabel = ref("");
   const labelInputRef = ref<HTMLInputElement | null>(null);
-  const isSavingViaEnter = ref(false);
+  const isSavingLabel = ref(false);
 
   const displayName = computed(() => {
     const label = instance.value.label;
@@ -112,91 +103,15 @@ export const useInstanceDataLogic = (instance: Ref<Instance>) => {
   const showExpirationNotice = computed(() =>
     isPresent(instance.value.expiresAt),
   );
-  const hasUnsavedRawChanges = (value: string) =>
-    value.replace(/\r\n/g, "\n") !==
-    savedRawContent.value.replace(/\r\n/g, "\n");
-
-  watch(
-    instance,
-    (newInstance) => {
-      if (newInstance?.kind === "static") {
-        savedRawContent.value = newInstance.raw;
-        if (!isDirty.value) {
-          rawContent.value = newInstance.raw;
-        }
-        isDirty.value = hasUnsavedRawChanges(rawContent.value);
-      }
-      if (isPresent(newInstance)) {
-        selectedWebhookIds.value = newInstance.webhookIds;
-      }
-    },
-    { immediate: true },
-  );
-
-  watch(selectedWebhookIds, async (newWebhookIds, oldWebhookIds) => {
-    if (!canManageInstance.value || isAbsent(oldWebhookIds)) {
-      return;
-    }
-
-    try {
-      if (instance.value.kind === "static") {
-        await updateInstanceMutation({
-          id: instance.value.id,
-          input: {
-            kind: "static",
-            raw: instance.value.raw,
-            webhookIds: newWebhookIds,
-          },
-        });
-      } else {
-        await updateInstanceMutation({
-          id: instance.value.id,
-          input: {
-            kind: "dynamic",
-            processors: instance.value.processors,
-            webhookIds: newWebhookIds,
-          },
-        });
-      }
-    } catch (e) {
-      notify.error("Failed to update webhooks", e);
-      selectedWebhookIds.value = oldWebhookIds;
-    }
-  });
+  const editor = useInstanceEditor(instance, canManageInstance);
 
   const handleCopy = async () => {
     await navigator.clipboard.writeText(instanceHost.value);
     notify.copied();
   };
 
-  const handleSave = async () => {
-    if (!canManageInstance.value || isUpdating.value) {
-      return;
-    }
-
-    if (instance.value?.kind === "static") {
-      const rawToSave = rawContent.value;
-      try {
-        const updatedInstance = await updateInstanceMutation({
-          id: instance.value.id,
-          input: {
-            kind: "static",
-            raw: rawToSave,
-            webhookIds: instance.value.webhookIds,
-          },
-        });
-        savedRawContent.value =
-          updatedInstance.kind === "static" ? updatedInstance.raw : rawToSave;
-        isDirty.value = hasUnsavedRawChanges(rawContent.value);
-        notify.success("Raw response updated");
-      } catch (e) {
-        notify.error("Update failed", e);
-      }
-    }
-  };
-
   const handleOpenBuilder = () => {
-    if (!canManageInstance.value || instance.value.kind !== "static") {
+    if (!canManageInstance.value) {
       return;
     }
     router.push({
@@ -302,39 +217,6 @@ export const useInstanceDataLogic = (instance: Ref<Instance>) => {
     });
   };
 
-  const handleEditorChange = (value: string) => {
-    if (!canManageInstance.value) {
-      return;
-    }
-
-    rawContent.value = value;
-    isDirty.value = hasUnsavedRawChanges(value);
-  };
-
-  const triggerFileUpload = () => {
-    fileInputRef.value?.click();
-  };
-
-  const handleFileUpload = async (event: Event) => {
-    if (!canManageInstance.value) {
-      return;
-    }
-
-    const target = event.target as HTMLInputElement;
-    const file = target.files?.[0];
-    if (isAbsent(file)) return;
-
-    try {
-      const { raw } = await processFile(file);
-      rawContent.value = raw;
-      isDirty.value = hasUnsavedRawChanges(raw);
-    } catch (e) {
-      notify.error("Failed to process file", e);
-    } finally {
-      target.value = "";
-    }
-  };
-
   const handleExtend = async () => {
     if (!canManageInstance.value) {
       return;
@@ -363,7 +245,7 @@ export const useInstanceDataLogic = (instance: Ref<Instance>) => {
   };
 
   const saveLabel = async () => {
-    if (isSavingViaEnter.value || !isEditingLabel.value) {
+    if (isSavingLabel.value || !isEditingLabel.value) {
       return;
     }
 
@@ -375,6 +257,7 @@ export const useInstanceDataLogic = (instance: Ref<Instance>) => {
       return;
     }
 
+    isSavingLabel.value = true;
     try {
       await renameInstanceMutation({
         id: instance.value.id,
@@ -384,36 +267,15 @@ export const useInstanceDataLogic = (instance: Ref<Instance>) => {
       notify.success("Instance renamed");
     } catch (e) {
       notify.error("Failed to rename instance", e);
+    } finally {
+      isSavingLabel.value = false;
     }
   };
 
   const handleLabelKeydown = async (event: KeyboardEvent) => {
     if (event.key === "Enter") {
       event.preventDefault();
-      isSavingViaEnter.value = true;
-      const newLabel = editLabel.value.trim();
-      const currentLabel = instance.value.label ?? "";
-
-      if (newLabel === currentLabel) {
-        cancelEditingLabel();
-        isSavingViaEnter.value = false;
-        return;
-      }
-
-      try {
-        await renameInstanceMutation({
-          id: instance.value.id,
-          input: { label: newLabel || undefined },
-        });
-        isEditingLabel.value = false;
-        notify.success("Instance renamed");
-      } catch (e) {
-        notify.error("Failed to rename instance", e);
-      } finally {
-        setTimeout(() => {
-          isSavingViaEnter.value = false;
-        }, 100);
-      }
+      await saveLabel();
     } else if (event.key === "Escape") {
       cancelEditingLabel();
     }
@@ -440,9 +302,7 @@ export const useInstanceDataLogic = (instance: Ref<Instance>) => {
 
   return {
     instanceHost,
-    rawContent,
-    isDirty,
-    isUpdating,
+    ...editor,
     isCloning,
     isDeleting,
     isClearingLogs,
@@ -452,8 +312,6 @@ export const useInstanceDataLogic = (instance: Ref<Instance>) => {
     isSettingLocked,
     isSettingPublic,
     canManageInstance,
-    fileInputRef,
-    selectedWebhookIds,
     showExpirationNotice,
     expirationText,
     expirationExact,
@@ -463,15 +321,11 @@ export const useInstanceDataLogic = (instance: Ref<Instance>) => {
     editLabel,
     labelInputRef,
     handleCopy,
-    handleSave,
-    handleEditorChange,
     handleDelete,
     handleClone,
     handleClearLogs,
     handleToggleLock,
     handleTogglePublic,
-    triggerFileUpload,
-    handleFileUpload,
     handleExtend,
     handleOpenBuilder,
     startEditingLabel,

@@ -9,14 +9,12 @@ import {
   UpdateInstanceSchema,
 } from "shared";
 import {
-  addInstance,
   clearLogsForInstance,
   deleteInstance,
   getInstanceById,
   getInstancesByOwner,
   getLogsForInstance,
   getLogsForInstancePage,
-  getWebhooksByOwner,
   updateInstance,
 } from "../../storage";
 import { instancePolicies } from "../../config";
@@ -30,12 +28,12 @@ import {
 } from "../auth";
 import { canReadInstance } from "../instances/access";
 import {
-  clampLogLimit,
-  decodeLogsCursor,
-  encodeLogsCursor,
-  generateInstanceID,
-  validateStaticRaw,
-} from "../utils";
+  createInstance,
+  getOwnedInstance,
+  replaceInstance,
+  type InstanceServiceError,
+} from "../instances/service";
+import { clampLogLimit, decodeLogsCursor, encodeLogsCursor } from "../utils";
 
 const LogsQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(500).optional(),
@@ -44,33 +42,15 @@ const LogsQuerySchema = z.object({
   sinceTimestamp: z.coerce.number().int().min(0).optional(),
 });
 
-const ensureOwnedWebhookIds = (
-  ownerId: string,
-  webhookIds: string[],
-): { ok: true; ids: string[] } | { ok: false } => {
-  if (webhookIds.length === 0) {
-    return { ok: true, ids: [] };
-  }
-  const ownedIds = new Set(
-    getWebhooksByOwner(ownerId).map((webhook) => webhook.id),
-  );
-  for (const webhookId of webhookIds) {
-    if (!ownedIds.has(webhookId)) {
-      return { ok: false };
-    }
-  }
-  return { ok: true, ids: webhookIds };
-};
+const serviceErrorResponse = (error: InstanceServiceError) =>
+  status(error.status, { error: error.message });
 
 const loadOwnedInstance = (id: string, userId: string) => {
-  const current = getInstanceById(id);
-  if (current === undefined) {
-    return { ok: false as const, res: status(404, { error: "Not found" }) };
+  const result = getOwnedInstance(id, userId);
+  if (!result.ok) {
+    return { ok: false as const, res: serviceErrorResponse(result.error) };
   }
-  if (current.ownerId !== userId) {
-    return { ok: false as const, res: status(403, { error: "Forbidden" }) };
-  }
-  return { ok: true as const, instance: current };
+  return { ok: true as const, instance: result.value };
 };
 
 export const instancesRoutes = new Elysia({ name: "routes/instances" })
@@ -86,51 +66,14 @@ export const instancesRoutes = new Elysia({ name: "routes/instances" })
   .post(
     "/api/instances",
     ({ body, user }) => {
-      let staticRaw: string | undefined;
-      if (body.kind === "static") {
-        const check = validateStaticRaw(body.raw);
-        if (!check.ok) {
-          return status(check.status, { error: check.error });
-        }
-        staticRaw = check.raw;
-      }
-
-      const webhooks = ensureOwnedWebhookIds(user.id, body.webhookIds ?? []);
-      if (!webhooks.ok) {
-        return status(400, { error: "Invalid webhook selection" });
-      }
-
-      if (
-        instancePolicies.maxInstancesPerOwner !== undefined &&
-        getInstancesByOwner(user.id).length >=
-          instancePolicies.maxInstancesPerOwner
-      ) {
-        return status(403, { error: "Instance limit reached" });
-      }
-
-      const now = Date.now();
-      const base = {
-        id: generateInstanceID(),
+      const result = createInstance({
         ownerId: user.id,
-        createdAt: now,
-        public: false,
-        locked: false,
-        expiresAt:
-          instancePolicies.defaultTtlMs === undefined
-            ? undefined
-            : now + instancePolicies.defaultTtlMs,
-        webhookIds: webhooks.ids,
-      } as const;
-
-      const created =
-        body.kind === "static"
-          ? addInstance({ kind: "static", ...base, raw: staticRaw ?? body.raw })
-          : addInstance({
-              kind: "dynamic",
-              ...base,
-              processors: body.processors,
-            });
-      return status(201, created);
+        raw: body.raw,
+        webhookIds: body.webhookIds,
+      });
+      return result.ok
+        ? status(201, result.value)
+        : serviceErrorResponse(result.error);
     },
     {
       scope: "instances:write",
@@ -184,54 +127,13 @@ export const instancesRoutes = new Elysia({ name: "routes/instances" })
   .put(
     "/api/instances/:id",
     ({ params, body, user }) => {
-      const loaded = loadOwnedInstance(params.id, user.id);
-      if (!loaded.ok) {
-        return loaded.res;
-      }
-      if (body.kind !== loaded.instance.kind) {
-        return status(400, { error: "Kind mismatch" });
-      }
-
-      let staticRaw: string | undefined;
-      if (body.kind === "static") {
-        const check = validateStaticRaw(body.raw);
-        if (!check.ok) {
-          return status(check.status, { error: check.error });
-        }
-        staticRaw = check.raw;
-      }
-
-      let nextWebhookIds: string[] | undefined;
-      if (body.webhookIds !== undefined) {
-        const webhooks = ensureOwnedWebhookIds(user.id, body.webhookIds);
-        if (!webhooks.ok) {
-          return status(400, { error: "Invalid webhook selection" });
-        }
-        nextWebhookIds = webhooks.ids;
-      }
-
-      const updated = updateInstance(params.id, (inst) => {
-        if (inst.kind === "static" && body.kind === "static") {
-          return {
-            ...inst,
-            raw: staticRaw ?? body.raw,
-            webhookIds: nextWebhookIds ?? inst.webhookIds,
-          };
-        }
-        if (inst.kind === "dynamic" && body.kind === "dynamic") {
-          return {
-            ...inst,
-            processors: body.processors,
-            webhookIds: nextWebhookIds ?? inst.webhookIds,
-          };
-        }
-        return inst;
+      const result = replaceInstance({
+        instanceId: params.id,
+        ownerId: user.id,
+        raw: body.raw,
+        webhookIds: body.webhookIds,
       });
-
-      if (updated === undefined) {
-        return status(404, { error: "Not found" });
-      }
-      return updated;
+      return result.ok ? result.value : serviceErrorResponse(result.error);
     },
     {
       scope: "instances:write",
@@ -239,7 +141,7 @@ export const instancesRoutes = new Elysia({ name: "routes/instances" })
       detail: {
         tags: ["Instances"],
         summary: "Replace an instance",
-        description: "Replace an owned instance. The kind must match.",
+        description: "Replace an owned instance response.",
       },
     },
   )

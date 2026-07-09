@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import Button from "primevue/button";
-import ConfirmDialog from "primevue/confirmdialog";
 import Divider from "primevue/divider";
 import Dialog from "primevue/dialog";
 import Message from "primevue/message";
@@ -58,7 +57,6 @@ const handleEdit = (webhook: Webhook) => {
 </script>
 
 <template>
-  <ConfirmDialog />
   <Dialog
     v-model:visible="showCreateDialog"
     header="Create Webhook"

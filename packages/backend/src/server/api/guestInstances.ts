@@ -1,7 +1,6 @@
 import { Elysia, status } from "elysia";
 import {
   CreateInstanceSchema,
-  GUEST_INSTANCE_TTL_MS,
   GUEST_OWNER_ID,
   InstanceDetailResponseSchema,
   SetInstanceLockedSchema,
@@ -9,14 +8,16 @@ import {
 } from "shared";
 import { instancePolicies } from "../../config";
 import {
-  addInstance,
   clearLogsForInstance,
   deleteInstance,
   getInstanceById,
   getLogsForInstance,
   updateInstance,
 } from "../../storage";
-import { generateInstanceID, validateStaticRaw } from "../utils";
+import {
+  createGuestInstance,
+  replaceGuestInstance,
+} from "../instances/service";
 
 const loadGuestInstance = (id: string) => {
   const instance = getInstanceById(id);
@@ -36,35 +37,10 @@ export const guestInstancesRoutes = new Elysia({ name: "routes/guest" })
   .post(
     "/api/guest/instances",
     ({ body }) => {
-      let staticRaw: string | undefined;
-      if (body.kind === "static") {
-        const check = validateStaticRaw(body.raw);
-        if (!check.ok) {
-          return status(check.status, { error: check.error });
-        }
-        staticRaw = check.raw;
-      }
-
-      const now = Date.now();
-      const base = {
-        id: generateInstanceID(),
-        ownerId: GUEST_OWNER_ID,
-        createdAt: now,
-        expiresAt: now + GUEST_INSTANCE_TTL_MS,
-        webhookIds: [] as string[],
-        public: false,
-        locked: false,
-      };
-
-      const created =
-        body.kind === "static"
-          ? addInstance({ kind: "static", ...base, raw: staticRaw ?? body.raw })
-          : addInstance({
-              kind: "dynamic",
-              ...base,
-              processors: body.processors,
-            });
-      return status(201, created);
+      const result = createGuestInstance(body.raw);
+      return result.ok
+        ? status(201, result.value)
+        : status(result.error.status, { error: result.error.message });
     },
     { body: CreateInstanceSchema },
   )
@@ -86,32 +62,10 @@ export const guestInstancesRoutes = new Elysia({ name: "routes/guest" })
       if (!loaded.ok) {
         return loaded.error;
       }
-      if (body.kind !== loaded.instance.kind) {
-        return status(400, { error: "Kind mismatch" });
-      }
-
-      let staticRaw: string | undefined;
-      if (body.kind === "static") {
-        const check = validateStaticRaw(body.raw);
-        if (!check.ok) {
-          return status(check.status, { error: check.error });
-        }
-        staticRaw = check.raw;
-      }
-
-      const updated = updateInstance(loaded.instance.id, (inst) => {
-        if (inst.kind === "static" && body.kind === "static") {
-          return { ...inst, raw: staticRaw ?? body.raw, webhookIds: [] };
-        }
-        if (inst.kind === "dynamic" && body.kind === "dynamic") {
-          return { ...inst, processors: body.processors, webhookIds: [] };
-        }
-        return inst;
-      });
-      if (updated === undefined) {
-        return status(404, { error: "Not found" });
-      }
-      return updated;
+      const result = replaceGuestInstance(loaded.instance.id, body.raw);
+      return result.ok
+        ? result.value
+        : status(result.error.status, { error: result.error.message });
     },
     { body: UpdateInstanceSchema },
   )

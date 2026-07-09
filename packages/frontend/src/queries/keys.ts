@@ -1,3 +1,5 @@
+import type { QueryClient } from "@tanstack/vue-query";
+
 export const queryKeys = {
   instances: {
     all: ["instances"] as const,
@@ -15,5 +17,19 @@ export const queryKeys = {
   },
 } as const;
 
-export const WEBHOOKS_QUERY_KEY = "webhooks";
-export const API_KEYS_QUERY_KEY = "api-keys";
+export const invalidateInstanceQueries = async (
+  queryClient: QueryClient,
+  id?: string,
+) => {
+  const invalidations = [
+    queryClient.invalidateQueries({ queryKey: queryKeys.instances.all }),
+  ];
+  if (id !== undefined) {
+    invalidations.push(
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.instances.detail(id),
+      }),
+    );
+  }
+  await Promise.all(invalidations);
+};

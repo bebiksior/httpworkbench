@@ -46,18 +46,12 @@ const formattedDate = computed(() => {
   });
 });
 
-const handleInstanceClick = () => {
-  router.push(`/instances/${instance.value.id}`);
-};
-
-const handleCopyClick = async (event: Event) => {
-  event.stopPropagation();
+const handleCopyClick = async () => {
   await navigator.clipboard.writeText(instanceHost.value);
   notify.copied();
 };
 
-const handleDeleteClick = (event: Event) => {
-  event.stopPropagation();
+const handleDeleteClick = () => {
   if (instance.value.locked) {
     notify.error("Instance is locked");
     return;
@@ -75,8 +69,7 @@ const handleDeleteClick = (event: Event) => {
   });
 };
 
-const handleCloneClick = (event: Event) => {
-  event.stopPropagation();
+const handleCloneClick = () => {
   confirm.require({
     message: `Create a duplicate of "${displayName.value}"?`,
     header: "Duplicate Instance",
@@ -108,17 +101,21 @@ const handleCloneClick = (event: Event) => {
 </script>
 
 <template>
-  <div
+  <article
     :class="[
-      'bg-white dark:bg-surface-800 border rounded-lg p-3 sm:p-5 transition-colors cursor-pointer',
+      'relative bg-white dark:bg-surface-800 border rounded-lg p-3 sm:p-5 transition-colors',
       instance.locked
         ? 'border-surface-300 dark:border-surface-700/50 opacity-60'
         : 'border-surface-200 dark:border-surface-700 hover:border-primary',
     ]"
-    @mousedown="handleInstanceClick"
   >
+    <RouterLink
+      :to="`/instances/${instance.id}`"
+      class="absolute inset-0 rounded-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+      :aria-label="`Open ${displayName}`"
+    />
     <div
-      class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-6"
+      class="pointer-events-none relative flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-6"
     >
       <div class="min-w-0 shrink-0">
         <div class="flex items-center gap-2 mb-1">
@@ -140,13 +137,14 @@ const handleCloneClick = (event: Event) => {
         </div>
       </div>
 
-      <div class="flex min-w-0 items-center gap-1.5 sm:gap-2">
+      <div
+        class="pointer-events-auto relative z-10 flex min-w-0 items-center gap-1.5 sm:gap-2"
+      >
         <InputText
           :value="instanceHost"
           readonly
           :aria-label="`Host for ${displayName}`"
           class="min-w-0 flex-1 font-mono text-xs sm:w-80 sm:text-sm"
-          @mousedown.stop
         />
         <Button
           icon="pi pi-copy"
@@ -156,7 +154,6 @@ const handleCloneClick = (event: Event) => {
           class="shrink-0"
           aria-label="Copy instance host"
           v-tooltip.top="'Copy host'"
-          @mousedown.stop
           @click="handleCopyClick"
         />
         <Button
@@ -173,7 +170,6 @@ const handleCloneClick = (event: Event) => {
           v-tooltip.top="'Duplicate instance'"
           :disabled="cloneMutation.isPending.value"
           :loading="cloneMutation.isPending.value"
-          @mousedown.stop
           @click="handleCloneClick"
         />
         <span
@@ -194,11 +190,10 @@ const handleCloneClick = (event: Event) => {
             aria-label="Delete instance"
             :disabled="instance.locked || deleteMutation.isPending.value"
             :loading="deleteMutation.isPending.value"
-            @mousedown.stop
             @click="handleDeleteClick"
           />
         </span>
       </div>
     </div>
-  </div>
+  </article>
 </template>

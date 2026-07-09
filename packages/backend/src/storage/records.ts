@@ -27,23 +27,8 @@ type WebhookRow = typeof webhooks.$inferSelect;
 export const toDomainInstance = (
   row: InstanceRow,
   webhookIds: string[],
-): Instance => {
-  if (row.kind === "static") {
-    return InstanceSchema.parse({
-      id: row.id,
-      ownerId: row.ownerId,
-      createdAt: row.createdAt,
-      expiresAt: row.expiresAt ?? undefined,
-      label: row.label ?? undefined,
-      webhookIds,
-      public: row.isPublic,
-      locked: row.isLocked,
-      kind: "static",
-      raw: row.raw ?? "",
-    });
-  }
-
-  return InstanceSchema.parse({
+): Instance =>
+  InstanceSchema.parse({
     id: row.id,
     ownerId: row.ownerId,
     createdAt: row.createdAt,
@@ -52,10 +37,8 @@ export const toDomainInstance = (
     webhookIds,
     public: row.isPublic,
     locked: row.isLocked,
-    kind: "dynamic",
-    processors: row.processorsJson ?? [],
+    raw: row.raw,
   });
-};
 
 export const toInstanceRow = (instance: Instance): InstanceInsertRow => {
   const parsed = InstanceSchema.parse(instance);
@@ -67,9 +50,7 @@ export const toInstanceRow = (instance: Instance): InstanceInsertRow => {
     label: parsed.label ?? null,
     isPublic: parsed.public,
     isLocked: parsed.locked,
-    kind: parsed.kind,
-    raw: parsed.kind === "static" ? parsed.raw : null,
-    processorsJson: parsed.kind === "dynamic" ? parsed.processors : null,
+    raw: parsed.raw,
   };
 };
 

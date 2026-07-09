@@ -47,7 +47,6 @@ const createRawRequest = (headers: string[], body = "") => {
 
 const createStaticInstance = (raw: string) => ({
   id: "demo",
-  kind: "static" as const,
   ownerId: "user-1",
   createdAt: 1,
   raw,

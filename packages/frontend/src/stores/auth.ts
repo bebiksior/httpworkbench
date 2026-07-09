@@ -1,6 +1,9 @@
 import { defineStore } from "pinia";
 import { type User, UserSchema } from "shared";
 import { computed, ref } from "vue";
+import { apiClient } from "@/api/client";
+import { ApiError, UnauthorizedError, ValidationError } from "@/api/errors";
+import { parseResponse } from "@/api/parseResponse";
 import { getErrorMessage } from "@/utils/error";
 import { useGuestInstancesStore } from "./guestInstances";
 
@@ -79,41 +82,21 @@ export const useAuthStore = defineStore("auth", () => {
     clearError();
 
     try {
-      const response = await fetch("/api/user", {
-        credentials: "include",
-      });
-
-      if (!response.ok) {
-        setUser(undefined);
-        if (response.status === 401) {
-          return;
-        }
-        error.value = {
-          message: `Failed to fetch user: ${response.statusText}`,
-          code: "UNKNOWN",
-        };
-        return;
-      }
-
-      const data = await response.json();
-      const parsed = UserSchema.safeParse(data);
-
-      if (!parsed.success) {
-        setUser(undefined);
-        error.value = {
-          message: "Invalid user data received from server",
-          code: "VALIDATION_ERROR",
-        };
-        console.error("User validation error:", parsed.error);
-        return;
-      }
-
-      setUser(parsed.data);
+      const data = await apiClient.get<unknown>("/api/user");
+      setUser(parseResponse(UserSchema, data, "user"));
     } catch (err) {
       setUser(undefined);
+      if (err instanceof UnauthorizedError) {
+        return;
+      }
       error.value = {
         message: getErrorMessage(err),
-        code: "NETWORK_ERROR",
+        code:
+          err instanceof ValidationError
+            ? "VALIDATION_ERROR"
+            : err instanceof ApiError
+              ? "UNKNOWN"
+              : "NETWORK_ERROR",
       };
       console.error("Fetch user error:", err);
     } finally {
@@ -132,48 +115,30 @@ export const useAuthStore = defineStore("auth", () => {
     isLoading.value = true;
 
     try {
-      const response = await fetch("/api/auth/api-key", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        credentials: "include",
-        body: JSON.stringify({ apiKey }),
+      const data = await apiClient.post<unknown>("/api/auth/api-key", {
+        apiKey,
       });
-
-      if (!response.ok) {
-        setUser(undefined);
-        error.value = {
-          message:
-            response.status === 401
-              ? "Invalid API key"
-              : "Failed to sign in with API key",
-          code: response.status === 401 ? "UNAUTHORIZED" : "UNKNOWN",
-        };
-        return false;
-      }
-
-      const data = await response.json();
-      const parsed = UserSchema.safeParse(data);
-      if (!parsed.success) {
-        setUser(undefined);
-        error.value = {
-          message: "Invalid user data received from server",
-          code: "VALIDATION_ERROR",
-        };
-        console.error("User validation error:", parsed.error);
-        return false;
-      }
+      const parsedUser = parseResponse(UserSchema, data, "user");
 
       clearGuestSession();
-      setUser(parsed.data);
+      setUser(parsedUser);
       isInitialized.value = true;
       return true;
     } catch (err) {
       setUser(undefined);
       error.value = {
-        message: getErrorMessage(err),
-        code: "NETWORK_ERROR",
+        message:
+          err instanceof UnauthorizedError
+            ? "Invalid API key"
+            : getErrorMessage(err),
+        code:
+          err instanceof UnauthorizedError
+            ? "UNAUTHORIZED"
+            : err instanceof ValidationError
+              ? "VALIDATION_ERROR"
+              : err instanceof ApiError
+                ? "UNKNOWN"
+                : "NETWORK_ERROR",
       };
       console.error("API key sign-in error:", err);
       return false;
@@ -197,25 +162,14 @@ export const useAuthStore = defineStore("auth", () => {
     }
 
     try {
-      const response = await fetch("/api/auth/logout", {
-        method: "POST",
-        credentials: "include",
-      });
-
-      if (!response.ok) {
-        error.value = {
-          message: "Failed to logout",
-          code: "UNKNOWN",
-        };
-        return;
-      }
+      await apiClient.post<void>("/api/auth/logout");
 
       setUser(undefined);
       window.location.href = "/login";
     } catch (err) {
       error.value = {
         message: getErrorMessage(err),
-        code: "NETWORK_ERROR",
+        code: err instanceof ApiError ? "UNKNOWN" : "NETWORK_ERROR",
       };
       console.error("Logout error:", err);
     }
@@ -235,6 +189,5 @@ export const useAuthStore = defineStore("auth", () => {
     logout,
     fetchUser,
     clearError,
-    setUser,
   };
 });

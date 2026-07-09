@@ -1,6 +1,6 @@
 import { Chat } from "@ai-sdk/vue";
 import { defineStore } from "pinia";
-import { computed, ref, shallowRef, triggerRef, watch } from "vue";
+import { computed, ref, shallowRef, watch } from "vue";
 import { createLocalAgentTransport } from "@/agent/core/agent";
 import type { CustomUIMessage } from "@/agent/types";
 import { useAssistantModelStore } from "./assistantModel";
@@ -130,7 +130,6 @@ export const useAgentsStore = defineStore("agents", () => {
       ...snapshots.value,
       { messageId, editorContent: responseEditorStore.content },
     ];
-    triggerRef(snapshots);
   };
 
   const hasSnapshot = (messageId: string) => {
@@ -162,7 +161,6 @@ export const useAgentsStore = defineStore("agents", () => {
       (s) => s.messageId === messageId,
     );
     snapshots.value = snapshots.value.slice(0, snapshotIndex);
-    triggerRef(snapshots);
 
     current.messages = current.messages.slice(0, index);
     responseEditorStore.setContent(snapshot.editorContent, "hydrate");
@@ -189,7 +187,6 @@ export const useAgentsStore = defineStore("agents", () => {
 
   return {
     inputMessage,
-    snapshots,
     agent,
     abortAgent,
     truncateMessages,

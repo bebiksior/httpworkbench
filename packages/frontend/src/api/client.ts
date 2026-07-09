@@ -39,55 +39,29 @@ async function handleResponse<T>(response: Response): Promise<T> {
   return response.json() as Promise<T>;
 }
 
+type RequestOptions = {
+  method?: "GET" | "POST" | "PATCH" | "PUT" | "DELETE";
+  body?: unknown;
+};
+
+const request = async <T>(url: string, options: RequestOptions = {}) => {
+  const hasBody = options.body !== undefined;
+  const response = await fetch(url, {
+    method: options.method ?? "GET",
+    headers: hasBody ? { "Content-Type": "application/json" } : undefined,
+    credentials: "include",
+    body: hasBody ? JSON.stringify(options.body) : undefined,
+  });
+  return handleResponse<T>(response);
+};
+
 export const apiClient = {
-  get: async <T>(url: string): Promise<T> => {
-    const response = await fetch(`${url}`, {
-      credentials: "include",
-    });
-    return handleResponse<T>(response);
-  },
-
-  post: async <T>(url: string, body: unknown): Promise<T> => {
-    const response = await fetch(`${url}`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      credentials: "include",
-      body: JSON.stringify(body),
-    });
-    return handleResponse<T>(response);
-  },
-
-  patch: async <T>(url: string, body: unknown): Promise<T> => {
-    const response = await fetch(`${url}`, {
-      method: "PATCH",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      credentials: "include",
-      body: JSON.stringify(body),
-    });
-    return handleResponse<T>(response);
-  },
-
-  put: async <T>(url: string, body: unknown): Promise<T> => {
-    const response = await fetch(`${url}`, {
-      method: "PUT",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      credentials: "include",
-      body: JSON.stringify(body),
-    });
-    return handleResponse<T>(response);
-  },
-
-  delete: async <T>(url: string): Promise<T> => {
-    const response = await fetch(`${url}`, {
-      method: "DELETE",
-      credentials: "include",
-    });
-    return handleResponse<T>(response);
-  },
+  get: <T>(url: string) => request<T>(url),
+  post: <T>(url: string, body?: unknown) =>
+    request<T>(url, { method: "POST", body }),
+  patch: <T>(url: string, body: unknown) =>
+    request<T>(url, { method: "PATCH", body }),
+  put: <T>(url: string, body: unknown) =>
+    request<T>(url, { method: "PUT", body }),
+  delete: <T>(url: string) => request<T>(url, { method: "DELETE" }),
 };

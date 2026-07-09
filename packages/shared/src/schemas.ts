@@ -16,14 +16,7 @@ export const UserSchema = z.object({
 
 export type User = z.infer<typeof UserSchema>;
 
-export const ProcessorSchema = z.object({
-  name: z.string(),
-  code: z.string(),
-});
-
-export type Processor = z.infer<typeof ProcessorSchema>;
-
-const InstanceBaseSchema = z.object({
+export const InstanceSchema = z.object({
   id: z.string(),
   ownerId: z.string(),
   createdAt: z.number(),
@@ -32,21 +25,10 @@ const InstanceBaseSchema = z.object({
   label: z.string().optional(),
   public: z.boolean().optional().default(false),
   locked: z.boolean().optional().default(false),
+  raw: z.string(),
 });
 
-export const InstanceSchema = z.union([
-  InstanceBaseSchema.extend({
-    kind: z.literal("static"),
-    raw: z.string(),
-  }),
-  InstanceBaseSchema.extend({
-    kind: z.literal("dynamic"),
-    processors: z.array(ProcessorSchema),
-  }),
-]);
-
 export type Instance = z.infer<typeof InstanceSchema>;
-export type InstanceKind = Instance["kind"];
 
 export const LogSchema = z.object({
   id: z.string(),

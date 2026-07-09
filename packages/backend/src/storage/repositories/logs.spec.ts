@@ -4,9 +4,15 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { count, eq } from "drizzle-orm";
 import type { Instance, Log, Webhook } from "shared";
-import { closeDb, getDb, initDb, replaceData } from "../db";
-import { toDomainModeration } from "../records";
-import { instanceModerations, instances, userNotices } from "../schema";
+import { closeDb, getDb, initDb } from "../db";
+import { toDomainModeration, toModerationRow, toWebhookRow } from "../records";
+import {
+  instanceModerations,
+  instances,
+  logs as logsTable,
+  userNotices,
+  webhooks as webhooksTable,
+} from "../schema";
 import {
   addLog,
   clearLogsForInstance,
@@ -14,20 +20,21 @@ import {
   getLogsForInstance,
   getLogsForInstancePage,
 } from "./logs";
-import { deleteInstance, removeExpiredInstances } from "./instances";
+import {
+  addInstance,
+  countActiveInstancesByOwner,
+  deleteInstance,
+  getInstancesByOwner,
+  removeExpiredInstances,
+} from "./instances";
 
-type StaticInstance = Extract<Instance, { kind: "static" }>;
-
-const createInstance = (
-  overrides?: Partial<StaticInstance>,
-): StaticInstance => ({
+const createInstance = (overrides?: Partial<Instance>): Instance => ({
   id: "inst-1",
   ownerId: "user-1",
   createdAt: 1,
   webhookIds: [],
   public: false,
   locked: false,
-  kind: "static",
   raw: "HTTP/1.1 200 OK\r\n\r\nok",
   ...overrides,
 });
@@ -72,14 +79,21 @@ const seedStorage = (
     }>;
   }>,
 ) => {
-  replaceData({
-    users: [],
-    instances: overrides?.instances ?? [],
-    logs: overrides?.logs ?? [],
-    webhooks: overrides?.webhooks ?? [],
-    instanceModerations: overrides?.instanceModerations ?? [],
-    userNotices: [],
-  });
+  for (const webhook of overrides?.webhooks ?? []) {
+    getDb().insert(webhooksTable).values(toWebhookRow(webhook)).run();
+  }
+  for (const instance of overrides?.instances ?? []) {
+    addInstance(instance);
+  }
+  for (const log of overrides?.logs ?? []) {
+    getDb().insert(logsTable).values(log).run();
+  }
+  for (const moderation of overrides?.instanceModerations ?? []) {
+    getDb()
+      .insert(instanceModerations)
+      .values(toModerationRow(moderation))
+      .run();
+  }
 };
 
 const getModerationForInstance = (instanceId: string) => {
@@ -341,5 +355,20 @@ describe("addLog", () => {
     expect(getLogsForInstance("inst-2")).toEqual([
       createLog({ id: "log-2", instanceId: "inst-2" }),
     ]);
+  });
+
+  test("filters expired instances and counts active rows in SQL", () => {
+    seedStorage({
+      instances: [
+        createInstance({ expiresAt: 10 }),
+        createInstance({ id: "inst-2", expiresAt: Date.now() + 60_000 }),
+        createInstance({ id: "inst-3", ownerId: "user-2" }),
+      ],
+    });
+
+    expect(
+      getInstancesByOwner("user-1").map((instance) => instance.id),
+    ).toEqual(["inst-2"]);
+    expect(countActiveInstancesByOwner("user-1")).toBe(1);
   });
 });

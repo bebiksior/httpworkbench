@@ -13,7 +13,7 @@ import type {
 import { guestInstancesApi } from "@/api/domains/guestInstances";
 import { instancesApi } from "@/api/domains/instances";
 import { ForbiddenError, NotFoundError } from "@/api/errors";
-import { queryKeys } from "@/queries/keys";
+import { invalidateInstanceQueries, queryKeys } from "@/queries/keys";
 import { useAuthStore } from "@/stores/auth";
 import { useGuestInstancesStore } from "@/stores/guestInstances";
 
@@ -100,11 +100,11 @@ export const useCreateInstance = () => {
       }
       return instancesApi.create(input);
     },
-    onSuccess: (instance) => {
+    onSuccess: async (instance) => {
       if (isGuest.value) {
         guestInstancesStore.trackInstance(instance.id);
       }
-      queryClient.invalidateQueries({ queryKey: queryKeys.instances.all });
+      await invalidateInstanceQueries(queryClient);
     },
   });
 };
@@ -132,20 +132,10 @@ export const useCloneInstance = () => {
 
   return useMutation({
     mutationFn: async (instance: Instance) => {
-      let input: CreateInstanceInput;
-      if (instance.kind === "static") {
-        input = {
-          kind: "static",
-          raw: instance.raw,
-          webhookIds: isGuest.value ? undefined : instance.webhookIds,
-        };
-      } else {
-        input = {
-          kind: "dynamic",
-          processors: instance.processors,
-          webhookIds: isGuest.value ? undefined : instance.webhookIds,
-        };
-      }
+      const input: CreateInstanceInput = {
+        raw: instance.raw,
+        webhookIds: isGuest.value ? undefined : instance.webhookIds,
+      };
 
       const created = isGuest.value
         ? await guestInstancesApi.create(input)
@@ -165,14 +155,11 @@ export const useCloneInstance = () => {
 
       return instancesApi.rename(created.id, { label: clonedLabel });
     },
-    onSuccess: (instance) => {
+    onSuccess: async (instance) => {
       if (isGuest.value) {
         guestInstancesStore.trackInstance(instance.id);
       }
-      queryClient.invalidateQueries({ queryKey: queryKeys.instances.all });
-      queryClient.invalidateQueries({
-        queryKey: queryKeys.instances.detail(instance.id),
-      });
+      await invalidateInstanceQueries(queryClient, instance.id);
     },
   });
 };
@@ -189,11 +176,8 @@ export const useUpdateInstance = () => {
       }
       return instancesApi.update(id, input);
     },
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.instances.all });
-      queryClient.invalidateQueries({
-        queryKey: queryKeys.instances.detail(data.id),
-      });
+    onSuccess: async (data) => {
+      await invalidateInstanceQueries(queryClient, data.id);
     },
   });
 };
@@ -211,11 +195,11 @@ export const useDeleteInstance = () => {
       }
       return instancesApi.delete(id);
     },
-    onSuccess: (_, id) => {
+    onSuccess: async (_, id) => {
       if (isGuest.value) {
         guestInstancesStore.forgetInstance(id);
       }
-      queryClient.invalidateQueries({ queryKey: queryKeys.instances.all });
+      await invalidateInstanceQueries(queryClient);
     },
   });
 };
@@ -272,11 +256,8 @@ export const useExtendInstance = () => {
       }
       return instancesApi.extend(id);
     },
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.instances.all });
-      queryClient.invalidateQueries({
-        queryKey: queryKeys.instances.detail(data.id),
-      });
+    onSuccess: async (data) => {
+      await invalidateInstanceQueries(queryClient, data.id);
     },
   });
 };
@@ -299,11 +280,8 @@ export const useRenameInstance = () => {
       }
       return instancesApi.rename(id, input);
     },
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.instances.all });
-      queryClient.invalidateQueries({
-        queryKey: queryKeys.instances.detail(data.id),
-      });
+    onSuccess: async (data) => {
+      await invalidateInstanceQueries(queryClient, data.id);
     },
   });
 };
@@ -321,11 +299,8 @@ export const useSetInstanceLocked = () => {
       }
       return instancesApi.setLocked(id, input);
     },
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.instances.all });
-      queryClient.invalidateQueries({
-        queryKey: queryKeys.instances.detail(data.id),
-      });
+    onSuccess: async (data) => {
+      await invalidateInstanceQueries(queryClient, data.id);
     },
   });
 };
@@ -343,11 +318,8 @@ export const useSetInstancePublic = () => {
       }
       return instancesApi.setPublic(id, input);
     },
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.instances.all });
-      queryClient.invalidateQueries({
-        queryKey: queryKeys.instances.detail(data.id),
-      });
+    onSuccess: async (data) => {
+      await invalidateInstanceQueries(queryClient, data.id);
     },
   });
 };

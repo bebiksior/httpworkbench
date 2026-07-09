@@ -5,17 +5,13 @@ import { instancesApi } from "@/api/domains/instances";
 import { ApiError, ValidationError } from "@/api/errors";
 import { config } from "@/config";
 import { useAuthStore } from "@/stores";
+import { formatStaticHttpResponse } from "@/utils/httpResponse";
 
-const createHtmlResponse = (html: string) => {
-  return [
-    "HTTP/1.1 200 OK",
-    "Content-Type: text/html; charset=utf-8",
-    "Access-Control-Allow-Origin: *",
-    "Access-Control-Allow-Headers: *",
-    "",
-    html,
-  ].join("\r\n");
-};
+const createHtmlResponse = (html: string) =>
+  formatStaticHttpResponse({
+    body: html,
+    contentType: "text/html; charset=utf-8",
+  });
 
 const createInstancePayloadSchema = z.object({
   type: z.enum(["raw", "html"]).describe("Type of content to create"),
@@ -44,7 +40,7 @@ const createStaticInstance = async (raw: string): Promise<Instance> => {
     throw new Error("Guest shouldn't have access to this feature.");
   }
 
-  return instancesApi.create({ kind: "static", raw });
+  return instancesApi.create({ raw });
 };
 
 const getToolErrorMessage = (error: unknown) => {

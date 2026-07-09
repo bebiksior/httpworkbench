@@ -6,7 +6,7 @@ import type {
   UpdateWebhookInput,
 } from "shared";
 import { webhooksApi } from "@/api/domains/webhooks";
-import { WEBHOOKS_QUERY_KEY } from "../keys";
+import { queryKeys } from "../keys";
 
 type WebhooksOptions = {
   enabled?: MaybeRefOrGetter<boolean>;
@@ -14,7 +14,7 @@ type WebhooksOptions = {
 
 export function useWebhooks(options?: WebhooksOptions) {
   return useQuery({
-    queryKey: [WEBHOOKS_QUERY_KEY],
+    queryKey: queryKeys.webhooks.all,
     queryFn: webhooksApi.fetchWebhooks,
     enabled: computed(() => toValue(options?.enabled ?? true)),
   });
@@ -26,7 +26,7 @@ export function useCreateWebhook() {
   return useMutation({
     mutationFn: (input: CreateWebhookInput) => webhooksApi.createWebhook(input),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [WEBHOOKS_QUERY_KEY] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.webhooks.all });
     },
   });
 }
@@ -44,7 +44,7 @@ export function useUpdateWebhook() {
     mutationFn: ({ id, input }: { id: string; input: UpdateWebhookInput }) =>
       webhooksApi.updateWebhook(id, input),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [WEBHOOKS_QUERY_KEY] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.webhooks.all });
     },
   });
 }
@@ -55,7 +55,7 @@ export function useDeleteWebhook() {
   return useMutation({
     mutationFn: (id: string) => webhooksApi.deleteWebhook(id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [WEBHOOKS_QUERY_KEY] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.webhooks.all });
     },
   });
 }

@@ -1,17 +1,9 @@
 import { initServer } from "./server";
-import { closeDb, initDb, maybeAutoImportLegacyDb } from "./storage";
+import { closeDb, initDb } from "./storage";
 import { version } from "./version";
 
 async function init() {
   console.log("init", version);
-
-  const importResult = await maybeAutoImportLegacyDb();
-  if (importResult.kind === "imported") {
-    console.log(
-      "Imported legacy JSON database into SQLite",
-      importResult.result,
-    );
-  }
 
   const result = initDb();
   if (result.kind === "error") {

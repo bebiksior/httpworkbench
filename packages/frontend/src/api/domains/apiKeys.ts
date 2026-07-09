@@ -10,21 +10,13 @@ import {
   CreateApiKeySchema,
 } from "shared";
 import { apiClient } from "../client";
-import { ValidationError } from "../errors";
+import { parseResponse } from "../parseResponse";
 import { apiPaths } from "../paths";
 
 export const apiKeysApi = {
   fetchApiKeys: async (): Promise<ApiKeysResponse> => {
     const data = await apiClient.get<unknown>(apiPaths.apiKeys);
-    const result = ApiKeysResponseSchema.safeParse(data);
-
-    if (!result.success) {
-      throw new ValidationError(
-        `Invalid API keys response: ${result.error.message}`,
-      );
-    }
-
-    return result.data;
+    return parseResponse(ApiKeysResponseSchema, data, "API keys");
   },
 
   createApiKey: async (input: CreateApiKeyInput): Promise<CreatedApiKey> => {
@@ -33,15 +25,7 @@ export const apiKeysApi = {
       apiPaths.apiKeys,
       validatedInput,
     );
-    const result = CreatedApiKeySchema.safeParse(data);
-
-    if (!result.success) {
-      throw new ValidationError(
-        `Invalid created API key response: ${result.error.message}`,
-      );
-    }
-
-    return result.data;
+    return parseResponse(CreatedApiKeySchema, data, "created API key");
   },
 
   revokeApiKey: async (id: ApiKey["id"]): Promise<void> => {
