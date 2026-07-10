@@ -72,6 +72,10 @@ type ServerHandlers = {
   ) => Promise<void>;
 };
 
+type ListenOptions = {
+  socket: ServerHandlers;
+};
+
 describe("createInstancesServer", () => {
   let handlers: ServerHandlers;
 
@@ -86,8 +90,7 @@ describe("createInstancesServer", () => {
 
     createInstancesServer(8082, listenMock);
 
-    const options = listenMock.mock.calls[0]?.[0] as
-      { socket: ServerHandlers } | undefined;
+    const options = listenMock.mock.calls[0]?.[0] as ListenOptions | undefined;
     if (options === undefined) {
       throw new Error("listen was not called");
     }
