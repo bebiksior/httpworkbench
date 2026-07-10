@@ -197,7 +197,9 @@ Full transparency: I never tried to access any data of users on ssrf.cvssadvisor
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+Contributions are welcome! Please feel free to submit a Pull Request or a Issue.
+
+Thanks a lot to [Sim4n6](https://github.com/Sim4n6) for multiple feature ideas!
 
 ## License
 
