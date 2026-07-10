@@ -4,7 +4,7 @@ export const canReadInstance = ({
   instance,
   user,
 }: {
-  instance: Instance;
+  instance: Pick<Instance, "ownerId" | "public">;
   user: User | undefined;
 }) => {
   if (instance.ownerId === GUEST_OWNER_ID) {

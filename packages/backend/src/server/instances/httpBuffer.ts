@@ -5,6 +5,8 @@ const MAX_REQUEST_SIZE = MAX_HEADER_SIZE + MAX_BODY_SIZE;
 
 export class HttpRequestBuffer {
   private buffer: Uint8Array = new Uint8Array(0);
+  private length = 0;
+  private headerScanIndex = 0;
   private headersEndIndex: number | undefined;
   private expectedLength: number | undefined;
   private error: string | undefined;
@@ -12,14 +14,12 @@ export class HttpRequestBuffer {
   append(data: Uint8Array): void {
     if (this.error !== undefined) return;
 
-    const newLength = this.buffer.length + data.length;
-
+    const newLength = this.length + data.length;
     const nextLength = Math.min(newLength, MAX_REQUEST_SIZE);
-    const appendedLength = Math.max(0, nextLength - this.buffer.length);
-    const result = new Uint8Array(nextLength);
-    result.set(this.buffer, 0);
-    result.set(data.slice(0, appendedLength), this.buffer.length);
-    this.buffer = result;
+    const appendedLength = Math.max(0, nextLength - this.length);
+    this.ensureCapacity(nextLength);
+    this.buffer.set(data.subarray(0, appendedLength), this.length);
+    this.length = nextLength;
 
     if (newLength > MAX_REQUEST_SIZE) {
       this.error = "Request too large";
@@ -29,7 +29,7 @@ export class HttpRequestBuffer {
     if (this.headersEndIndex === undefined) {
       const headersEnd = this.findHeadersEnd();
       if (headersEnd === -1) {
-        if (this.buffer.length > MAX_HEADER_SIZE) {
+        if (this.length > MAX_HEADER_SIZE) {
           this.error = "Headers too large";
         }
         return;
@@ -42,7 +42,7 @@ export class HttpRequestBuffer {
 
       this.headersEndIndex = headersEnd;
       const headerString = new TextDecoder().decode(
-        this.buffer.slice(0, headersEnd),
+        this.buffer.subarray(0, headersEnd),
       );
       const contentLength = this.parseContentLength(headerString);
 
@@ -64,7 +64,7 @@ export class HttpRequestBuffer {
     if (this.headersEndIndex === undefined) {
       return false;
     }
-    return this.buffer.length >= (this.expectedLength ?? 0);
+    return this.length >= (this.expectedLength ?? 0);
   }
 
   hasError(): boolean {
@@ -76,11 +76,12 @@ export class HttpRequestBuffer {
   }
 
   getRaw(): string {
-    return new TextDecoder().decode(this.buffer);
+    return new TextDecoder().decode(this.buffer.subarray(0, this.length));
   }
 
   private findHeadersEnd(): number {
-    for (let i = 0; i <= this.buffer.length - HEADERS_SEPARATOR.length; i++) {
+    const lastStart = this.length - HEADERS_SEPARATOR.length;
+    for (let i = this.headerScanIndex; i <= lastStart; i++) {
       let found = true;
       for (let j = 0; j < HEADERS_SEPARATOR.length; j++) {
         if (this.buffer[i + j] !== HEADERS_SEPARATOR[j]) {
@@ -92,7 +93,26 @@ export class HttpRequestBuffer {
         return i + HEADERS_SEPARATOR.length;
       }
     }
+    this.headerScanIndex = Math.max(
+      0,
+      this.length - HEADERS_SEPARATOR.length + 1,
+    );
     return -1;
+  }
+
+  private ensureCapacity(requiredLength: number): void {
+    if (requiredLength <= this.buffer.length) {
+      return;
+    }
+
+    let capacity = Math.max(this.buffer.length, 1024);
+    while (capacity < requiredLength) {
+      capacity = Math.min(capacity * 2, MAX_REQUEST_SIZE);
+    }
+
+    const next = new Uint8Array(capacity);
+    next.set(this.buffer.subarray(0, this.length));
+    this.buffer = next;
   }
 
   private parseContentLength(headerString: string): number | undefined {

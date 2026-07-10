@@ -8,7 +8,7 @@ import {
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import type { InstanceDetailResponse, Log } from "shared";
 import {
-  appendUniqueLog,
+  MAX_RETAINED_LOGS,
   parseStreamLog,
   useInstanceLogStream,
 } from "./useInstanceLogStream";
@@ -27,11 +27,6 @@ describe("instance log stream helpers", () => {
     expect(parseStreamLog(JSON.stringify(log))).toEqual(log);
     expect(parseStreamLog("pong")).toBeUndefined();
     expect(parseStreamLog("not-json")).toBeUndefined();
-  });
-
-  test("appends logs once by id", () => {
-    expect(appendUniqueLog([], log)).toEqual([log]);
-    expect(appendUniqueLog([log], log)).toEqual([log]);
   });
 });
 
@@ -57,7 +52,7 @@ class FakeWebSocket {
 
   open() {
     this.readyState = FakeWebSocket.OPEN;
-    this.onopen?.(new Event("open"));
+    return this.onopen?.(new Event("open"));
   }
 
   message(data: string) {
@@ -88,10 +83,11 @@ const renderer = createRenderer<Record<string, never>, Record<string, never>>({
   nextSibling: () => null,
 });
 
-const mountStream = () => {
+let visibilityChangeListener: EventListener | undefined;
+
+const mountStream = (refetch = vi.fn()) => {
   const id = ref("instance-1");
   const detail = ref<InstanceDetailResponse>();
-  const refetch = vi.fn();
   let logs: ComputedRef<Log[]> | undefined;
   const app = renderer.createApp(
     defineComponent({
@@ -102,7 +98,7 @@ const mountStream = () => {
     }),
   );
   app.mount({});
-  return { app, id, logs: () => logs, refetch };
+  return { app, detail, id, logs: () => logs, refetch };
 };
 
 describe("instance log stream lifecycle", () => {
@@ -117,13 +113,18 @@ describe("instance log stream lifecycle", () => {
     });
     vi.stubGlobal("document", {
       visibilityState: "visible",
-      addEventListener: vi.fn(),
+      addEventListener: vi.fn((type: string, listener: EventListener) => {
+        if (type === "visibilitychange") {
+          visibilityChangeListener = listener;
+        }
+      }),
       removeEventListener: vi.fn(),
     });
   });
 
   afterEach(() => {
     vi.clearAllTimers();
+    visibilityChangeListener = undefined;
     vi.useRealTimers();
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
@@ -167,6 +168,21 @@ describe("instance log stream lifecycle", () => {
     app.unmount();
   });
 
+  test("resyncs on open and visibility recovery without interval polling", async () => {
+    const { app, refetch } = mountStream();
+    const socket = FakeWebSocket.instances[0];
+    await socket?.open();
+    expect(refetch).toHaveBeenCalledTimes(1);
+
+    socket?.message("pong");
+    vi.advanceTimersByTime(15_000);
+    expect(refetch).toHaveBeenCalledTimes(1);
+
+    await visibilityChangeListener?.(new Event("visibilitychange"));
+    expect(refetch).toHaveBeenCalledTimes(2);
+    app.unmount();
+  });
+
   test("clears logs on ID changes and closes everything on unmount", async () => {
     const { app, id, logs } = mountStream();
     const first = FakeWebSocket.instances[0];
@@ -185,5 +201,85 @@ describe("instance log stream lifecycle", () => {
     expect(FakeWebSocket.instances[1]?.readyState).toBe(FakeWebSocket.CLOSED);
     vi.advanceTimersByTime(60_000);
     expect(FakeWebSocket.instances).toHaveLength(2);
+  });
+
+  test("keeps newest logs first, deduplicates IDs, and bounds retention", () => {
+    const { app, logs } = mountStream();
+    const socket = FakeWebSocket.instances[0];
+    socket?.open();
+
+    for (let index = 1; index <= MAX_RETAINED_LOGS + 1; index += 1) {
+      socket?.message(JSON.stringify({ ...log, id: `log-${index}` }));
+    }
+    socket?.message(
+      JSON.stringify({ ...log, id: `log-${MAX_RETAINED_LOGS + 1}` }),
+    );
+
+    expect(logs()?.value).toHaveLength(MAX_RETAINED_LOGS);
+    expect(logs()?.value[0]?.id).toBe(`log-${MAX_RETAINED_LOGS + 1}`);
+    expect(logs()?.value.at(-1)?.id).toBe("log-2");
+    app.unmount();
+  });
+
+  test("normalizes detail snapshots to the same newest-first bounded order", async () => {
+    const { app, detail, logs } = mountStream();
+    detail.value = {
+      instance: {
+        id: "instance-1",
+        ownerId: "owner",
+        createdAt: 1,
+        webhookIds: [],
+        public: false,
+        locked: false,
+        raw: "HTTP/1.1 200 OK\r\n\r\nok",
+      },
+      logs: [
+        { ...log, id: "oldest" },
+        { ...log, id: "newest" },
+      ],
+    };
+    await nextTick();
+
+    expect(logs()?.value.map((entry) => entry.id)).toEqual([
+      "newest",
+      "oldest",
+    ]);
+    app.unmount();
+  });
+
+  test("preserves logs that arrive while an opening snapshot is loading", async () => {
+    let finishRefetch: (() => void) | undefined;
+    const refetch = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          finishRefetch = resolve;
+        }),
+    );
+    const { app, detail, logs } = mountStream(refetch);
+    const socket = FakeWebSocket.instances[0];
+    socket?.open();
+    socket?.message(JSON.stringify(log));
+
+    detail.value = {
+      instance: {
+        id: "instance-1",
+        ownerId: "owner",
+        createdAt: 1,
+        webhookIds: [],
+        public: false,
+        locked: false,
+        raw: "HTTP/1.1 200 OK\r\n\r\nok",
+      },
+      logs: [],
+    };
+    await nextTick();
+    expect(logs()?.value).toEqual([]);
+
+    finishRefetch?.();
+    await nextTick();
+    await nextTick();
+
+    expect(logs()?.value).toEqual([log]);
+    app.unmount();
   });
 });

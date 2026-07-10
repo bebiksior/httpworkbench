@@ -2,6 +2,7 @@ import { type InstanceDetailResponse, type Log, LogSchema } from "shared";
 import {
   computed,
   type MaybeRefOrGetter,
+  nextTick,
   onBeforeUnmount,
   ref,
   toValue,
@@ -12,6 +13,7 @@ import { apiPaths } from "@/api/paths";
 const STREAM_OPEN_TIMEOUT_MS = 10_000;
 const STREAM_HEARTBEAT_INTERVAL_MS = 10_000;
 const STREAM_HEARTBEAT_TIMEOUT_MS = 25_000;
+export const MAX_RETAINED_LOGS = 500;
 
 export const parseStreamLog = (data: unknown): Log | undefined => {
   if (typeof data !== "string" || data === "pong") {
@@ -25,26 +27,89 @@ export const parseStreamLog = (data: unknown): Log | undefined => {
   }
 };
 
-export const appendUniqueLog = (logs: readonly Log[], log: Log): Log[] =>
-  logs.some((entry) => entry.id === log.id) ? [...logs] : [...logs, log];
-
 export const useInstanceLogStream = (
   instanceId: MaybeRefOrGetter<string>,
   detail: MaybeRefOrGetter<InstanceDetailResponse | undefined>,
   refetch: () => unknown,
 ) => {
   const resolvedInstanceId = computed(() => toValue(instanceId));
+  // Logs are kept newest-first so consumers do not need to reverse and copy the
+  // complete collection after every streamed event.
   const streamLogs = ref<Log[]>([]);
+  const logIds = new Set<string>();
 
   let connection: WebSocket | undefined;
   let reconnectTimeout: ReturnType<typeof setTimeout> | undefined;
   let openTimeout: ReturnType<typeof setTimeout> | undefined;
   let healthInterval: ReturnType<typeof setInterval> | undefined;
-  let resyncInterval: ReturnType<typeof setInterval> | undefined;
   let reconnectAttempt = 0;
   let generation = 0;
   let lastHeartbeatAt = 0;
   let lastPingSentAt: number | undefined;
+  let resyncState:
+    | { generation: number; logs: Log[]; promise: Promise<void> }
+    | undefined;
+
+  const replaceLogs = (logs: readonly Log[]) => {
+    logIds.clear();
+    const next: Log[] = [];
+    for (let index = logs.length - 1; index >= 0; index -= 1) {
+      const log = logs[index];
+      if (log === undefined || logIds.has(log.id)) {
+        continue;
+      }
+      logIds.add(log.id);
+      next.push(log);
+      if (next.length === MAX_RETAINED_LOGS) {
+        break;
+      }
+    }
+    streamLogs.value = next;
+  };
+
+  const prependLog = (log: Log) => {
+    if (logIds.has(log.id)) {
+      return;
+    }
+    logIds.add(log.id);
+    const next = [log, ...streamLogs.value];
+    if (next.length > MAX_RETAINED_LOGS) {
+      const removed = next.pop();
+      if (removed !== undefined) {
+        logIds.delete(removed.id);
+      }
+    }
+    streamLogs.value = next;
+  };
+
+  const resyncLogs = () => {
+    if (resyncState?.generation === generation) {
+      return resyncState.promise;
+    }
+
+    const state = {
+      generation,
+      logs: [] as Log[],
+      promise: Promise.resolve(),
+    };
+    state.promise = (async () => {
+      try {
+        await refetch();
+        await nextTick();
+      } finally {
+        if (generation === state.generation) {
+          for (const log of state.logs) {
+            prependLog(log);
+          }
+        }
+        if (resyncState === state) {
+          resyncState = undefined;
+        }
+      }
+    })();
+    resyncState = state;
+    return state.promise;
+  };
 
   const isStale = (id: string, expectedGeneration: number, ws?: WebSocket) =>
     generation !== expectedGeneration ||
@@ -124,7 +189,7 @@ export const useInstanceLogStream = (
       }
     }, STREAM_OPEN_TIMEOUT_MS);
 
-    ws.onopen = () => {
+    ws.onopen = async () => {
       if (isStale(id, expectedGeneration, ws)) {
         ws.close();
         return;
@@ -133,7 +198,7 @@ export const useInstanceLogStream = (
       reconnectAttempt = 0;
       lastHeartbeatAt = Date.now();
       sendHeartbeat(ws, id, expectedGeneration);
-      void refetch();
+      await resyncLogs();
     };
     ws.onmessage = (message) => {
       if (isStale(id, expectedGeneration, ws)) {
@@ -144,7 +209,10 @@ export const useInstanceLogStream = (
       lastPingSentAt = undefined;
       const log = parseStreamLog(message.data);
       if (log !== undefined) {
-        streamLogs.value = appendUniqueLog(streamLogs.value, log);
+        if (resyncState?.generation === expectedGeneration) {
+          resyncState.logs.push(log);
+        }
+        prependLog(log);
       }
     };
     ws.onerror = () => {
@@ -182,7 +250,7 @@ export const useInstanceLogStream = (
       generation += 1;
       reconnectAttempt = 0;
       closeConnection();
-      streamLogs.value = [];
+      replaceLogs([]);
       if (id !== "") {
         openStream(id);
       }
@@ -194,7 +262,7 @@ export const useInstanceLogStream = (
     () => toValue(detail),
     (value) => {
       if (value?.instance.id === resolvedInstanceId.value) {
-        streamLogs.value = value.logs;
+        replaceLogs(value.logs);
       }
     },
     { immediate: true },
@@ -232,36 +300,26 @@ export const useInstanceLogStream = (
     }
   }, STREAM_HEARTBEAT_INTERVAL_MS);
 
-  const onVisibilityChange = () => {
+  const onVisibilityChange = async () => {
     if (
       document.visibilityState !== "visible" ||
       resolvedInstanceId.value === ""
     ) {
       return;
     }
-    void refetch();
+    await resyncLogs();
     if (connection === undefined) {
       openStream(resolvedInstanceId.value);
     }
   };
   document.addEventListener("visibilitychange", onVisibilityChange);
 
-  resyncInterval = setInterval(() => {
-    if (
-      document.visibilityState === "visible" &&
-      resolvedInstanceId.value !== ""
-    ) {
-      void refetch();
-    }
-  }, 15_000);
-
   onBeforeUnmount(() => {
     generation += 1;
     if (healthInterval !== undefined) clearInterval(healthInterval);
-    if (resyncInterval !== undefined) clearInterval(resyncInterval);
     document.removeEventListener("visibilitychange", onVisibilityChange);
     closeConnection();
   });
 
-  return computed(() => [...streamLogs.value].reverse());
+  return computed(() => streamLogs.value);
 };

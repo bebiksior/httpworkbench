@@ -28,15 +28,15 @@ const load = async () => {
   }
 };
 
-onMounted(() => {
+onMounted(async () => {
   if (isAuthenticated.value && !isGuest.value) {
-    void load();
+    await load();
   }
 });
 
-watch([isAuthenticated, isGuest], () => {
+watch([isAuthenticated, isGuest], async () => {
   if (isAuthenticated.value && !isGuest.value) {
-    void load();
+    await load();
   } else {
     visible.value = false;
     notices.value = [];

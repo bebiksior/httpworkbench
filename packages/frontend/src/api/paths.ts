@@ -9,6 +9,7 @@ export const apiPaths = {
   guestInstanceLock: (id: string) =>
     path("/api/guest/instances/:id/lock", { id }),
   guestInstances: "/api/guest/instances",
+  guestInstanceSummaries: "/api/guest/instances/list",
   instance: (id: string) => path("/api/instances/:id", { id }),
   instanceExtend: (id: string) => path("/api/instances/:id/extend", { id }),
   instanceLock: (id: string) => path("/api/instances/:id/lock", { id }),

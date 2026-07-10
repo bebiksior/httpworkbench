@@ -5,10 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vue-tsc -b && vite build",
-    "build:skipts": "vite build",
+    "build": "vue-tsc -b && NODE_ENV=production vite build && bun run verify:production-build",
+    "build:skipts": "NODE_ENV=production vite build && bun run verify:production-build",
     "preview": "vite preview",
-    "typecheck": "vue-tsc -p tsconfig.app.json --noEmit"
+    "typecheck": "vue-tsc -p tsconfig.app.json --noEmit",
+    "verify:production-build": "! grep -R -q 'Component that was made reactive' dist/assets/*.js"
   },
   "dependencies": {
     "@ai-sdk/vue": "^3.0.168",

@@ -1,4 +1,4 @@
-import type { Instance } from "shared";
+import type { InstanceSummary } from "shared";
 import { computed, ref } from "vue";
 import { useRouter } from "vue-router";
 import { useNotify } from "@/composables";
@@ -28,7 +28,7 @@ export const useHomeLogic = () => {
       return [];
     }
 
-    const sortInstances = (list: Instance[]) =>
+    const sortInstances = (list: InstanceSummary[]) =>
       [...list].sort((a, b) => {
         const lockedDiff = Number(a.locked) - Number(b.locked);
         if (lockedDiff !== 0) return lockedDiff;
@@ -41,7 +41,7 @@ export const useHomeLogic = () => {
       return sortInstances(instances.value);
     }
 
-    const filtered = instances.value.filter((instance: Instance) => {
+    const filtered = instances.value.filter((instance: InstanceSummary) => {
       const instanceId = instance.id.toLowerCase();
       const host = config.getInstanceHost(instance.id).toLowerCase();
       const label = instance.label?.toLowerCase() ?? "";
@@ -61,12 +61,12 @@ export const useHomeLogic = () => {
         raw: DEFAULT_HTTP_RESPONSE,
       },
       {
-        onSuccess: (instance) => {
+        onSuccess: async (instance) => {
           notify.success(
             "Instance created",
             "Your instance has been created successfully",
           );
-          void router.push(`/instances/${instance.id}`);
+          await router.push(`/instances/${instance.id}`);
         },
         onError: (err: Error) => {
           notify.error("Failed to create instance", err);
@@ -83,8 +83,8 @@ export const useHomeLogic = () => {
     error,
     handleCreateInstance,
     isCreating: computed(() => createMutation.isPending.value),
-    handleRetry: () => {
-      void refetch();
+    handleRetry: async () => {
+      await refetch();
     },
   };
 };

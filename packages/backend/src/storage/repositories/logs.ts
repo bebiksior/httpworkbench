@@ -3,7 +3,7 @@ import { LogSchema } from "shared";
 import { and, asc, desc, eq, gt, gte } from "drizzle-orm";
 import { getDb } from "../db";
 import { sendDiscordNotificationThrottled } from "../../server/webhooks";
-import { getInstanceById } from "./instances";
+import { getWebhookIdsForInstance } from "./instances";
 import {
   isDiscordMutedForInstance,
   recordRequestAndMaybeTombstoneInTransaction,
@@ -15,14 +15,14 @@ const pendingWebhookNotifications = new Set<Promise<void>>();
 
 const notifyWebhooks = async (log: Log, now: number): Promise<void> => {
   try {
-    const instance = getInstanceById(log.instanceId);
-    if (instance === undefined || instance.webhookIds.length === 0) {
+    const webhookIds = getWebhookIdsForInstance(log.instanceId);
+    if (webhookIds.length === 0) {
       return;
     }
     if (isDiscordMutedForInstance(log.instanceId, now)) {
       return;
     }
-    const webhooks = getWebhooksByIds(instance.webhookIds);
+    const webhooks = getWebhooksByIds(webhookIds);
     await Promise.all(
       webhooks.map((webhook) => sendDiscordNotificationThrottled(webhook, log)),
     );
@@ -32,9 +32,10 @@ const notifyWebhooks = async (log: Log, now: number): Promise<void> => {
 };
 const trackWebhookNotification = (pending: Promise<void>) => {
   pendingWebhookNotifications.add(pending);
-  void pending.finally(() => {
-    pendingWebhookNotifications.delete(pending);
-  });
+  pending.then(
+    () => pendingWebhookNotifications.delete(pending),
+    () => pendingWebhookNotifications.delete(pending),
+  );
 };
 
 export function addLog(log: Log): Log {

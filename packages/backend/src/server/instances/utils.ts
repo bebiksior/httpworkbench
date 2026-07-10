@@ -8,7 +8,7 @@ const responseLineBreakPattern = /\r?\n/;
 const responseHeaderSeparatorPattern = /\r?\n\r?\n/;
 
 export const createResponse = (status: string, message: string) => {
-  return new TextEncoder().encode(
+  return encoder.encode(
     `HTTP/1.1 ${status}\r\nContent-Type: text/plain\r\n\r\n${message}`,
   );
 };

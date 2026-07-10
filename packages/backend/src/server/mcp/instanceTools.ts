@@ -2,7 +2,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import * as z from "zod/v4";
 import {
   deleteInstance,
-  getInstancesByOwner,
+  getInstanceSummariesByOwner,
   getRecentLogsForInstance,
 } from "../../storage";
 import { createInstance, replaceInstance } from "../instances/service";
@@ -36,7 +36,7 @@ export const registerInstanceTools = (server: McpServer) => {
       const auth = getAuthContext(extra);
       requireScope(auth, "instances:read");
       return jsonToolResult({
-        instances: getInstancesByOwner(auth.user.id).map(
+        instances: getInstanceSummariesByOwner(auth.user.id).map(
           serializeInstanceSummary,
         ),
       });

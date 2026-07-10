@@ -1,6 +1,7 @@
 import { Elysia, status } from "elysia";
 import {
   CreateInstanceSchema,
+  GuestInstanceSummariesRequestSchema,
   GUEST_OWNER_ID,
   InstanceDetailResponseSchema,
   SetInstanceLockedSchema,
@@ -11,13 +12,16 @@ import {
   clearLogsForInstance,
   deleteInstance,
   getInstanceById,
-  getLogsForInstance,
+  getInstanceSummariesByIds,
+  getRecentLogsForInstance,
   updateInstance,
 } from "../../storage";
 import {
   createGuestInstance,
   replaceGuestInstance,
 } from "../instances/service";
+
+const INSTANCE_DETAIL_LOG_LIMIT = 100;
 
 const loadGuestInstance = (id: string) => {
   const instance = getInstanceById(id);
@@ -44,12 +48,21 @@ export const guestInstancesRoutes = new Elysia({ name: "routes/guest" })
     },
     { body: CreateInstanceSchema },
   )
+  .post(
+    "/api/guest/instances/list",
+    ({ body }) =>
+      getInstanceSummariesByIds([...new Set(body.ids)], GUEST_OWNER_ID),
+    { body: GuestInstanceSummariesRequestSchema },
+  )
   .get("/api/guest/instances/:id", ({ params }) => {
     const loaded = loadGuestInstance(params.id);
     if (!loaded.ok) {
       return loaded.error;
     }
-    const logs = getLogsForInstance(loaded.instance.id);
+    const logs = getRecentLogsForInstance(
+      loaded.instance.id,
+      INSTANCE_DETAIL_LOG_LIMIT,
+    );
     return InstanceDetailResponseSchema.parse({
       instance: loaded.instance,
       logs,

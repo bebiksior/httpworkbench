@@ -10,6 +10,7 @@ type ApiKeySecretRecord = ApiKey & {
 const state = {
   apiKeys: new Map<string, ApiKeySecretRecord>(),
   users: new Map<string, UserRecord>(),
+  markApiKeyUsedCalls: 0,
 };
 
 mock.module("../storage", () => ({
@@ -49,6 +50,7 @@ mock.module("../storage", () => ({
   },
   getUserById: (id: string): UserRecord | undefined => state.users.get(id),
   markApiKeyUsed: (id: string, lastUsedAt: number): void => {
+    state.markApiKeyUsedCalls += 1;
     for (const [prefix, apiKey] of state.apiKeys) {
       if (apiKey.id === id) {
         state.apiKeys.set(prefix, { ...apiKey, lastUsedAt });
@@ -69,6 +71,7 @@ describe("API key auth", () => {
   beforeEach(() => {
     state.apiKeys.clear();
     state.users.clear();
+    state.markApiKeyUsedCalls = 0;
     state.users.set("user-1", {
       id: "user-1",
       googleId: "google-user-1",
@@ -107,6 +110,20 @@ describe("API key auth", () => {
     expect(typeof state.apiKeys.get(created.apiKey.prefix)?.lastUsedAt).toBe(
       "number",
     );
+  });
+
+  test("persists last-used timestamps at most once per minute", async () => {
+    const { authenticateApiKeyValue, createApiKeyForUser } =
+      await loadAuthModule();
+    const created = createApiKeyForUser({
+      userId: "user-1",
+      name: "Claude Desktop",
+    });
+
+    expect(authenticateApiKeyValue(created.secret)).toBeDefined();
+    expect(authenticateApiKeyValue(created.secret)).toBeDefined();
+
+    expect(state.markApiKeyUsedCalls).toBe(1);
   });
 
   test("rejects deleted and malformed keys", async () => {

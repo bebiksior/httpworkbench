@@ -30,6 +30,13 @@ export const InstanceSchema = z.object({
 
 export type Instance = z.infer<typeof InstanceSchema>;
 
+export const InstanceSummarySchema = InstanceSchema.omit({
+  raw: true,
+  webhookIds: true,
+});
+
+export type InstanceSummary = z.infer<typeof InstanceSummarySchema>;
+
 export const LogSchema = z.object({
   id: z.string(),
   instanceId: z.string(),

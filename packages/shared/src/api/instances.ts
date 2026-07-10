@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { InstanceSchema, LogSchema } from "../schemas";
+import { InstanceSchema, InstanceSummarySchema, LogSchema } from "../schemas";
 
 export const CreateInstanceSchema = z.object({
   raw: z.string(),
@@ -24,7 +24,17 @@ export type InstanceDetailResponse = z.infer<
   typeof InstanceDetailResponseSchema
 >;
 
-export const InstancesResponseSchema = z.array(InstanceSchema);
+export const InstancesResponseSchema = z.array(InstanceSummarySchema);
+
+export type InstancesResponse = z.infer<typeof InstancesResponseSchema>;
+
+export const GuestInstanceSummariesRequestSchema = z.object({
+  ids: z.array(z.string()).max(100),
+});
+
+export type GuestInstanceSummariesRequest = z.infer<
+  typeof GuestInstanceSummariesRequestSchema
+>;
 
 export const RenameInstanceSchema = z.object({
   label: z.string().max(100).optional(),

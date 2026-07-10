@@ -89,7 +89,6 @@ export const instanceWebhooks = sqliteTable(
       table.instanceId,
       table.webhookId,
     ),
-    index("instanceWebhooks_by_instance").on(table.instanceId, table.position),
   ],
 );
 

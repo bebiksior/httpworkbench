@@ -1,4 +1,5 @@
 import type { Log, LogType } from "shared";
+import { refDebounced } from "@vueuse/core";
 import { computed, ref, toValue, type MaybeRefOrGetter, watch } from "vue";
 import { useRoute } from "vue-router";
 
@@ -21,9 +22,22 @@ export const useLogsPanelControls = (
   const normalizedSearchQuery = computed(() =>
     searchQuery.value.trim().toLowerCase(),
   );
+  const debouncedSearchQuery = refDebounced(normalizedSearchQuery, 150);
+  const searchableTextCache = new WeakMap<Log, string>();
+
+  const getSearchableText = (log: Log) => {
+    const cached = searchableTextCache.get(log);
+    if (cached !== undefined) {
+      return cached;
+    }
+    const searchableText =
+      `${log.type}\n${log.address}\n${log.raw}`.toLowerCase();
+    searchableTextCache.set(log, searchableText);
+    return searchableText;
+  };
 
   const filteredLogs = computed(() => {
-    const query = normalizedSearchQuery.value;
+    const query = debouncedSearchQuery.value;
 
     return toValue(logs).filter((log) => {
       if (!selectedTypes.value.includes(log.type)) {
@@ -34,9 +48,7 @@ export const useLogsPanelControls = (
         return true;
       }
 
-      const searchableText =
-        `${log.type}\n${log.address}\n${log.raw}`.toLowerCase();
-      return searchableText.includes(query);
+      return getSearchableText(log).includes(query);
     });
   });
 

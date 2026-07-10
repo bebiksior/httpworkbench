@@ -19,12 +19,17 @@ import {
   flushPendingWebhookNotifications,
   getLogsForInstance,
   getLogsForInstancePage,
+  getRecentLogsForInstance,
 } from "./logs";
 import {
   addInstance,
   countActiveInstancesByOwner,
   deleteInstance,
-  getInstancesByOwner,
+  getInstanceAccessMetadata,
+  getInstanceSummariesByOwner,
+  getServableInstanceById,
+  getWebhookIdsForInstance,
+  hasActiveInstance,
   removeExpiredInstances,
 } from "./instances";
 
@@ -222,7 +227,7 @@ describe("addLog", () => {
 
     const flushPromise = flushPendingWebhookNotifications();
     let flushed = false;
-    void flushPromise.then(() => {
+    const trackedFlush = flushPromise.then(() => {
       flushed = true;
     });
 
@@ -231,7 +236,7 @@ describe("addLog", () => {
     expect(resolveFetch).toBeDefined();
 
     resolveFetch?.(new Response(null));
-    await flushPromise;
+    await trackedFlush;
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(flushed).toBe(true);
@@ -281,6 +286,21 @@ describe("addLog", () => {
 
     expect(secondPage.logs.map((log) => log.id)).toEqual(["log-3"]);
     expect(secondPage.nextCursor).toBeUndefined();
+  });
+
+  test("loads only the requested number of most recent logs", () => {
+    seedStorage({
+      instances: [createInstance()],
+      logs: Array.from({ length: 105 }, (_, index) =>
+        createLog({ id: `log-${index + 1}`, timestamp: index + 1 }),
+      ),
+    });
+
+    const recent = getRecentLogsForInstance("inst-1", 100);
+
+    expect(recent).toHaveLength(100);
+    expect(recent[0]?.id).toBe("log-6");
+    expect(recent.at(-1)?.id).toBe("log-105");
   });
 
   test("filters paginated logs by type and timestamp", () => {
@@ -367,8 +387,45 @@ describe("addLog", () => {
     });
 
     expect(
-      getInstancesByOwner("user-1").map((instance) => instance.id),
+      getInstanceSummariesByOwner("user-1").map((instance) => instance.id),
     ).toEqual(["inst-2"]);
     expect(countActiveInstancesByOwner("user-1")).toBe(1);
+  });
+
+  test("uses lightweight projections for summaries and protocol lookups", () => {
+    seedStorage({
+      instances: [
+        createInstance({ webhookIds: ["webhook-logs-test"] }),
+        createInstance({ id: "expired", expiresAt: 10 }),
+      ],
+      webhooks: [createWebhook()],
+    });
+
+    const [summary] = getInstanceSummariesByOwner("user-1");
+    if (summary === undefined) {
+      throw new Error("Expected an active instance summary");
+    }
+    expect(summary).toEqual({
+      id: "inst-1",
+      ownerId: "user-1",
+      createdAt: 1,
+      public: false,
+      locked: false,
+    });
+    expect("raw" in summary).toBe(false);
+    expect("webhookIds" in summary).toBe(false);
+    expect(getServableInstanceById("inst-1")).toEqual({
+      id: "inst-1",
+      raw: "HTTP/1.1 200 OK\r\n\r\nok",
+    });
+    expect(getInstanceAccessMetadata("inst-1")).toEqual({
+      id: "inst-1",
+      ownerId: "user-1",
+      public: false,
+    });
+    expect(hasActiveInstance("inst-1")).toBe(true);
+    expect(hasActiveInstance("expired")).toBe(false);
+    expect(getServableInstanceById("expired")).toBeUndefined();
+    expect(getWebhookIdsForInstance("inst-1")).toEqual(["webhook-logs-test"]);
   });
 });

@@ -73,6 +73,32 @@ describe("sendDiscordNotificationThrottled", () => {
       Date.now = originalDateNow;
     }
   });
+
+  test("does not consume a webhook slot when the instance limit rejects it", async () => {
+    const fetchMock = mock(() =>
+      Promise.resolve(new Response(null, { status: 204 })),
+    );
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+    let now = 1_700_000_000_000;
+    const originalDateNow = Date.now;
+    Date.now = () => now;
+    try {
+      for (let i = 0; i < 5; i += 1) {
+        await sendDiscordNotificationThrottled(
+          { ...webhook, id: `webhook-${i}` },
+          log,
+        );
+      }
+      await sendDiscordNotificationThrottled(webhook, log);
+
+      now += 60_000;
+      await sendDiscordNotificationThrottled(webhook, log);
+
+      expect(fetchMock).toHaveBeenCalledTimes(6);
+    } finally {
+      Date.now = originalDateNow;
+    }
+  });
 });
 
 describe("sendDiscordNotification", () => {
@@ -115,6 +141,21 @@ describe("sendDiscordNotification", () => {
     expect(JSON.parse(requestBody)).toMatchObject({
       content: "<@123456> GET / HTTP/1.1",
     });
+  });
+
+  test("sets a deadline on Discord requests", async () => {
+    let signal: AbortSignal | undefined;
+    const fetchMock = mock(
+      (_input: string | URL | Request, init?: Parameters<typeof fetch>[1]) => {
+        signal = init?.signal ?? undefined;
+        return Promise.resolve(new Response(null, { status: 204 }));
+      },
+    );
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    await sendDiscordNotification(webhook, log);
+
+    expect(signal).toBeInstanceOf(AbortSignal);
   });
 });
 

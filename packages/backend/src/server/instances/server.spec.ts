@@ -10,13 +10,8 @@ import {
 
 const addLogMock = mock();
 const broadcastLogMock = mock();
-const getInstanceByIdMock = mock();
+const getServableInstanceByIdMock = mock();
 const listenMock = mock();
-const parseMock = mock();
-
-mock.module("http-z", () => ({
-  parse: parseMock,
-}));
 
 mock.module("../../config", () => ({
   dnsConfig: {
@@ -29,14 +24,15 @@ mock.module("../../storage", () => ({
 }));
 
 mock.module("../../storage/repositories/instances", () => ({
-  getInstanceById: getInstanceByIdMock,
+  getServableInstanceById: getServableInstanceByIdMock,
 }));
 
 mock.module("./logStream", () => ({
   broadcastLog: broadcastLogMock,
 }));
 
-const { createInstancesServer } = await import("./server");
+const { createInstancesServer, resetInstanceResponseCacheForTests } =
+  await import("./server");
 
 const encode = (value: string) => new TextEncoder().encode(value);
 const decode = (value: Uint8Array) => new TextDecoder().decode(value);
@@ -47,12 +43,7 @@ const createRawRequest = (headers: string[], body = "") => {
 
 const createStaticInstance = (raw: string) => ({
   id: "demo",
-  ownerId: "user-1",
-  createdAt: 1,
   raw,
-  webhookIds: [],
-  public: false,
-  locked: false,
 });
 
 const createSocket = () => ({
@@ -76,6 +67,7 @@ describe("createInstancesServer", () => {
 
   beforeEach(() => {
     mock.clearAllMocks();
+    resetInstanceResponseCacheForTests();
     spyOn(console, "error").mockImplementation(() => undefined);
     spyOn(console, "log").mockImplementation(() => undefined);
 
@@ -108,15 +100,12 @@ describe("createInstancesServer", () => {
   });
 
   test("returns a bad request response when the host header is missing", async () => {
-    parseMock.mockReturnValue({
-      headers: [],
-    });
     const socket = createSocket();
 
     handlers.open(socket);
     await handlers.data(socket, encode(createRawRequest([])));
 
-    expect(getInstanceByIdMock).not.toHaveBeenCalled();
+    expect(getServableInstanceByIdMock).not.toHaveBeenCalled();
     expect(decode(socket.write.mock.calls[0]?.[0])).toContain(
       "400 Bad Request",
     );
@@ -129,7 +118,7 @@ describe("createInstancesServer", () => {
   });
 
   test("logs oversized requests when they can be attributed to an instance", async () => {
-    getInstanceByIdMock.mockReturnValue(
+    getServableInstanceByIdMock.mockReturnValue(
       createStaticInstance("HTTP/1.1 200 OK\r\n\r\nok"),
     );
     const socket = createSocket();
@@ -168,19 +157,7 @@ describe("createInstancesServer", () => {
 
   test("logs sanitized requests and writes large static responses", async () => {
     const body = "a".repeat(1024 * 1024);
-    parseMock.mockReturnValue({
-      headers: [
-        {
-          name: "Host",
-          value: "demo.instances.example.com",
-        },
-        {
-          name: "X-Internal-Real-IP",
-          value: "203.0.113.42",
-        },
-      ],
-    });
-    getInstanceByIdMock.mockReturnValue(
+    getServableInstanceByIdMock.mockReturnValue(
       createStaticInstance(
         [
           "HTTP/1.1 200 OK",
@@ -223,16 +200,55 @@ describe("createInstancesServer", () => {
     expect(socket.end).toHaveBeenCalledTimes(1);
   });
 
+  test("does not serve a cached response after raw content changes", async () => {
+    getServableInstanceByIdMock
+      .mockReturnValueOnce(createStaticInstance("HTTP/1.1 200 OK\r\n\r\nfirst"))
+      .mockReturnValueOnce(
+        createStaticInstance("HTTP/1.1 200 OK\r\n\r\nsecond"),
+      );
+    const firstSocket = createSocket();
+    const secondSocket = createSocket();
+
+    handlers.open(firstSocket);
+    await handlers.data(
+      firstSocket,
+      encode(createRawRequest(["Host: demo.instances.example.com"])),
+    );
+    handlers.open(secondSocket);
+    await handlers.data(
+      secondSocket,
+      encode(createRawRequest(["Host: demo.instances.example.com"])),
+    );
+
+    expect(decode(firstSocket.write.mock.calls[0]?.[0])).toEndWith("first");
+    expect(decode(secondSocket.write.mock.calls[0]?.[0])).toEndWith("second");
+  });
+
+  test("reuses the encoded response while raw content is unchanged", async () => {
+    getServableInstanceByIdMock.mockReturnValue(
+      createStaticInstance("HTTP/1.1 200 OK\r\n\r\ncached"),
+    );
+    const firstSocket = createSocket();
+    const secondSocket = createSocket();
+
+    handlers.open(firstSocket);
+    await handlers.data(
+      firstSocket,
+      encode(createRawRequest(["Host: demo.instances.example.com"])),
+    );
+    handlers.open(secondSocket);
+    await handlers.data(
+      secondSocket,
+      encode(createRawRequest(["Host: demo.instances.example.com"])),
+    );
+
+    expect(secondSocket.write.mock.calls[0]?.[0]).toBe(
+      firstSocket.write.mock.calls[0]?.[0],
+    );
+  });
+
   test("returns a bad request response when the instance does not exist", async () => {
-    parseMock.mockReturnValue({
-      headers: [
-        {
-          name: "Host",
-          value: "missing.instances.example.com",
-        },
-      ],
-    });
-    getInstanceByIdMock.mockReturnValue(undefined);
+    getServableInstanceByIdMock.mockReturnValue(undefined);
     const socket = createSocket();
 
     handlers.open(socket);
@@ -248,12 +264,12 @@ describe("createInstancesServer", () => {
     );
   });
 
-  test("returns an internal server error when request parsing throws", async () => {
-    getInstanceByIdMock.mockReturnValue(
+  test("returns an internal server error when log persistence throws", async () => {
+    getServableInstanceByIdMock.mockReturnValue(
       createStaticInstance("HTTP/1.1 200 OK\r\n\r\nok"),
     );
-    parseMock.mockImplementation(() => {
-      throw new Error("parse failed");
+    addLogMock.mockImplementation(() => {
+      throw new Error("write failed");
     });
     const socket = createSocket();
 
@@ -263,10 +279,8 @@ describe("createInstancesServer", () => {
       encode(createRawRequest(["Host: demo.instances.example.com"])),
     );
 
-    expect(addLogMock).toHaveBeenCalledTimes(1);
-    expect(broadcastLogMock).toHaveBeenCalledWith(
-      addLogMock.mock.calls[0]?.[0],
-    );
+    expect(addLogMock).toHaveBeenCalledTimes(2);
+    expect(broadcastLogMock).not.toHaveBeenCalled();
     expect(console.error).toHaveBeenCalled();
     expect(decode(socket.write.mock.calls[0]?.[0])).toContain(
       "500 Internal Server Error",

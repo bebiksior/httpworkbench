@@ -1,10 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/vue-query";
-import { computed } from "vue";
+import { computed, toValue, type MaybeRefOrGetter } from "vue";
 import { storeToRefs } from "pinia";
 import type {
   CreateInstanceInput,
   Instance,
   InstanceDetailResponse,
+  InstanceSummary,
   RenameInstanceInput,
   SetInstanceLockedInput,
   SetInstancePublicInput,
@@ -12,12 +13,16 @@ import type {
 } from "shared";
 import { guestInstancesApi } from "@/api/domains/guestInstances";
 import { instancesApi } from "@/api/domains/instances";
-import { ForbiddenError, NotFoundError } from "@/api/errors";
+import { ForbiddenError } from "@/api/errors";
 import { invalidateInstanceQueries, queryKeys } from "@/queries/keys";
 import { useAuthStore } from "@/stores/auth";
 import { useGuestInstancesStore } from "@/stores/guestInstances";
 
-export const useInstances = () => {
+type InstancesOptions = {
+  enabled?: MaybeRefOrGetter<boolean>;
+};
+
+export const useInstances = (options?: InstancesOptions) => {
   const authStore = useAuthStore();
   const guestInstancesStore = useGuestInstancesStore();
   const { isGuest } = storeToRefs(authStore);
@@ -34,35 +39,9 @@ export const useInstances = () => {
       return [];
     }
 
-    const results = await Promise.allSettled(
-      tracked.map(async (id) => {
-        const detail = await guestInstancesApi.getById(id);
-        return {
-          id,
-          instance: detail.instance,
-        };
-      }),
-    );
-
-    const instances: Instance[] = [];
-    const missing: string[] = [];
-
-    for (const [index, result] of results.entries()) {
-      if (result.status === "fulfilled") {
-        instances.push(result.value.instance);
-        continue;
-      }
-
-      if (result.reason instanceof NotFoundError) {
-        const missingId = tracked[index];
-        if (missingId !== undefined) {
-          missing.push(missingId);
-        }
-        continue;
-      }
-
-      throw result.reason;
-    }
+    const instances = await guestInstancesApi.getSummaries({ ids: tracked });
+    const foundIds = new Set(instances.map((instance) => instance.id));
+    const missing = tracked.filter((id) => !foundIds.has(id));
 
     if (missing.length > 0) {
       missing.forEach((id) => guestInstancesStore.forgetInstance(id));
@@ -84,6 +63,7 @@ export const useInstances = () => {
       }
       return instancesApi.getAll();
     },
+    enabled: computed(() => toValue(options?.enabled ?? true)),
   });
 };
 
@@ -131,7 +111,15 @@ export const useCloneInstance = () => {
   const { isGuest } = storeToRefs(authStore);
 
   return useMutation({
-    mutationFn: async (instance: Instance) => {
+    mutationFn: async (source: Instance | InstanceSummary) => {
+      const instance =
+        "raw" in source
+          ? source
+          : (
+              await (isGuest.value
+                ? guestInstancesApi.getById(source.id)
+                : instancesApi.getById(source.id))
+            ).instance;
       const input: CreateInstanceInput = {
         raw: instance.raw,
         webhookIds: isGuest.value ? undefined : instance.webhookIds,

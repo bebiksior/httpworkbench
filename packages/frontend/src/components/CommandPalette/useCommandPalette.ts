@@ -1,13 +1,13 @@
 import { useMagicKeys, onKeyStroke } from "@vueuse/core";
 import { ref, watch, onMounted, onUnmounted } from "vue";
 import { useRouter } from "vue-router";
-import type { Instance } from "shared";
+import type { InstanceSummary } from "shared";
 import { useInstances } from "@/queries/domains/useInstances";
 
 export const useCommandPalette = () => {
   const router = useRouter();
   const visible = ref(false);
-  const { data: instances } = useInstances();
+  const { data: instances } = useInstances({ enabled: visible });
 
   const keys = useMagicKeys();
   const cmdK = keys["Meta+k"];
@@ -50,7 +50,7 @@ export const useCommandPalette = () => {
     }
   };
 
-  const getInstanceLabel = (instance: Instance) => {
+  const getInstanceLabel = (instance: InstanceSummary) => {
     if (instance.label !== undefined && instance.label !== "") {
       return instance.label;
     }

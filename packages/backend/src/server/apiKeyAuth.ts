@@ -27,6 +27,38 @@ export type ApiKeyAuthContext = {
   user: User;
 };
 
+const API_KEY_LAST_USED_WRITE_INTERVAL_MS = 60_000;
+const MAX_TRACKED_API_KEY_USAGE = 10_000;
+const lastUsageWriteByKey = new Map<string, number>();
+
+const recordApiKeyUsageIfStale = (apiKey: ApiKey, now: number): void => {
+  const lastPersistedOrScheduled = Math.max(
+    apiKey.lastUsedAt ?? 0,
+    lastUsageWriteByKey.get(apiKey.id) ?? 0,
+  );
+  if (now - lastPersistedOrScheduled < API_KEY_LAST_USED_WRITE_INTERVAL_MS) {
+    return;
+  }
+
+  if (lastUsageWriteByKey.size >= MAX_TRACKED_API_KEY_USAGE) {
+    const staleBefore = now - API_KEY_LAST_USED_WRITE_INTERVAL_MS;
+    for (const [id, lastUsedAt] of lastUsageWriteByKey) {
+      if (lastUsedAt <= staleBefore) {
+        lastUsageWriteByKey.delete(id);
+      }
+    }
+  }
+  if (lastUsageWriteByKey.size >= MAX_TRACKED_API_KEY_USAGE) {
+    const oldestId = lastUsageWriteByKey.keys().next().value;
+    if (oldestId !== undefined) {
+      lastUsageWriteByKey.delete(oldestId);
+    }
+  }
+
+  markApiKeyUsed(apiKey.id, now);
+  lastUsageWriteByKey.set(apiKey.id, now);
+};
+
 const randomKeyToken = (bytes: number) => randomBytes(bytes).toString("hex");
 
 export const hashApiKeySecret = (secret: string): string => {
@@ -120,7 +152,7 @@ export const authenticateApiKeyValue = (
     return undefined;
   }
 
-  markApiKeyUsed(apiKey.id, now);
+  recordApiKeyUsageIfStale(apiKey, now);
   const { secretHash: _secretHash, ...publicApiKey } = apiKey;
   return {
     apiKey: { ...publicApiKey, lastUsedAt: now },

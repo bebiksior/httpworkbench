@@ -1,6 +1,11 @@
 import { QueryClient } from "@tanstack/vue-query";
 import { describe, expect, test } from "vitest";
-import type { Instance, InstanceDetailResponse, Log } from "shared";
+import type {
+  Instance,
+  InstanceDetailResponse,
+  InstanceSummary,
+  Log,
+} from "shared";
 import { queryKeys } from "@/queries/keys";
 import {
   buildInstanceDetailPlaceholder,
@@ -32,9 +37,15 @@ const makeLog = (id: string): Log => ({
 });
 
 describe("buildInstanceDetailPlaceholder", () => {
-  test("ignores detail-shaped entries when searching list caches", () => {
+  test("does not construct incomplete detail data from list summaries", () => {
     const queryClient = new QueryClient();
-    const target = makeInstance("target");
+    const target: InstanceSummary = {
+      id: "target",
+      ownerId: "owner",
+      createdAt: 1,
+      public: false,
+      locked: false,
+    };
 
     queryClient.setQueryData(
       [...queryKeys.instances.detail("other"), "user"],
@@ -42,10 +53,9 @@ describe("buildInstanceDetailPlaceholder", () => {
     );
     queryClient.setQueryData([...queryKeys.instances.all, "user"], [target]);
 
-    expect(buildInstanceDetailPlaceholder(queryClient, "target")).toEqual({
-      instance: target,
-      logs: [],
-    });
+    expect(
+      buildInstanceDetailPlaceholder(queryClient, "target"),
+    ).toBeUndefined();
   });
 
   test("ignores child log data when searching detail caches", () => {
@@ -67,7 +77,13 @@ describe("buildInstanceDetailPlaceholder", () => {
 
   test("does not reuse previous detail data for another instance", () => {
     const queryClient = new QueryClient();
-    const target = makeInstance("target");
+    const target: InstanceSummary = {
+      id: "target",
+      ownerId: "owner",
+      createdAt: 1,
+      public: false,
+      locked: false,
+    };
     queryClient.setQueryData([...queryKeys.instances.all, "user"], [target]);
 
     expect(
@@ -76,6 +92,6 @@ describe("buildInstanceDetailPlaceholder", () => {
         "target",
         makeDetail("other"),
       ),
-    ).toEqual({ instance: target, logs: [] });
+    ).toBeUndefined();
   });
 });

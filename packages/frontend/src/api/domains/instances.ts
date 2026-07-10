@@ -2,6 +2,7 @@ import type {
   CreateInstanceInput,
   Instance,
   InstanceDetailResponse,
+  InstanceSummary,
   RenameInstanceInput,
   SetInstanceLockedInput,
   SetInstancePublicInput,
@@ -22,7 +23,7 @@ import { parseResponse } from "../parseResponse";
 import { apiPaths } from "../paths";
 
 export const instancesApi = {
-  getAll: async (): Promise<Instance[]> => {
+  getAll: async (): Promise<InstanceSummary[]> => {
     const data = await apiClient.get<unknown>(apiPaths.instances);
     return parseResponse(InstancesResponseSchema, data, "instances");
   },

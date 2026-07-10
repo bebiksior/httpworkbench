@@ -1,6 +1,6 @@
 import { createConnection } from "node:net";
 import { describe, expect, test } from "bun:test";
-import type { Instance, Log } from "shared";
+import type { Log } from "shared";
 import {
   createSmtpServer,
   createSmtpSession,
@@ -13,23 +13,12 @@ const runtimeConfig = {
   smtpPort: 0,
 };
 
-const createInstance = (id: string): Instance => ({
-  id,
-  ownerId: "owner-1",
-  createdAt: 1,
-  webhookIds: [],
-  public: false,
-  locked: false,
-  raw: "HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n",
-});
-
 const createCapturingDeps = (knownInstanceId: string) => {
   const added: Log[] = [];
   const broadcasted: Log[] = [];
 
   const deps: SmtpServerDependencies = {
-    getInstanceById: async (id) =>
-      id === knownInstanceId ? createInstance(id) : undefined,
+    hasActiveInstance: async (id) => id === knownInstanceId,
     addLog: async (log) => {
       added.push(log);
       return log;

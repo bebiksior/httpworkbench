@@ -1,8 +1,9 @@
 import { createServer, type Server as TcpServer, type Socket } from "node:net";
 import dgram, { type RemoteInfo, type Socket as UdpSocket } from "node:dgram";
 import type { Packet } from "dns-packet";
-import type { Instance, Log } from "shared";
+import type { Log } from "shared";
 import { dnsConfig, type DnsConfig } from "../../config";
+import { createBoundedProtocolRateLimiter } from "../protocolRateLimit";
 import {
   buildDnsAcmeChallengeAnswers,
   buildDnsInstanceAnswers,
@@ -27,15 +28,14 @@ const dnsLogWindowMs = 60_000;
 const maxDnsLogsPerWindow = 120;
 const maxDnsLogRateLimitEntries = 10_000;
 
-type DnsLogRateLimitEntry = {
-  windowStartedAt: number;
-  count: number;
-};
-
-const dnsLogRateLimit = new Map<string, DnsLogRateLimitEntry>();
+const dnsLogRateLimit = createBoundedProtocolRateLimiter({
+  maxRequests: maxDnsLogsPerWindow,
+  windowMs: dnsLogWindowMs,
+  maxEntries: maxDnsLogRateLimitEntries,
+});
 
 export type DnsServerDependencies = {
-  getInstanceById: (id: string) => Promise<Instance | undefined>;
+  hasActiveInstance: (id: string) => Promise<boolean>;
   addLog: (log: Log) => Promise<Log>;
   broadcastLog: (log: Log) => void;
   createId: () => string;
@@ -99,51 +99,13 @@ const getFirstQuestion = (request: {
   return request.questions?.[0];
 };
 
-const pruneDnsLogRateLimit = (now: number): void => {
-  for (const [key, entry] of dnsLogRateLimit) {
-    if (now - entry.windowStartedAt >= dnsLogWindowMs) {
-      dnsLogRateLimit.delete(key);
-    }
-  }
-
-  while (dnsLogRateLimit.size > maxDnsLogRateLimitEntries) {
-    const oldestKey = dnsLogRateLimit.keys().next().value;
-    if (oldestKey === undefined) {
-      break;
-    }
-
-    dnsLogRateLimit.delete(oldestKey);
-  }
-};
-
 const shouldPersistDnsLog = (params: {
   instanceId: string;
   clientAddress: string;
   now: number;
 }): boolean => {
-  if (dnsLogRateLimit.size >= maxDnsLogRateLimitEntries) {
-    pruneDnsLogRateLimit(params.now);
-  }
-
   const key = `${params.instanceId}:${params.clientAddress}`;
-  const entry = dnsLogRateLimit.get(key);
-  if (
-    entry === undefined ||
-    params.now - entry.windowStartedAt >= dnsLogWindowMs
-  ) {
-    dnsLogRateLimit.set(key, {
-      windowStartedAt: params.now,
-      count: 1,
-    });
-    return true;
-  }
-
-  if (entry.count >= maxDnsLogsPerWindow) {
-    return false;
-  }
-
-  entry.count += 1;
-  return true;
+  return dnsLogRateLimit.check(key, params.now);
 };
 
 const encodeDnsResponse = (
@@ -233,8 +195,10 @@ export const handleDnsRequest = async ({
         return encodeDnsResponse(transport, response);
       }
       case "instance": {
-        const instance = await deps.getInstanceById(resolution.instanceId);
-        if (instance === undefined) {
+        const instanceExists = await deps.hasActiveInstance(
+          resolution.instanceId,
+        );
+        if (!instanceExists) {
           const response = buildDnsResponse({
             request,
             code: DNS_RCODE.NXDOMAIN,
@@ -252,14 +216,14 @@ export const handleDnsRequest = async ({
         const timestamp = deps.now();
         if (
           shouldPersistDnsLog({
-            instanceId: instance.id,
+            instanceId: resolution.instanceId,
             clientAddress,
             now: timestamp,
           })
         ) {
           const log = {
             id: deps.createId(),
-            instanceId: instance.id,
+            instanceId: resolution.instanceId,
             type: "dns",
             timestamp,
             address: clientAddress,
@@ -387,7 +351,10 @@ const createTcpServer = (
       }
 
       pending = Buffer.concat([pending, chunk]);
-      void flush();
+      flush().catch((error) => {
+        console.error("Failed to process DNS TCP request", error);
+        socket.destroy();
+      });
     });
 
     socket.on("error", (error) => {
@@ -403,7 +370,7 @@ const createUdpServer = (
   const udpServer = dgram.createSocket("udp4");
 
   udpServer.on("message", (message: Buffer, remote: RemoteInfo) => {
-    void (async () => {
+    const handleMessage = async () => {
       const response = await handleDnsRequest({
         payload: message,
         transport: "udp",
@@ -421,7 +388,10 @@ const createUdpServer = (
           console.error("Failed to send DNS UDP response", error);
         }
       });
-    })();
+    };
+    handleMessage().catch((error) => {
+      console.error("Failed to process DNS UDP request", error);
+    });
   });
 
   udpServer.on("error", (error) => {

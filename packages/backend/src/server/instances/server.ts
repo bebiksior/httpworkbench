@@ -1,8 +1,7 @@
 import { listen, type Socket } from "bun";
-import { parse } from "http-z";
 import { type Log } from "shared";
 import { addLog } from "../../storage";
-import { getInstanceById } from "../../storage/repositories/instances";
+import { getServableInstanceById } from "../../storage/repositories/instances";
 import { broadcastLog } from "./logStream";
 import { HttpRequestBuffer } from "./httpBuffer";
 import {
@@ -19,6 +18,56 @@ type SocketData = {
 };
 
 const INTERNAL_HEADER_NAMES = ["x-internal-real-ip"];
+const responseEncoder = new TextEncoder();
+const maxCachedResponseBytes = 64 * 1024 * 1024;
+
+type CachedResponse = {
+  raw: string;
+  encoded: Uint8Array;
+  size: number;
+};
+
+const responseCache = new Map<string, CachedResponse>();
+let cachedResponseBytes = 0;
+
+export const resetInstanceResponseCacheForTests = () => {
+  responseCache.clear();
+  cachedResponseBytes = 0;
+};
+
+const encodeInstanceResponse = (instance: { id: string; raw: string }) => {
+  const cached = responseCache.get(instance.id);
+  if (cached?.raw === instance.raw) {
+    responseCache.delete(instance.id);
+    responseCache.set(instance.id, cached);
+    return cached.encoded;
+  }
+
+  if (cached !== undefined) {
+    responseCache.delete(instance.id);
+    cachedResponseBytes -= cached.size;
+  }
+
+  const encoded = responseEncoder.encode(adjustContentLength(instance.raw));
+  const size = encoded.byteLength + instance.raw.length * 2;
+  if (size > maxCachedResponseBytes) {
+    return encoded;
+  }
+
+  while (cachedResponseBytes + size > maxCachedResponseBytes) {
+    const oldestId = responseCache.keys().next().value;
+    if (oldestId === undefined) {
+      break;
+    }
+    const oldest = responseCache.get(oldestId);
+    responseCache.delete(oldestId);
+    cachedResponseBytes -= oldest?.size ?? 0;
+  }
+
+  responseCache.set(instance.id, { raw: instance.raw, encoded, size });
+  cachedResponseBytes += size;
+  return encoded;
+};
 
 const createHttpLog = (
   instanceId: string,
@@ -50,7 +99,7 @@ const tryLogInteraction = <T>(
       return false;
     }
 
-    const instance = getInstanceById(result.instanceId);
+    const instance = getServableInstanceById(result.instanceId);
     if (instance === undefined) {
       return false;
     }
@@ -110,11 +159,7 @@ export const createInstancesServer = (
           }
 
           const rawRequest = socket.data.buffer.getRaw();
-          const request = parse(rawRequest);
-
-          const host = request.headers.find(
-            (header) => header.name === "Host",
-          )?.value;
+          const host = getHeaderValue(rawRequest, "host");
 
           if (host === undefined || host === "") {
             respond(
@@ -130,7 +175,7 @@ export const createInstancesServer = (
             return;
           }
 
-          const instance = getInstanceById(result.instanceId);
+          const instance = getServableInstanceById(result.instanceId);
           if (!instance) {
             respond(
               socket,
@@ -156,8 +201,7 @@ export const createInstancesServer = (
           broadcastLog(log);
           didLog = true;
 
-          const adjustedResponse = adjustContentLength(instance.raw);
-          respond(socket, new TextEncoder().encode(adjustedResponse));
+          respond(socket, encodeInstanceResponse(instance));
         } catch (error) {
           console.error(error);
           if (!didLog) {

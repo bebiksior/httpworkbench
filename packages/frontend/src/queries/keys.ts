@@ -22,7 +22,15 @@ export const invalidateInstanceQueries = async (
   id?: string,
 ) => {
   const invalidations = [
-    queryClient.invalidateQueries({ queryKey: queryKeys.instances.all }),
+    queryClient.invalidateQueries({
+      predicate: (query) => {
+        const key = query.queryKey;
+        return (
+          key[0] === queryKeys.instances.all[0] &&
+          (key[1] === "guest" || key[1] === "user")
+        );
+      },
+    }),
   ];
   if (id !== undefined) {
     invalidations.push(

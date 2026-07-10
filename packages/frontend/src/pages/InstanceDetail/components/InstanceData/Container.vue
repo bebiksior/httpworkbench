@@ -69,7 +69,7 @@ const {
 } = useInstanceDataLogic(instance);
 
 const { data: webhooks } = useWebhooks({
-  enabled: computed(() => !isGuest.value),
+  enabled: computed(() => canManageInstance.value && !isGuest.value),
 });
 
 const webhookOptions = computed(() => {

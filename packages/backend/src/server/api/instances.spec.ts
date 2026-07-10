@@ -3,7 +3,8 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { Elysia } from "elysia";
-import { addUser, addWebhook, closeDb, initDb } from "../../storage";
+import { addUser, addWebhook, closeDb, getDb, initDb } from "../../storage";
+import { logs } from "../../storage/schema";
 
 process.env.JWT_SECRET = "instance-routes-test-secret";
 
@@ -104,5 +105,65 @@ describe("authenticated instance routes", () => {
     );
     expect(forbiddenResponse.status).toBe(403);
     expect(await forbiddenResponse.json()).toEqual({ error: "Forbidden" });
+  });
+
+  test("lists lightweight instance summaries", async () => {
+    const createdResponse = await call("/api/instances", "POST", "owner-1", {
+      raw: "HTTP/1.1 200 OK\n\nlarge response body",
+    });
+    const created = (await createdResponse.json()) as { id: string };
+    const token = await issueAuthToken("owner-1");
+
+    const response = await app.handle(
+      new Request("http://localhost/api/instances", {
+        headers: { authorization: `Bearer ${token}` },
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual([
+      {
+        id: created.id,
+        ownerId: "owner-1",
+        createdAt: expect.any(Number),
+        public: false,
+        locked: false,
+      },
+    ]);
+  });
+
+  test("bounds embedded detail logs to the 100 most recent entries", async () => {
+    const createdResponse = await call("/api/instances", "POST", "owner-1", {
+      raw: "HTTP/1.1 200 OK\n\nok",
+    });
+    const created = (await createdResponse.json()) as { id: string };
+    getDb()
+      .insert(logs)
+      .values(
+        Array.from({ length: 105 }, (_, index) => ({
+          id: `log-${index + 1}`,
+          instanceId: created.id,
+          type: "http" as const,
+          timestamp: index + 1,
+          address: "127.0.0.1",
+          raw: `GET /${index + 1} HTTP/1.1`,
+        })),
+      )
+      .run();
+    const token = await issueAuthToken("owner-1");
+
+    const response = await app.handle(
+      new Request(`http://localhost/api/instances/${created.id}`, {
+        headers: { authorization: `Bearer ${token}` },
+      }),
+    );
+    const detail = (await response.json()) as {
+      logs: Array<{ id: string }>;
+    };
+
+    expect(response.status).toBe(200);
+    expect(detail.logs).toHaveLength(100);
+    expect(detail.logs[0]?.id).toBe("log-6");
+    expect(detail.logs.at(-1)?.id).toBe("log-105");
   });
 });

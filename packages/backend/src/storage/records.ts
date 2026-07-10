@@ -1,10 +1,12 @@
 import {
   InstanceModerationSchema,
   InstanceSchema,
+  InstanceSummarySchema,
   UserNoticeSchema,
   WebhookSchema,
   type Instance,
   type InstanceModeration,
+  type InstanceSummary,
   type UserNotice,
   type Webhook,
 } from "shared";
@@ -38,6 +40,19 @@ export const toDomainInstance = (
     public: row.isPublic,
     locked: row.isLocked,
     raw: row.raw,
+  });
+
+export const toDomainInstanceSummary = (
+  row: Omit<InstanceRow, "raw">,
+): InstanceSummary =>
+  InstanceSummarySchema.parse({
+    id: row.id,
+    ownerId: row.ownerId,
+    createdAt: row.createdAt,
+    expiresAt: row.expiresAt ?? undefined,
+    label: row.label ?? undefined,
+    public: row.isPublic,
+    locked: row.isLocked,
   });
 
 export const toInstanceRow = (instance: Instance): InstanceInsertRow => {

@@ -3,7 +3,7 @@ import Button from "primevue/button";
 import InputText from "primevue/inputtext";
 import Tag from "primevue/tag";
 import { useConfirm } from "primevue/useconfirm";
-import type { Instance } from "shared";
+import type { InstanceSummary } from "shared";
 import { computed, toRefs } from "vue";
 import { useRouter } from "vue-router";
 import { useNotify } from "@/composables";
@@ -15,7 +15,7 @@ import {
 import { isPresent } from "@/utils/types";
 
 const props = defineProps<{
-  instance: Instance;
+  instance: InstanceSummary;
 }>();
 
 const { instance } = toRefs(props);
@@ -84,12 +84,12 @@ const handleCloneClick = () => {
     },
     accept: () => {
       cloneMutation.mutate(instance.value, {
-        onSuccess: (clonedInstance) => {
+        onSuccess: async (clonedInstance) => {
           notify.success(
             "Instance cloned",
             "A copy of your instance has been created successfully",
           );
-          void router.push(`/instances/${clonedInstance.id}`);
+          await router.push(`/instances/${clonedInstance.id}`);
         },
         onError: (err: Error) => {
           notify.error("Failed to clone instance", err);

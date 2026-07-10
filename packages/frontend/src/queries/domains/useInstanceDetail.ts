@@ -5,7 +5,7 @@ import {
 } from "@tanstack/vue-query";
 import { computed, toValue, type MaybeRefOrGetter } from "vue";
 import { storeToRefs } from "pinia";
-import type { Instance, InstanceDetailResponse } from "shared";
+import type { InstanceDetailResponse } from "shared";
 import { guestInstancesApi } from "@/api/domains/guestInstances";
 import { instancesApi } from "@/api/domains/instances";
 import { NotFoundError } from "@/api/errors";
@@ -18,7 +18,9 @@ const INSTANCE_QUERY_SCOPE = new Set(["guest", "user"]);
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null;
 
-const isCacheInstance = (value: unknown): value is Instance => {
+const isCacheInstance = (
+  value: unknown,
+): value is InstanceDetailResponse["instance"] => {
   return (
     isRecord(value) &&
     typeof value.id === "string" &&
@@ -32,10 +34,6 @@ const isCacheInstanceDetail = (
   isRecord(value) &&
   isCacheInstance(value.instance) &&
   Array.isArray(value.logs);
-
-const isInstanceListQueryKey = (queryKey: readonly unknown[]) =>
-  queryKey[0] === queryKeys.instances.all[0] &&
-  INSTANCE_QUERY_SCOPE.has(String(queryKey[1]));
 
 const isInstanceDetailQueryKey = (queryKey: readonly unknown[], id: string) =>
   queryKey[0] === queryKeys.instances.all[0] &&
@@ -62,29 +60,6 @@ const getCachedInstanceDetail = (
   return undefined;
 };
 
-const findCachedInstance = (
-  queryClient: QueryClient,
-  id: string,
-): Instance | undefined => {
-  const listQueries = queryClient.getQueriesData<unknown>({
-    queryKey: queryKeys.instances.all,
-  });
-
-  for (const [queryKey, instances] of listQueries) {
-    if (!isInstanceListQueryKey(queryKey) || !Array.isArray(instances)) {
-      continue;
-    }
-
-    for (const instance of instances) {
-      if (isCacheInstance(instance) && instance.id === id) {
-        return instance;
-      }
-    }
-  }
-
-  return undefined;
-};
-
 export const buildInstanceDetailPlaceholder = (
   queryClient: QueryClient,
   id: string,
@@ -93,16 +68,7 @@ export const buildInstanceDetailPlaceholder = (
   if (cachedDetail !== undefined) {
     return cachedDetail;
   }
-
-  const cachedInstance = findCachedInstance(queryClient, id);
-  if (cachedInstance === undefined) {
-    return undefined;
-  }
-
-  return {
-    instance: cachedInstance,
-    logs: [],
-  };
+  return undefined;
 };
 
 export const selectInstanceDetailPlaceholder = (

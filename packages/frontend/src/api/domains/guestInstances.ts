@@ -1,14 +1,18 @@
 import type {
   CreateInstanceInput,
+  GuestInstanceSummariesRequest,
   Instance,
   InstanceDetailResponse,
+  InstanceSummary,
   SetInstanceLockedInput,
   UpdateInstanceInput,
 } from "shared";
 import {
   CreateInstanceSchema,
+  GuestInstanceSummariesRequestSchema,
   InstanceDetailResponseSchema,
   InstanceSchema,
+  InstancesResponseSchema,
   SetInstanceLockedSchema,
   UpdateInstanceSchema,
 } from "shared";
@@ -17,6 +21,20 @@ import { parseResponse } from "../parseResponse";
 import { apiPaths } from "../paths";
 
 export const guestInstancesApi = {
+  getSummaries: async (
+    input: GuestInstanceSummariesRequest,
+  ): Promise<InstanceSummary[]> => {
+    const validatedInput = GuestInstanceSummariesRequestSchema.parse(input);
+    const data = await apiClient.post<unknown>(
+      apiPaths.guestInstanceSummaries,
+      validatedInput,
+    );
+    return parseResponse(
+      InstancesResponseSchema,
+      data,
+      "guest instance summaries",
+    );
+  },
   create: async (input: CreateInstanceInput): Promise<Instance> => {
     const validatedInput = CreateInstanceSchema.parse(input);
     const data = await apiClient.post<unknown>(

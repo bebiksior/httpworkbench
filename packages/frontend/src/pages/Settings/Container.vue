@@ -4,29 +4,34 @@ import Divider from "primevue/divider";
 import Dialog from "primevue/dialog";
 import Message from "primevue/message";
 import { useMediaQuery } from "@vueuse/core";
-import { computed, ref } from "vue";
+import { computed, defineAsyncComponent, ref } from "vue";
 import { storeToRefs } from "pinia";
 import { useRouter } from "vue-router";
 import type { Webhook } from "shared";
 import { useWebhooks } from "@/queries/domains/useWebhooks";
 import { useAuthStore } from "@/stores/auth";
-import { WebhookList } from "./WebhookList";
-import { WebhookForm } from "./WebhookForm";
-import { OpenrouterKey } from "./OpenrouterKey";
-import { UpdateCheck } from "./UpdateCheck";
-import { ApiKeys } from "./ApiKeys";
-import { Mcp } from "./Mcp";
+const WebhookList = defineAsyncComponent(() =>
+  import("./WebhookList").then((module) => module.WebhookList),
+);
+const WebhookForm = defineAsyncComponent(() =>
+  import("./WebhookForm").then((module) => module.WebhookForm),
+);
+const OpenrouterKey = defineAsyncComponent(() =>
+  import("./OpenrouterKey").then((module) => module.OpenrouterKey),
+);
+const UpdateCheck = defineAsyncComponent(() =>
+  import("./UpdateCheck").then((module) => module.UpdateCheck),
+);
+const ApiKeys = defineAsyncComponent(() =>
+  import("./ApiKeys").then((module) => module.ApiKeys),
+);
+const Mcp = defineAsyncComponent(() =>
+  import("./Mcp").then((module) => module.Mcp),
+);
 
 const router = useRouter();
 const authStore = useAuthStore();
 const { isGuest } = storeToRefs(authStore);
-const {
-  data: webhooks,
-  isLoading,
-  error,
-} = useWebhooks({
-  enabled: computed(() => !isGuest.value),
-});
 const showCreateDialog = ref(false);
 const showEditDialog = ref(false);
 const editingWebhook = ref<Webhook | undefined>(undefined);
@@ -40,6 +45,13 @@ const sections = [
 ] as const;
 type SettingsSectionId = (typeof sections)[number]["id"];
 const activeSection = ref<SettingsSectionId>("mcp");
+const {
+  data: webhooks,
+  isLoading,
+  error,
+} = useWebhooks({
+  enabled: computed(() => !isGuest.value && activeSection.value === "webhooks"),
+});
 
 const handleWebhookCreated = () => {
   showCreateDialog.value = false;

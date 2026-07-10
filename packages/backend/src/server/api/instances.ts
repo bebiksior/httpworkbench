@@ -12,8 +12,8 @@ import {
   clearLogsForInstance,
   deleteInstance,
   getInstanceById,
-  getInstancesByOwner,
-  getLogsForInstance,
+  getInstanceSummariesByOwner,
+  getRecentLogsForInstance,
   getLogsForInstancePage,
   updateInstance,
 } from "../../storage";
@@ -42,6 +42,8 @@ const LogsQuerySchema = z.object({
   sinceTimestamp: z.coerce.number().int().min(0).optional(),
 });
 
+const INSTANCE_DETAIL_LOG_LIMIT = 100;
+
 const serviceErrorResponse = (error: InstanceServiceError) =>
   status(error.status, { error: error.message });
 
@@ -55,7 +57,7 @@ const loadOwnedInstance = (id: string, userId: string) => {
 
 export const instancesRoutes = new Elysia({ name: "routes/instances" })
   .use(authPlugin)
-  .get("/api/instances", ({ user }) => getInstancesByOwner(user.id), {
+  .get("/api/instances", ({ user }) => getInstanceSummariesByOwner(user.id), {
     scope: "instances:read",
     detail: {
       tags: ["Instances"],
@@ -112,7 +114,9 @@ export const instancesRoutes = new Elysia({ name: "routes/instances" })
 
       const includeLogs =
         publiclyReadable || !apiKeyMissingScope(access, "logs:read");
-      const logs = includeLogs ? getLogsForInstance(instance.id) : [];
+      const logs = includeLogs
+        ? getRecentLogsForInstance(instance.id, INSTANCE_DETAIL_LOG_LIMIT)
+        : [];
       return InstanceDetailResponseSchema.parse({ instance, logs });
     },
     {
@@ -120,7 +124,7 @@ export const instancesRoutes = new Elysia({ name: "routes/instances" })
         tags: ["Instances"],
         summary: "Get an instance",
         description:
-          "Get one instance and its logs. Logs are included for public instances, or when the key holds logs:read.",
+          "Get one instance and its 100 most recent logs. Logs are included for public instances, or when the key holds logs:read.",
       },
     },
   )

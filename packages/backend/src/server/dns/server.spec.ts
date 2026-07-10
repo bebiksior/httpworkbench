@@ -10,16 +10,6 @@ import {
   type DnsServerDependencies,
 } from "./server";
 
-const createInstance = (id: string) => ({
-  id,
-  ownerId: "owner-1",
-  createdAt: 1,
-  webhookIds: [] as string[],
-  public: false,
-  locked: false,
-  raw: "HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n",
-});
-
 const createBaseDeps = () => ({
   broadcastLog: () => {},
   createId: () => "log-id",
@@ -209,8 +199,7 @@ describe("createDnsServer", () => {
       config: createTestDnsConfig(),
       deps: {
         ...createBaseDeps(),
-        getInstanceById: async (id) =>
-          id === "demo" ? createInstance("demo") : undefined,
+        hasActiveInstance: async (id) => id === "demo",
         addLog: async (log) => {
           logs.push(log);
           return log;
@@ -267,8 +256,7 @@ describe("createDnsServer", () => {
       config: createTestDnsConfig(),
       deps: {
         ...createBaseDeps(),
-        getInstanceById: async (id) =>
-          id === "demo" ? createInstance("demo") : undefined,
+        hasActiveInstance: async (id) => id === "demo",
         addLog: async (log) => {
           logs.push(log.raw);
           return log;
@@ -305,7 +293,7 @@ describe("createDnsServer", () => {
       config: createTestDnsConfig(),
       deps: {
         ...createBaseDeps(),
-        getInstanceById: async () => undefined,
+        hasActiveInstance: async () => false,
         addLog: async (log) => {
           logs.push(log.id);
           return log;
@@ -340,7 +328,7 @@ describe("createDnsServer", () => {
       config: createTestDnsConfig(),
       deps: {
         ...createBaseDeps(),
-        getInstanceById: async () => createInstance("demo"),
+        hasActiveInstance: async () => true,
         addLog: async (log) => {
           logs.push(log.id);
           return log;
@@ -384,7 +372,7 @@ describe("createDnsServer", () => {
       config: createTestDnsConfig(),
       deps: {
         ...createBaseDeps(),
-        getInstanceById: async () => createInstance("demo"),
+        hasActiveInstance: async () => true,
         addLog: async (log) => log,
       },
     });
@@ -414,7 +402,7 @@ describe("createDnsServer", () => {
       config: createTestDnsConfig(),
       deps: {
         ...createBaseDeps(),
-        getInstanceById: async () => undefined,
+        hasActiveInstance: async () => false,
         addLog: async (log) => log,
       },
     });
@@ -462,8 +450,7 @@ describe("createDnsServer", () => {
       config: createTestDnsConfig(),
       deps: {
         ...createBaseDeps(),
-        getInstanceById: async (id) =>
-          id === "demo" ? createInstance("demo") : undefined,
+        hasActiveInstance: async (id) => id === "demo",
         addLog: async (log) => {
           logs.push(log.raw);
           return log;
@@ -510,8 +497,7 @@ describe("createDnsServer", () => {
       config: createTestDnsConfig(),
       deps: {
         ...createBaseDeps(),
-        getInstanceById: async (id) =>
-          id === "demo" ? createInstance("demo") : undefined,
+        hasActiveInstance: async (id) => id === "demo",
         addLog: async (log) => {
           logs.push(log.raw);
           return log;
@@ -542,8 +528,7 @@ describe("createDnsServer", () => {
 describe("handleDnsRequest", () => {
   const deps: DnsServerDependencies = {
     ...createBaseDeps(),
-    getInstanceById: async (id: string) =>
-      id === "demo" ? createInstance("demo") : undefined,
+    hasActiveInstance: async (id: string) => id === "demo",
     addLog: async (log) => log,
   };
 
@@ -869,8 +854,7 @@ describe("handleDnsRequest", () => {
         deps: {
           ...deps,
           now: () => now,
-          getInstanceById: async (id: string) =>
-            id === "rate" ? createInstance("rate") : undefined,
+          hasActiveInstance: async (id: string) => id === "rate",
           addLog: async (log) => {
             logs.push(log.id);
             return log;
@@ -914,8 +898,7 @@ describe("handleDnsRequest", () => {
       deps: {
         ...deps,
         now: () => now,
-        getInstanceById: async (id: string) =>
-          id === "rate" ? createInstance("rate") : undefined,
+        hasActiveInstance: async (id: string) => id === "rate",
         addLog: async (log) => {
           logs.push(log.id);
           return log;

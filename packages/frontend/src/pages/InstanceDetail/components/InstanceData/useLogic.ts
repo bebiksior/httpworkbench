@@ -16,7 +16,8 @@ import {
   useSetInstanceLocked,
   useSetInstancePublic,
 } from "@/queries/domains/useInstances";
-import { useAuthStore, useGuestInstancesStore } from "@/stores";
+import { useAuthStore } from "@/stores/auth";
+import { useGuestInstancesStore } from "@/stores/guestInstances";
 import { isAbsent, isPresent } from "@/utils/types";
 import { useInstanceEditor } from "./useInstanceEditor";
 

@@ -3,7 +3,7 @@ import { useRouter } from "vue-router";
 import { NotFoundError } from "@/api/errors";
 import { useNotify } from "@/composables";
 import { useInstanceDetail } from "@/queries/domains/useInstanceDetail";
-import { useAuthStore } from "@/stores";
+import { useAuthStore } from "@/stores/auth";
 import { isPresent } from "@/utils/types";
 import { useInstanceLogStream } from "./useInstanceLogStream";
 
@@ -18,14 +18,14 @@ export const useInstanceDetailLogic = (
     useInstanceDetail(instanceId);
   const logs = useInstanceLogStream(resolvedInstanceId, data, refetch);
 
-  watch(error, (newError) => {
+  watch(error, async (newError) => {
     if (!isPresent(newError)) return;
     if (newError instanceof NotFoundError) {
-      void router.replace({ name: "notFound" });
+      await router.replace({ name: "notFound" });
       return;
     }
     notify.error("Error loading instance", newError);
-    void router.push({ name: authStore.hasSession ? "home" : "login" });
+    await router.push({ name: authStore.hasSession ? "home" : "login" });
   });
 
   return {

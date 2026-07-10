@@ -2,7 +2,8 @@ import { Elysia, status } from "elysia";
 import {
   addLog,
   flushPendingWebhookNotifications,
-  getInstanceById,
+  getInstanceAccessMetadata,
+  hasActiveInstance,
   removeExpiredInstances,
 } from "../storage";
 import { dnsConfig, instancePolicies, smtpConfig } from "../config";
@@ -69,7 +70,7 @@ const buildApiServer = (port: number) => {
     .use(apiKeysRoutes)
     .ws("/api/instances/:id/stream", {
       async beforeHandle({ params, request, set, cookie }) {
-        const instance = getInstanceById(params.id);
+        const instance = getInstanceAccessMetadata(params.id);
         if (instance === undefined) {
           return status(404, { error: "Not found" });
         }
@@ -122,7 +123,7 @@ export const initServer = async () => {
     ? await createDnsServer({
         config: dnsConfig,
         deps: {
-          getInstanceById: async (id) => getInstanceById(id),
+          hasActiveInstance: async (id) => hasActiveInstance(id),
           addLog: async (log) => addLog(log),
           broadcastLog,
           createId: () => crypto.randomUUID(),
@@ -135,7 +136,7 @@ export const initServer = async () => {
     ? await createSmtpServer({
         config: smtpConfig,
         deps: {
-          getInstanceById: async (id) => getInstanceById(id),
+          hasActiveInstance: async (id) => hasActiveInstance(id),
           addLog: async (log) => addLog(log),
           broadcastLog,
           createId: () => crypto.randomUUID(),

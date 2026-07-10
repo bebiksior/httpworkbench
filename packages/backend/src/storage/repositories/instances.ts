@@ -1,4 +1,4 @@
-import type { Instance } from "shared";
+import type { Instance, InstanceSummary } from "shared";
 import { InstanceSchema } from "shared";
 import {
   and,
@@ -13,53 +13,17 @@ import {
   or,
 } from "drizzle-orm";
 import { getDb } from "../db";
-import { toDomainInstance, toInstanceRow } from "../records";
+import {
+  toDomainInstance,
+  toDomainInstanceSummary,
+  toInstanceRow,
+} from "../records";
 import { instances, instanceWebhooks } from "../schema";
 
 const activeInstanceCondition = (now: number) =>
   or(isNull(instances.expiresAt), gt(instances.expiresAt, now));
 
 type WebhookMutationStore = Pick<ReturnType<typeof getDb>, "delete" | "insert">;
-
-const getWebhookIdsByInstanceId = (instanceIds: string[]) => {
-  if (instanceIds.length === 0) {
-    return new Map<string, string[]>();
-  }
-
-  const rows = getDb()
-    .select({
-      instanceId: instanceWebhooks.instanceId,
-      webhookId: instanceWebhooks.webhookId,
-    })
-    .from(instanceWebhooks)
-    .where(inArray(instanceWebhooks.instanceId, instanceIds))
-    .orderBy(asc(instanceWebhooks.instanceId), asc(instanceWebhooks.position))
-    .all();
-
-  const grouped = new Map<string, string[]>();
-  for (const row of rows) {
-    const current = grouped.get(row.instanceId);
-    if (current === undefined) {
-      grouped.set(row.instanceId, [row.webhookId]);
-      continue;
-    }
-    current.push(row.webhookId);
-  }
-
-  return grouped;
-};
-
-const hydrateInstances = (
-  rows: Array<typeof instances.$inferSelect>,
-): Instance[] => {
-  const webhookIdsByInstanceId = getWebhookIdsByInstanceId(
-    rows.map((row) => row.id),
-  );
-
-  return rows.map((row) =>
-    toDomainInstance(row, webhookIdsByInstanceId.get(row.id) ?? []),
-  );
-};
 
 const getActiveInstanceById = (
   id: string,
@@ -70,7 +34,9 @@ const getActiveInstanceById = (
     .from(instances)
     .where(and(eq(instances.id, id), activeInstanceCondition(now)))
     .get();
-  return row === undefined ? undefined : hydrateInstances([row])[0];
+  return row === undefined
+    ? undefined
+    : toDomainInstance(row, getWebhookIdsForInstance(id));
 };
 
 const replaceInstanceWebhooks = (
@@ -102,16 +68,67 @@ export function addInstance(instance: Instance): Instance {
   return parsed;
 }
 
-export function getInstancesByOwner(ownerId: string): Instance[] {
-  const now = Date.now();
-  return hydrateInstances(
-    getDb()
-      .select()
-      .from(instances)
-      .where(and(eq(instances.ownerId, ownerId), activeInstanceCondition(now)))
-      .orderBy(asc(instances.createdAt), asc(instances.id))
-      .all(),
+export function getInstanceSummariesByOwner(
+  ownerId: string,
+): InstanceSummary[] {
+  const rows = getDb()
+    .select({
+      id: instances.id,
+      ownerId: instances.ownerId,
+      createdAt: instances.createdAt,
+      expiresAt: instances.expiresAt,
+      label: instances.label,
+      isPublic: instances.isPublic,
+      isLocked: instances.isLocked,
+    })
+    .from(instances)
+    .where(
+      and(eq(instances.ownerId, ownerId), activeInstanceCondition(Date.now())),
+    )
+    .orderBy(asc(instances.createdAt), asc(instances.id))
+    .all();
+
+  return rows.map(toDomainInstanceSummary);
+}
+
+export function getInstanceSummariesByIds(
+  ids: string[],
+  ownerId: string,
+): InstanceSummary[] {
+  if (ids.length === 0) {
+    return [];
+  }
+
+  const rows = getDb()
+    .select({
+      id: instances.id,
+      ownerId: instances.ownerId,
+      createdAt: instances.createdAt,
+      expiresAt: instances.expiresAt,
+      label: instances.label,
+      isPublic: instances.isPublic,
+      isLocked: instances.isLocked,
+    })
+    .from(instances)
+    .where(
+      and(
+        inArray(instances.id, ids),
+        eq(instances.ownerId, ownerId),
+        activeInstanceCondition(Date.now()),
+      ),
+    )
+    .all();
+
+  const summariesById = new Map(
+    rows.map((row) => {
+      const summary = toDomainInstanceSummary(row);
+      return [summary.id, summary] as const;
+    }),
   );
+  return ids.flatMap((id) => {
+    const summary = summariesById.get(id);
+    return summary === undefined ? [] : [summary];
+  });
 }
 
 export function countActiveInstancesByOwner(ownerId: string): number {
@@ -131,6 +148,57 @@ export function countActiveInstancesByOwner(ownerId: string): number {
 
 export function getInstanceById(id: string): Instance | undefined {
   return getActiveInstanceById(id, Date.now());
+}
+
+export type ServableInstance = Pick<Instance, "id" | "raw">;
+
+export type InstanceAccessMetadata = Pick<
+  Instance,
+  "id" | "ownerId" | "public"
+>;
+
+export function getServableInstanceById(
+  id: string,
+): ServableInstance | undefined {
+  return getDb()
+    .select({ id: instances.id, raw: instances.raw })
+    .from(instances)
+    .where(and(eq(instances.id, id), activeInstanceCondition(Date.now())))
+    .get();
+}
+
+export function hasActiveInstance(id: string): boolean {
+  return (
+    getDb()
+      .select({ id: instances.id })
+      .from(instances)
+      .where(and(eq(instances.id, id), activeInstanceCondition(Date.now())))
+      .get() !== undefined
+  );
+}
+
+export function getInstanceAccessMetadata(
+  id: string,
+): InstanceAccessMetadata | undefined {
+  return getDb()
+    .select({
+      id: instances.id,
+      ownerId: instances.ownerId,
+      public: instances.isPublic,
+    })
+    .from(instances)
+    .where(and(eq(instances.id, id), activeInstanceCondition(Date.now())))
+    .get();
+}
+
+export function getWebhookIdsForInstance(instanceId: string): string[] {
+  return getDb()
+    .select({ webhookId: instanceWebhooks.webhookId })
+    .from(instanceWebhooks)
+    .where(eq(instanceWebhooks.instanceId, instanceId))
+    .orderBy(asc(instanceWebhooks.position))
+    .all()
+    .map(({ webhookId }) => webhookId);
 }
 
 export function updateInstance(

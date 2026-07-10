@@ -1,6 +1,7 @@
 import { createServer, type Server as TcpServer, type Socket } from "node:net";
-import type { Instance, Log } from "shared";
+import type { Log } from "shared";
 import { smtpConfig, type SmtpConfig } from "../../config";
+import { createBoundedProtocolRateLimiter } from "../protocolRateLimit";
 import {
   formatSmtpLogRaw,
   maxSmtpDataBytes,
@@ -21,15 +22,14 @@ const smtpLogWindowMs = 60_000;
 const maxSmtpLogsPerWindow = 120;
 const maxSmtpLogRateLimitEntries = 10_000;
 
-type SmtpLogRateLimitEntry = {
-  windowStartedAt: number;
-  count: number;
-};
-
-const smtpLogRateLimit = new Map<string, SmtpLogRateLimitEntry>();
+const smtpLogRateLimit = createBoundedProtocolRateLimiter({
+  maxRequests: maxSmtpLogsPerWindow,
+  windowMs: smtpLogWindowMs,
+  maxEntries: maxSmtpLogRateLimitEntries,
+});
 
 export type SmtpServerDependencies = {
-  getInstanceById: (id: string) => Promise<Instance | undefined>;
+  hasActiveInstance: (id: string) => Promise<boolean>;
   addLog: (log: Log) => Promise<Log>;
   broadcastLog: (log: Log) => void;
   createId: () => string;
@@ -70,51 +70,13 @@ const toRuntimeSmtpConfig = (config: SmtpConfig): SmtpRuntimeConfig => {
   };
 };
 
-const pruneSmtpLogRateLimit = (now: number): void => {
-  for (const [key, entry] of smtpLogRateLimit) {
-    if (now - entry.windowStartedAt >= smtpLogWindowMs) {
-      smtpLogRateLimit.delete(key);
-    }
-  }
-
-  while (smtpLogRateLimit.size > maxSmtpLogRateLimitEntries) {
-    const oldestKey = smtpLogRateLimit.keys().next().value;
-    if (oldestKey === undefined) {
-      break;
-    }
-
-    smtpLogRateLimit.delete(oldestKey);
-  }
-};
-
 const shouldPersistSmtpLog = (params: {
   instanceId: string;
   clientAddress: string;
   now: number;
 }): boolean => {
-  if (smtpLogRateLimit.size >= maxSmtpLogRateLimitEntries) {
-    pruneSmtpLogRateLimit(params.now);
-  }
-
   const key = `${params.instanceId}:${params.clientAddress}`;
-  const entry = smtpLogRateLimit.get(key);
-  if (
-    entry === undefined ||
-    params.now - entry.windowStartedAt >= smtpLogWindowMs
-  ) {
-    smtpLogRateLimit.set(key, {
-      windowStartedAt: params.now,
-      count: 1,
-    });
-    return true;
-  }
-
-  if (entry.count >= maxSmtpLogsPerWindow) {
-    return false;
-  }
-
-  entry.count += 1;
-  return true;
+  return smtpLogRateLimit.check(key, params.now);
 };
 
 const buildEhloReplies = (config: SmtpRuntimeConfig): string[] => {
@@ -294,13 +256,16 @@ export const createSmtpSession = ({
           return reply("550 5.1.1 No such instance");
         }
 
-        const instance = await deps.getInstanceById(resolution.instanceId);
-        if (instance === undefined) {
+        if (!(await deps.hasActiveInstance(resolution.instanceId))) {
           return reply("550 5.1.1 No such instance");
         }
 
-        if (!recipients.some((entry) => entry.instanceId === instance.id)) {
-          recipients.push({ raw: to, instanceId: instance.id });
+        if (
+          !recipients.some(
+            (entry) => entry.instanceId === resolution.instanceId,
+          )
+        ) {
+          recipients.push({ raw: to, instanceId: resolution.instanceId });
         }
 
         return reply("250 2.1.5 OK");
@@ -420,7 +385,10 @@ const createSmtpTcpServer = (
       }
 
       pending = Buffer.concat([pending, chunk]);
-      void flush();
+      flush().catch((error) => {
+        console.error("Failed to process SMTP request", error);
+        socket.destroy();
+      });
     });
 
     socket.on("error", (error) => {

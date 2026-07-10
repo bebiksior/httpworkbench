@@ -41,6 +41,36 @@ test("waits for the full body when content-length is provided", () => {
   expect(buffer.isComplete()).toBe(true);
 });
 
+test("recognizes a header delimiter split across packets", () => {
+  const buffer = new HttpRequestBuffer();
+  buffer.append(
+    encode("GET / HTTP/1.1\r\nHost: demo.instances.example.com\r\n\r"),
+  );
+
+  expect(buffer.isComplete()).toBe(false);
+
+  buffer.append(encode("\n"));
+
+  expect(buffer.hasError()).toBe(false);
+  expect(buffer.isComplete()).toBe(true);
+});
+
+test("preserves fragmented request bodies while growing", () => {
+  const body = "a".repeat(1024 * 1024);
+  const rawRequest = encode(
+    `POST / HTTP/1.1\r\nHost: demo.instances.example.com\r\nContent-Length: ${body.length}\r\n\r\n${body}`,
+  );
+  const buffer = new HttpRequestBuffer();
+
+  for (let offset = 0; offset < rawRequest.length; offset += 4096) {
+    buffer.append(rawRequest.subarray(offset, offset + 4096));
+  }
+
+  expect(buffer.hasError()).toBe(false);
+  expect(buffer.isComplete()).toBe(true);
+  expect(buffer.getRaw()).toEndWith(body);
+});
+
 test("treats a request without content-length as complete after headers", () => {
   const rawRequest = [
     "GET / HTTP/1.1",

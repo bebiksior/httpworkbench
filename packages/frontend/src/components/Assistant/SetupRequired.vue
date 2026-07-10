@@ -4,8 +4,8 @@ import { useRouter } from "vue-router";
 
 const router = useRouter();
 
-const openSettings = () => {
-  void router.push({ name: "settings" });
+const openSettings = async () => {
+  await router.push({ name: "settings" });
 };
 </script>
 

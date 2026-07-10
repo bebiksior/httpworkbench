@@ -14,8 +14,8 @@ const themeStore = useThemeStore();
 const router = useRouter();
 const menu = ref();
 
-const goSettings = () => {
-  void router.push({ name: "settings" });
+const goSettings = async () => {
+  await router.push({ name: "settings" });
 };
 
 const accountLabel = computed(() => {
@@ -74,17 +74,17 @@ const toggleMenu = (event: Event) => {
   menu.value.toggle(event);
 };
 
-const goHome = (event: MouseEvent) => {
+const goHome = async (event: MouseEvent) => {
   if (event.button === 1 || event.ctrlKey || event.metaKey) {
     const route = router.resolve({ name: "home" });
     window.open(route.href, "_blank");
   } else {
-    router.push({ name: "home" });
+    await router.push({ name: "home" });
   }
 };
 
-const goLogin = () => {
-  router.push({ name: "login" });
+const goLogin = async () => {
+  await router.push({ name: "login" });
 };
 </script>
 

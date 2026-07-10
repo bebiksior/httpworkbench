@@ -86,4 +86,25 @@ describe("guest instance routes", () => {
     );
     expect(updateResponse.status).toBeGreaterThanOrEqual(400);
   });
+
+  test("loads tracked guest instances in one lightweight batch", async () => {
+    const firstResponse = await call("/api/guest/instances", "POST", {
+      raw: "HTTP/1.1 200 OK\n\nfirst",
+    });
+    const secondResponse = await call("/api/guest/instances", "POST", {
+      raw: "HTTP/1.1 200 OK\n\nsecond",
+    });
+    const first = (await firstResponse.json()) as { id: string };
+    const second = (await secondResponse.json()) as { id: string };
+
+    const response = await call("/api/guest/instances/list", "POST", {
+      ids: [second.id, "missing", first.id, second.id],
+    });
+
+    expect(response.status).toBe(200);
+    const summaries = (await response.json()) as Array<Record<string, unknown>>;
+    expect(summaries.map(({ id }) => id)).toEqual([second.id, first.id]);
+    expect(summaries.every((summary) => !("raw" in summary))).toBe(true);
+    expect(summaries.every((summary) => !("webhookIds" in summary))).toBe(true);
+  });
 });

@@ -233,6 +233,14 @@ describe("storage db migrations", () => {
       false,
     );
     expect(columns.find((column) => column.name === "raw")?.notnull).toBe(1);
+    const instanceWebhookIndexes = migrated
+      .query("PRAGMA index_list(instanceWebhooks)")
+      .all() as Array<{ name: string }>;
+    expect(
+      instanceWebhookIndexes.some(
+        ({ name }) => name === "instanceWebhooks_by_instance",
+      ),
+    ).toBe(false);
     expect(migrated.query("PRAGMA foreign_key_check").all()).toEqual([]);
     migrated.close();
   });

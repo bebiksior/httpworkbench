@@ -1,5 +1,5 @@
 import type { AuthInfo } from "@modelcontextprotocol/sdk/server/auth/types.js";
-import type { ApiKeyScope, Instance } from "shared";
+import type { ApiKeyScope, Instance, InstanceSummary } from "shared";
 import type { ApiKeyAuthContext } from "../apiKeyAuth";
 import { hasApiKeyScope } from "../apiKeyAuth";
 import { getOwnedInstance } from "../instances/service";
@@ -46,7 +46,7 @@ export const serializeInstance = (instance: Instance) => ({
   url: `${instance.id}.${Bun.env.INSTANCES_DOMAIN ?? ""}`,
 });
 
-export const serializeInstanceSummary = (instance: Instance) => ({
+export const serializeInstanceSummary = (instance: InstanceSummary) => ({
   id: instance.id,
   ownerId: instance.ownerId,
   createdAt: instance.createdAt,

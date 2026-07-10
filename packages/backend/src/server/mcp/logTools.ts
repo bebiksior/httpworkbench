@@ -2,6 +2,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import * as z from "zod/v4";
 import { clearLogsForInstance, getLogsForInstancePage } from "../../storage";
 import type { ApiKeyAuthContext } from "../apiKeyAuth";
+import { waitForInstanceLog } from "../instances/logStream";
 import {
   clampLogLimit,
   decodeLogsCursor,
@@ -53,6 +54,8 @@ const logsInputSchema = {
   type: z.enum(["http", "dns", "smtp"]).optional(),
   sinceTimestamp: z.number().optional(),
 };
+
+const mcpLogWatchTimeoutMs = 20_000;
 
 export const registerLogTools = (server: McpServer) => {
   server.registerTool(
@@ -111,10 +114,17 @@ export const registerLogTools = (server: McpServer) => {
     async (input, extra) => {
       const auth = getAuthContext(extra);
       requireScope(auth, "logs:stream");
-      return jsonToolResult({
-        ...readLogsPage({ ...input, auth }),
-        pollAfterMs: 1000,
-      });
+      const waiter = waitForInstanceLog(input.instanceId, mcpLogWatchTimeoutMs);
+      try {
+        let page = readLogsPage({ ...input, auth });
+        if (page.logs.length === 0) {
+          await waiter.promise;
+          page = readLogsPage({ ...input, auth });
+        }
+        return jsonToolResult({ ...page, pollAfterMs: 1000 });
+      } finally {
+        waiter.cancel();
+      }
     },
   );
 };
