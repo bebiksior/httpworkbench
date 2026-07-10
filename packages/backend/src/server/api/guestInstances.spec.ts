@@ -4,25 +4,48 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { Elysia } from "elysia";
 import { instancePolicies } from "../../config";
-import { closeDb, initDb } from "../../storage";
+import { closeDb, getDb, initDb } from "../../storage";
+import { logs } from "../../storage/schema";
 import { guestInstancesRoutes } from "./guestInstances";
 
 const app = new Elysia().use(guestInstancesRoutes);
 const originalAllowGuest = instancePolicies.allowGuest;
 let dataDir = "";
+let clientId = "";
 
-const call = (pathName: string, method: string, body: unknown) =>
+const call = (
+  pathName: string,
+  method: string,
+  body?: unknown,
+  token?: string,
+) =>
   app.handle(
     new Request(`http://localhost${pathName}`, {
       method,
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(body),
+      headers: {
+        "content-type": "application/json",
+        "x-internal-real-ip": clientId,
+        ...(token === undefined ? {} : { "x-guest-token": token }),
+      },
+      body: body === undefined ? undefined : JSON.stringify(body),
     }),
   );
+
+const createGuest = async (body = "created") => {
+  const response = await call("/api/guest/instances", "POST", {
+    raw: `HTTP/1.1 200 OK\nContent-Type: text/plain\n\n${body}`,
+  });
+  expect(response.status).toBe(201);
+  return (await response.json()) as {
+    instance: { id: string; raw: string; webhookIds: string[] };
+    token: string;
+  };
+};
 
 describe("guest instance routes", () => {
   beforeEach(() => {
     dataDir = mkdtempSync(path.join(tmpdir(), "httpworkbench-guest-route-"));
+    clientId = crypto.randomUUID();
     const result = initDb({ dataDir, reset: true });
     if (result.kind === "error") {
       throw result.error;
@@ -36,75 +59,167 @@ describe("guest instance routes", () => {
     rmSync(dataDir, { recursive: true, force: true });
   });
 
-  test("creates and updates static-only responses without exposing kind", async () => {
-    const createdResponse = await call("/api/guest/instances", "POST", {
-      raw: "HTTP/1.1 200 OK\nContent-Type: text/plain\n\ncreated",
-      webhookIds: ["guests-cannot-select-webhooks"],
-    });
-    expect(createdResponse.status).toBe(201);
-    const created = (await createdResponse.json()) as {
-      id: string;
-      raw: string;
-      webhookIds: string[];
-      kind?: unknown;
-    };
-    expect(created.raw).toBe(
+  test("returns a management token and requires it for reads and updates", async () => {
+    const created = await createGuest();
+    expect(created.token).toMatch(/^[0-9a-f]{64}$/);
+    expect(created.instance.raw).toBe(
       "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\ncreated",
     );
-    expect(created.webhookIds).toEqual([]);
-    expect(created.kind).toBeUndefined();
+    expect(created.instance.webhookIds).toEqual([]);
 
-    const updatedResponse = await call(
-      `/api/guest/instances/${created.id}`,
+    const anonymous = await call(
+      `/api/guest/instances/${created.instance.id}`,
+      "GET",
+    );
+    expect(anonymous.status).toBe(404);
+    const wrongToken = await call(
+      `/api/guest/instances/${created.instance.id}`,
+      "GET",
+      undefined,
+      "0".repeat(64),
+    );
+    expect(wrongToken.status).toBe(404);
+
+    const detail = await call(
+      `/api/guest/instances/${created.instance.id}`,
+      "GET",
+      undefined,
+      created.token,
+    );
+    expect(detail.status).toBe(200);
+
+    const updated = await call(
+      `/api/guest/instances/${created.instance.id}`,
       "PUT",
       { raw: "HTTP/1.1 204 No Content\n\n" },
+      created.token,
     );
-    expect(updatedResponse.status).toBe(200);
-    const updated = (await updatedResponse.json()) as {
-      raw: string;
-      kind?: unknown;
-    };
-    expect(updated.raw).toBe("HTTP/1.1 204 No Content\r\n\r\n");
-    expect(updated.kind).toBeUndefined();
+    expect(updated.status).toBe(200);
+    expect(((await updated.json()) as { raw: string }).raw).toBe(
+      "HTTP/1.1 204 No Content\r\n\r\n",
+    );
   });
 
-  test("rejects legacy dynamic create and update payloads", async () => {
-    const createResponse = await call("/api/guest/instances", "POST", {
+  test("uses strict static-only guest payloads", async () => {
+    const withWebhook = await call("/api/guest/instances", "POST", {
+      raw: "HTTP/1.1 200 OK\n\nok",
+      webhookIds: ["not-allowed"],
+    });
+    expect(withWebhook.status).toBe(422);
+
+    const dynamic = await call("/api/guest/instances", "POST", {
       kind: "dynamic",
       processors: [],
     });
-    expect(createResponse.status).toBeGreaterThanOrEqual(400);
+    expect(dynamic.status).toBeGreaterThanOrEqual(400);
 
-    const validResponse = await call("/api/guest/instances", "POST", {
-      raw: "HTTP/1.1 200 OK\n\nok",
+    const tooLarge = await call("/api/guest/instances", "POST", {
+      raw: `HTTP/1.1 200 OK\n\n${"x".repeat(1024 * 1024)}`,
     });
-    const valid = (await validResponse.json()) as { id: string };
-    const updateResponse = await call(
-      `/api/guest/instances/${valid.id}`,
-      "PUT",
-      { kind: "dynamic", processors: [] },
-    );
-    expect(updateResponse.status).toBeGreaterThanOrEqual(400);
+    expect(tooLarge.status).toBeGreaterThanOrEqual(400);
   });
 
-  test("loads tracked guest instances in one lightweight batch", async () => {
-    const firstResponse = await call("/api/guest/instances", "POST", {
-      raw: "HTTP/1.1 200 OK\n\nfirst",
+  test("rate limits guest creation by trusted client address", async () => {
+    for (let index = 0; index < 10; index += 1) {
+      const response = await call("/api/guest/instances", "POST", {
+        raw: `HTTP/1.1 200 OK\n\n${index}`,
+      });
+      expect(response.status).toBe(201);
+    }
+    const blocked = await call("/api/guest/instances", "POST", {
+      raw: "HTTP/1.1 200 OK\n\nblocked",
     });
-    const secondResponse = await call("/api/guest/instances", "POST", {
-      raw: "HTTP/1.1 200 OK\n\nsecond",
-    });
-    const first = (await firstResponse.json()) as { id: string };
-    const second = (await secondResponse.json()) as { id: string };
+    expect(blocked.status).toBe(429);
+  });
+
+  test("bounds token-gated guest API traffic per client", async () => {
+    const created = await createGuest();
+    for (let index = 0; index < 299; index += 1) {
+      const response = await call(
+        `/api/guest/instances/${created.instance.id}`,
+        "GET",
+        undefined,
+        created.token,
+      );
+      expect(response.status).toBe(200);
+    }
+    const blocked = await call(
+      `/api/guest/instances/${created.instance.id}`,
+      "GET",
+      undefined,
+      created.token,
+    );
+    expect(blocked.status).toBe(429);
+  });
+
+  test("loads only correctly tokened guest references in one batch", async () => {
+    const first = await createGuest("first");
+    const second = await createGuest("second");
 
     const response = await call("/api/guest/instances/list", "POST", {
-      ids: [second.id, "missing", first.id, second.id],
+      instances: [
+        { id: second.instance.id, token: second.token },
+        { id: first.instance.id, token: "0".repeat(64) },
+        { id: first.instance.id, token: first.token },
+      ],
     });
 
     expect(response.status).toBe(200);
     const summaries = (await response.json()) as Array<Record<string, unknown>>;
-    expect(summaries.map(({ id }) => id)).toEqual([second.id, first.id]);
+    expect(summaries.map(({ id }) => id)).toEqual([
+      second.instance.id,
+      first.instance.id,
+    ]);
     expect(summaries.every((summary) => !("raw" in summary))).toBe(true);
     expect(summaries.every((summary) => !("webhookIds" in summary))).toBe(true);
+  });
+
+  test("pages recent logs backward behind the management token", async () => {
+    const created = await createGuest();
+    getDb()
+      .insert(logs)
+      .values(
+        Array.from({ length: 105 }, (_, index) => ({
+          id: `log-${index + 1}`,
+          instanceId: created.instance.id,
+          type: "http" as const,
+          timestamp: index + 1,
+          address: "127.0.0.1",
+          raw: `GET /${index + 1} HTTP/1.1`,
+        })),
+      )
+      .run();
+
+    const detailResponse = await call(
+      `/api/guest/instances/${created.instance.id}`,
+      "GET",
+      undefined,
+      created.token,
+    );
+    const detail = (await detailResponse.json()) as {
+      logs: Array<{ id: string }>;
+      olderLogsCursor: string;
+    };
+    expect(detail.logs[0]?.id).toBe("log-6");
+    expect(detail.olderLogsCursor).toBeString();
+
+    const olderResponse = await call(
+      `/api/guest/instances/${created.instance.id}/logs/recent?limit=100&cursor=${detail.olderLogsCursor}`,
+      "GET",
+      undefined,
+      created.token,
+    );
+    const older = (await olderResponse.json()) as {
+      logs: Array<{ id: string }>;
+      olderLogsCursor?: string;
+    };
+    expect(older.logs.map(({ id }) => id)).toEqual([
+      "log-1",
+      "log-2",
+      "log-3",
+      "log-4",
+      "log-5",
+    ]);
+    expect(older.olderLogsCursor).toBeUndefined();
   });
 });

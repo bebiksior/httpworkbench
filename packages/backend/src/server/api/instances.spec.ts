@@ -5,6 +5,7 @@ import path from "node:path";
 import { Elysia } from "elysia";
 import { addUser, addWebhook, closeDb, getDb, initDb } from "../../storage";
 import { logs } from "../../storage/schema";
+import { createGuestInstance } from "../instances/service";
 
 process.env.JWT_SECRET = "instance-routes-test-secret";
 
@@ -159,11 +160,90 @@ describe("authenticated instance routes", () => {
     );
     const detail = (await response.json()) as {
       logs: Array<{ id: string }>;
+      olderLogsCursor: string;
     };
 
     expect(response.status).toBe(200);
     expect(detail.logs).toHaveLength(100);
     expect(detail.logs[0]?.id).toBe("log-6");
     expect(detail.logs.at(-1)?.id).toBe("log-105");
+    expect(detail.olderLogsCursor).toBeString();
+
+    const older = await app.handle(
+      new Request(
+        `http://localhost/api/instances/${created.id}/logs/recent?cursor=${detail.olderLogsCursor}`,
+        { headers: { authorization: `Bearer ${token}` } },
+      ),
+    );
+    const olderPage = (await older.json()) as {
+      logs: Array<{ id: string }>;
+      olderLogsCursor?: string;
+    };
+    expect(older.status).toBe(200);
+    expect(olderPage.logs.map(({ id }) => id)).toEqual([
+      "log-1",
+      "log-2",
+      "log-3",
+      "log-4",
+      "log-5",
+    ]);
+    expect(olderPage.olderLogsCursor).toBeUndefined();
+  });
+
+  test("does not expose guest details through the public instance route", async () => {
+    const created = createGuestInstance("HTTP/1.1 200 OK\n\nsecret");
+    expect(created.ok).toBe(true);
+    if (!created.ok) {
+      return;
+    }
+
+    const response = await app.handle(
+      new Request(
+        `http://localhost/api/instances/${created.value.instance.id}`,
+      ),
+    );
+    expect(response.status).toBe(404);
+  });
+
+  test("allows anonymous backward log paging only for public non-guest instances", async () => {
+    const createdResponse = await call("/api/instances", "POST", "owner-1", {
+      raw: "HTTP/1.1 200 OK\n\nok",
+    });
+    const created = (await createdResponse.json()) as { id: string };
+    const publicResponse = await call(
+      `/api/instances/${created.id}/public`,
+      "PATCH",
+      "owner-1",
+      { public: true },
+    );
+    expect(publicResponse.status).toBe(200);
+    getDb()
+      .insert(logs)
+      .values({
+        id: "public-log",
+        instanceId: created.id,
+        type: "http",
+        timestamp: 1,
+        address: "127.0.0.1",
+        raw: "GET / HTTP/1.1",
+      })
+      .run();
+
+    const response = await app.handle(
+      new Request(`http://localhost/api/instances/${created.id}/logs/recent`),
+    );
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      logs: [
+        {
+          id: "public-log",
+          instanceId: created.id,
+          type: "http",
+          timestamp: 1,
+          address: "127.0.0.1",
+          raw: "GET / HTTP/1.1",
+        },
+      ],
+    });
   });
 });

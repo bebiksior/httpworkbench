@@ -1,4 +1,4 @@
-import type { Instance, InstanceSummary } from "shared";
+import { GUEST_OWNER_ID, type Instance, type InstanceSummary } from "shared";
 import { InstanceSchema } from "shared";
 import {
   and,
@@ -18,7 +18,11 @@ import {
   toDomainInstanceSummary,
   toInstanceRow,
 } from "../records";
-import { instances, instanceWebhooks } from "../schema";
+import {
+  guestInstanceCredentials,
+  instances,
+  instanceWebhooks,
+} from "../schema";
 
 const activeInstanceCondition = (now: number) =>
   or(isNull(instances.expiresAt), gt(instances.expiresAt, now));
@@ -62,6 +66,26 @@ export function addInstance(instance: Instance): Instance {
     (tx) => {
       tx.insert(instances).values(toInstanceRow(parsed)).run();
       replaceInstanceWebhooks(tx, parsed.id, parsed.webhookIds);
+    },
+    { behavior: "immediate" },
+  );
+  return parsed;
+}
+
+export function addGuestInstance(
+  instance: Instance,
+  tokenHash: string,
+): Instance {
+  const parsed = InstanceSchema.parse(instance);
+  if (parsed.ownerId !== GUEST_OWNER_ID || parsed.webhookIds.length !== 0) {
+    throw new Error("Invalid guest instance");
+  }
+  getDb().transaction(
+    (tx) => {
+      tx.insert(instances).values(toInstanceRow(parsed)).run();
+      tx.insert(guestInstanceCredentials)
+        .values({ instanceId: parsed.id, tokenHash })
+        .run();
     },
     { behavior: "immediate" },
   );
@@ -131,6 +155,49 @@ export function getInstanceSummariesByIds(
   });
 }
 
+export function getActiveGuestCredentialHash(
+  instanceId: string,
+  now = Date.now(),
+): string | undefined {
+  return getDb()
+    .select({ tokenHash: guestInstanceCredentials.tokenHash })
+    .from(guestInstanceCredentials)
+    .innerJoin(instances, eq(instances.id, guestInstanceCredentials.instanceId))
+    .where(
+      and(
+        eq(guestInstanceCredentials.instanceId, instanceId),
+        eq(instances.ownerId, GUEST_OWNER_ID),
+        activeInstanceCondition(now),
+      ),
+    )
+    .get()?.tokenHash;
+}
+
+export function getActiveGuestCredentialHashes(
+  instanceIds: string[],
+  now = Date.now(),
+): Map<string, string> {
+  if (instanceIds.length === 0) {
+    return new Map();
+  }
+  const rows = getDb()
+    .select({
+      instanceId: guestInstanceCredentials.instanceId,
+      tokenHash: guestInstanceCredentials.tokenHash,
+    })
+    .from(guestInstanceCredentials)
+    .innerJoin(instances, eq(instances.id, guestInstanceCredentials.instanceId))
+    .where(
+      and(
+        inArray(guestInstanceCredentials.instanceId, instanceIds),
+        eq(instances.ownerId, GUEST_OWNER_ID),
+        activeInstanceCondition(now),
+      ),
+    )
+    .all();
+  return new Map(rows.map((row) => [row.instanceId, row.tokenHash]));
+}
+
 export function countActiveInstancesByOwner(ownerId: string): number {
   return (
     getDb()
@@ -196,6 +263,25 @@ export function getWebhookIdsForInstance(instanceId: string): string[] {
     .select({ webhookId: instanceWebhooks.webhookId })
     .from(instanceWebhooks)
     .where(eq(instanceWebhooks.instanceId, instanceId))
+    .orderBy(asc(instanceWebhooks.position))
+    .all()
+    .map(({ webhookId }) => webhookId);
+}
+
+export function getActiveWebhookIdsForInstance(
+  instanceId: string,
+  now = Date.now(),
+): string[] {
+  return getDb()
+    .select({ webhookId: instanceWebhooks.webhookId })
+    .from(instanceWebhooks)
+    .innerJoin(instances, eq(instances.id, instanceWebhooks.instanceId))
+    .where(
+      and(
+        eq(instanceWebhooks.instanceId, instanceId),
+        activeInstanceCondition(now),
+      ),
+    )
     .orderBy(asc(instanceWebhooks.position))
     .all()
     .map(({ webhookId }) => webhookId);

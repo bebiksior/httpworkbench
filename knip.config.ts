@@ -16,11 +16,7 @@ const config: KnipConfig = {
   vue: {
     enabled: true,
   },
-  ignoreDependencies: [
-    "@types/dompurify",
-    "tailwindcss",
-    "tailwindcss-primeui",
-  ],
+  ignoreDependencies: ["tailwindcss", "tailwindcss-primeui"],
 };
 
 export default config;

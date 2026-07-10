@@ -14,7 +14,7 @@ test("limits requests within a fixed window", () => {
   expect(limiter.check("instance:address", 1100)).toBe(true);
 });
 
-test("keeps cardinality bounded without scanning on existing keys", () => {
+test("rejects new keys at capacity without resetting active buckets", () => {
   const limiter = createBoundedProtocolRateLimiter({
     maxRequests: 2,
     windowMs: 1000,
@@ -24,6 +24,8 @@ test("keeps cardinality bounded without scanning on existing keys", () => {
   expect(limiter.check("a", 0)).toBe(true);
   expect(limiter.check("b", 0)).toBe(true);
   expect(limiter.check("a", 1)).toBe(true);
-  expect(limiter.check("c", 1)).toBe(true);
-  expect(limiter.check("a", 2)).toBe(true);
+  expect(limiter.canCheck("c", 1)).toBe(false);
+  expect(limiter.check("c", 1)).toBe(false);
+  expect(limiter.check("a", 2)).toBe(false);
+  expect(limiter.check("c", 1000)).toBe(true);
 });

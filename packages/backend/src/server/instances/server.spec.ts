@@ -78,8 +78,7 @@ describe("createInstancesServer", () => {
     createInstancesServer(8082, listenMock);
 
     const options = listenMock.mock.calls[0]?.[0] as
-      | { socket: ServerHandlers }
-      | undefined;
+      { socket: ServerHandlers } | undefined;
     if (options === undefined) {
       throw new Error("listen was not called");
     }
@@ -198,6 +197,29 @@ describe("createInstancesServer", () => {
     expect(rawResponse).toContain(`Content-Length: ${body.length}`);
     expect(rawResponse.endsWith(body)).toBe(true);
     expect(socket.end).toHaveBeenCalledTimes(1);
+  });
+
+  test("persists and broadcasts complete large HTTP interactions", async () => {
+    getServableInstanceByIdMock.mockReturnValue(
+      createStaticInstance("HTTP/1.1 200 OK\r\n\r\nok"),
+    );
+    const body = "a".repeat(2 * 1024 * 1024);
+    const rawRequest = [
+      "POST / HTTP/1.1",
+      "Host: demo.instances.example.com",
+      `Content-Length: ${body.length}`,
+      "",
+      body,
+    ].join("\r\n");
+    const socket = createSocket();
+
+    handlers.open(socket);
+    await handlers.data(socket, encode(rawRequest));
+
+    const persistedLog = addLogMock.mock.calls[0]?.[0] as
+      { raw: string } | undefined;
+    expect(persistedLog?.raw).toBe(rawRequest);
+    expect(broadcastLogMock).toHaveBeenCalledWith(persistedLog);
   });
 
   test("does not serve a cached response after raw content changes", async () => {

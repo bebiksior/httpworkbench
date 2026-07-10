@@ -9,6 +9,8 @@ import {
 const webhookMinIntervalMs = 1000;
 const discordRequestTimeoutMs = 10_000;
 const maxDiscordThrottleEntries = 10_000;
+const maxConcurrentDiscordRequests = 16;
+let activeDiscordRequests = 0;
 const discordWebhookRateLimit = createBoundedProtocolRateLimiter({
   maxRequests: 1,
   windowMs: webhookMinIntervalMs,
@@ -47,21 +49,32 @@ const postDiscordNotification = async (
     throw new Error(validation.error ?? "Invalid webhook URL");
   }
 
-  const response = await fetch(webhook.url, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(buildDiscordNotificationPayload(log, webhook.message)),
-    redirect: "error",
-    signal: AbortSignal.timeout(discordRequestTimeoutMs),
-  });
+  if (activeDiscordRequests >= maxConcurrentDiscordRequests) {
+    throw new Error("Discord webhook concurrency limit reached");
+  }
+  activeDiscordRequests += 1;
 
-  await response.body?.cancel();
-  if (!response.ok) {
-    throw new Error(
-      `Discord webhook request failed: ${response.status} ${response.statusText}`,
-    );
+  try {
+    const response = await fetch(webhook.url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(
+        buildDiscordNotificationPayload(log, webhook.message),
+      ),
+      redirect: "error",
+      signal: AbortSignal.timeout(discordRequestTimeoutMs),
+    });
+
+    await response.body?.cancel();
+    if (!response.ok) {
+      throw new Error(
+        `Discord webhook request failed: ${response.status} ${response.statusText}`,
+      );
+    }
+  } finally {
+    activeDiscordRequests -= 1;
   }
 };
 

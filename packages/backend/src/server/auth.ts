@@ -1,7 +1,7 @@
 import { Elysia, status } from "elysia";
 import * as jose from "jose";
 import type { ApiKey, ApiKeyScope, User } from "shared";
-import { getUserById, toPublicUser } from "../storage";
+import { getActiveApiKeyById, getUserById, toPublicUser } from "../storage";
 import type { ApiKeyAuthContext } from "./apiKeyAuth";
 import { authenticateApiKeyValue, hasApiKeyScope } from "./apiKeyAuth";
 import { createFixedWindowRateLimiter } from "./rateLimit";
@@ -20,12 +20,23 @@ if (jwtSecret === "your-jwt-secret-here") {
 
 const secret = new TextEncoder().encode(jwtSecret);
 
-export const issueAuthToken = async (userId: string) => {
-  return await new jose.SignJWT({})
+const AUTH_TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+
+export const issueAuthToken = async (
+  userId: string,
+  apiKey?: Pick<ApiKey, "id" | "expiresAt">,
+) => {
+  const now = Date.now();
+  const expiresAt = Math.min(
+    now + AUTH_TOKEN_TTL_MS,
+    apiKey?.expiresAt ?? Number.POSITIVE_INFINITY,
+  );
+  const claims = apiKey === undefined ? {} : { apiKeyId: apiKey.id };
+  return await new jose.SignJWT(claims)
     .setProtectedHeader({ alg: "HS256" })
     .setSubject(userId)
     .setIssuedAt()
-    .setExpirationTime("30d")
+    .setExpirationTime(Math.floor(expiresAt / 1000))
     .sign(secret);
 };
 
@@ -40,7 +51,7 @@ const extractBearer = (header: string) => {
 const authenticateSession = async (
   req: Request,
   sessionCookie?: string,
-): Promise<User | undefined> => {
+): Promise<{ user: User; apiKey?: ApiKey } | undefined> => {
   const authHeader = req.headers.get("authorization");
   const bearer = authHeader !== null ? extractBearer(authHeader) : undefined;
   const token = bearer ?? sessionCookie;
@@ -50,9 +61,12 @@ const authenticateSession = async (
   }
 
   let sub: string | undefined;
+  let apiKeyId: string | undefined;
   try {
     const { payload } = await jose.jwtVerify(token, secret);
     sub = typeof payload.sub === "string" ? payload.sub : undefined;
+    apiKeyId =
+      typeof payload.apiKeyId === "string" ? payload.apiKeyId : undefined;
   } catch {
     return undefined;
   }
@@ -62,7 +76,17 @@ const authenticateSession = async (
   }
 
   const userRecord = getUserById(sub);
-  return userRecord === undefined ? undefined : toPublicUser(userRecord);
+  if (userRecord === undefined) {
+    return undefined;
+  }
+  if (apiKeyId === undefined) {
+    return { user: toPublicUser(userRecord) };
+  }
+  const apiKey = getActiveApiKeyById(apiKeyId, Date.now());
+  if (apiKey?.userId !== sub) {
+    return undefined;
+  }
+  return { user: toPublicUser(userRecord), apiKey };
 };
 
 type AccessContext =
@@ -124,8 +148,8 @@ const resolveAccessOutcome = async (
     return { ok: true, context: apiKeyContext(apiKey.auth) };
   }
 
-  const user = await authenticateSession(req, sessionCookie);
-  if (user === undefined) {
+  const session = await authenticateSession(req, sessionCookie);
+  if (session === undefined) {
     return {
       ok: false,
       httpStatus: 401,
@@ -133,7 +157,16 @@ const resolveAccessOutcome = async (
       wwwAuthenticate: bearerRealm,
     };
   }
-  return { ok: true, context: { via: "session", user } };
+  if (session.apiKey !== undefined) {
+    if (!apiKeyRateLimiter.check(session.apiKey.id)) {
+      return { ok: false, httpStatus: 429, error: "Rate limit exceeded" };
+    }
+    return {
+      ok: true,
+      context: { via: "api_key", user: session.user, apiKey: session.apiKey },
+    };
+  }
+  return { ok: true, context: { via: "session", user: session.user } };
 };
 
 export const resolveOptionalAccess = async (
@@ -144,8 +177,13 @@ export const resolveOptionalAccess = async (
   if (apiKey.present) {
     return apiKey.auth === undefined ? undefined : apiKeyContext(apiKey.auth);
   }
-  const user = await authenticateSession(req, sessionCookie);
-  return user === undefined ? undefined : { via: "session", user };
+  const session = await authenticateSession(req, sessionCookie);
+  if (session === undefined) {
+    return undefined;
+  }
+  return session.apiKey === undefined
+    ? { via: "session", user: session.user }
+    : { via: "api_key", user: session.user, apiKey: session.apiKey };
 };
 
 export const enforceApiKeyRateLimit = (
@@ -184,15 +222,21 @@ export const readSessionCookie = (cookie: {
 export const authPlugin = new Elysia({ name: "auth" }).macro({
   session: {
     async resolve({ request, set, cookie }) {
-      const user = await authenticateSession(
+      const session = await authenticateSession(
         request,
         readSessionCookie(cookie),
       );
-      if (user === undefined) {
+      if (session === undefined) {
         set.headers["WWW-Authenticate"] = bearerRealm;
         return status(401, { error: "Unauthorized" });
       }
-      return { user };
+      if (
+        session.apiKey !== undefined &&
+        !apiKeyRateLimiter.check(session.apiKey.id)
+      ) {
+        return status(429, { error: "Rate limit exceeded" });
+      }
+      return { user: session.user };
     },
   },
   scope(required: ApiKeyScope) {

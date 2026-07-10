@@ -1,151 +1,98 @@
 <script setup lang="ts">
-import { Command } from "vue-command-palette";
+import Dialog from "primevue/dialog";
+import { nextTick, ref, watch } from "vue";
 import { useCommandPalette } from "./useCommandPalette";
 
-const { visible, instances, handleSelect, getInstanceLabel } =
-  useCommandPalette();
+const {
+  visible,
+  query,
+  activeIndex,
+  filteredInstances,
+  handleSelect,
+  handleInputKeydown,
+  getInstanceLabel,
+} = useCommandPalette();
+const inputRef = ref<HTMLInputElement>();
+const setInputRef = (element: unknown) => {
+  inputRef.value = element instanceof HTMLInputElement ? element : undefined;
+};
+
+watch(visible, async (isVisible) => {
+  if (!isVisible) return;
+  await nextTick();
+  inputRef.value?.focus();
+});
 </script>
 
 <template>
-  <Command.Dialog v-model:visible="visible" theme="httpworkbench">
-    <template #header>
-      <Command.Input placeholder="Search instances..." />
-    </template>
-    <template #body>
-      <Command.List>
-        <Command.Empty>No instances found.</Command.Empty>
-        <Command.Group heading="Instances">
-          <Command.Item
-            v-for="instance in instances"
-            :key="instance.id"
-            :data-value="`${instance.id} ${instance.label ?? ''}`"
-            @select="handleSelect"
-          >
-            <div class="flex items-center gap-3">
-              <i class="pi pi-server text-surface-400"></i>
-              <span>{{ getInstanceLabel(instance) }}</span>
-              <span
-                v-if="instance.label !== undefined && instance.label !== ''"
-                class="text-surface-500 text-xs font-mono"
-              >
-                {{ instance.id }}
-              </span>
-            </div>
-          </Command.Item>
-        </Command.Group>
-      </Command.List>
-    </template>
-  </Command.Dialog>
+  <Dialog
+    v-model:visible="visible"
+    modal
+    dismissable-mask
+    :show-header="false"
+    :style="{ width: 'min(560px, calc(100vw - 2rem))' }"
+    content-class="!p-0 overflow-hidden"
+    aria-label="Instance command palette"
+  >
+    <label class="sr-only" for="instance-command-search">
+      Search instances
+    </label>
+    <input
+      id="instance-command-search"
+      :ref="setInputRef"
+      v-model="query"
+      type="search"
+      role="combobox"
+      aria-label="Search instances"
+      aria-controls="instance-command-results"
+      :aria-expanded="visible"
+      :aria-activedescendant="
+        activeIndex >= 0 ? `instance-command-${activeIndex}` : undefined
+      "
+      autocomplete="off"
+      placeholder="Search instances..."
+      class="w-full border-0 border-b border-surface-200 bg-surface-0 px-4 py-4 text-base text-surface-900 outline-none dark:border-surface-700 dark:bg-surface-900 dark:text-surface-0"
+      @keydown="handleInputKeydown"
+    />
+
+    <div
+      id="instance-command-results"
+      role="listbox"
+      aria-label="Instances"
+      class="max-h-80 overflow-y-auto bg-surface-0 p-2 dark:bg-surface-900"
+    >
+      <p
+        v-if="filteredInstances.length === 0"
+        class="px-3 py-8 text-center text-sm text-surface-500"
+      >
+        No instances found.
+      </p>
+      <button
+        v-for="(instance, index) in filteredInstances"
+        :id="`instance-command-${index}`"
+        :key="instance.id"
+        type="button"
+        role="option"
+        :aria-selected="activeIndex === index"
+        class="flex w-full cursor-pointer items-center gap-3 rounded-md px-3 py-2.5 text-left text-surface-700 hover:bg-surface-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 dark:text-surface-200 dark:hover:bg-surface-700"
+        :class="
+          activeIndex === index
+            ? 'bg-surface-100 text-surface-900 dark:bg-surface-700 dark:text-surface-0'
+            : ''
+        "
+        @mouseenter="activeIndex = index"
+        @focus="activeIndex = index"
+        @click="handleSelect(instance)"
+      >
+        <i class="pi pi-server text-surface-400" aria-hidden="true" />
+        <span>{{ getInstanceLabel(instance) }}</span>
+        <span
+          v-if="instance.label !== undefined && instance.label !== ''"
+          class="text-xs font-mono text-surface-500"
+        >
+          {{ instance.id }}
+        </span>
+      </button>
+    </div>
+  </Dialog>
 </template>
-
-<style>
-[command-dialog-mask] {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.5);
-  z-index: 1000;
-}
-
-[command-dialog-wrapper] {
-  position: fixed;
-  top: 20%;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 100%;
-  max-width: 560px;
-  z-index: 1001;
-  padding: 0 16px;
-}
-
-[command-dialog-header],
-[command-dialog-body] {
-  background: var(--p-surface-0);
-  border: 1px solid var(--p-surface-200);
-}
-
-.darkmode [command-dialog-header],
-.darkmode [command-dialog-body] {
-  background: var(--p-surface-900);
-  border: 1px solid var(--p-surface-700);
-}
-
-[command-dialog-header] {
-  border-radius: 8px 8px 0 0;
-  border-bottom: none;
-}
-
-[command-dialog-body] {
-  border-radius: 0 0 8px 8px;
-  border-top: 1px solid var(--p-surface-200);
-}
-
-.darkmode [command-dialog-body] {
-  border-top: 1px solid var(--p-surface-700);
-}
-
-[command-input] {
-  width: 100%;
-  padding: 16px;
-  font-size: 16px;
-  background: transparent;
-  border: none;
-  outline: none;
-  color: var(--p-surface-900);
-}
-
-.darkmode [command-input] {
-  color: var(--p-surface-0);
-}
-
-[command-input]::placeholder {
-  color: var(--p-surface-500);
-}
-
-[command-list] {
-  max-height: 320px;
-  overflow-y: auto;
-  padding: 8px;
-}
-
-[command-group-heading] {
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--p-surface-500);
-  padding: 8px 12px 4px;
-}
-
-[command-item] {
-  padding: 10px 12px;
-  border-radius: 6px;
-  cursor: pointer;
-  color: var(--p-surface-700);
-}
-
-.darkmode [command-item] {
-  color: var(--p-surface-200);
-}
-
-[command-item][aria-selected="true"] {
-  background: var(--p-surface-100);
-  color: var(--p-surface-900);
-}
-
-.darkmode [command-item][aria-selected="true"] {
-  background: var(--p-surface-700);
-  color: var(--p-surface-0);
-}
-
-[command-empty] {
-  padding: 32px;
-  text-align: center;
-  color: var(--p-surface-500);
-  font-size: 14px;
-}
-
-.command-dialog-enter-active,
-.command-dialog-leave-active {
-  transition: none;
-}
-</style>

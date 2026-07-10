@@ -49,9 +49,12 @@ export const useGuestInstancesStore = defineStore("guestInstances", () => {
     setRecords(records.value);
   };
 
-  const trackInstance = (id: string) => {
-    setRecords(upsertGuestInstanceRecord(records.value, id, Date.now()));
+  const trackInstance = (id: string, token: string) => {
+    setRecords(upsertGuestInstanceRecord(records.value, id, token, Date.now()));
   };
+
+  const getToken = (id: string) =>
+    records.value.find((record) => record.id === id)?.token;
 
   const forgetInstance = (id: string) => {
     setRecords(records.value.filter((record) => record.id !== id));
@@ -64,6 +67,7 @@ export const useGuestInstancesStore = defineStore("guestInstances", () => {
   return {
     records: computed(() => records.value),
     ids: computed(() => records.value.map((record) => record.id)),
+    getToken,
     trackInstance,
     forgetInstance,
     cleanupExpired,

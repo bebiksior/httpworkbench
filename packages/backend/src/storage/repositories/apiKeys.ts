@@ -72,6 +72,20 @@ export function getActiveApiKeyByPrefix(
   return toApiKeySecretRecord(row);
 }
 
+export function getActiveApiKeyById(
+  id: string,
+  now: number,
+): ApiKey | undefined {
+  const row = getDb().select().from(apiKeys).where(eq(apiKeys.id, id)).get();
+  if (row === undefined) {
+    return undefined;
+  }
+  if (row.expiresAt !== null && row.expiresAt <= now) {
+    return undefined;
+  }
+  return toApiKey(row);
+}
+
 export function getApiKeysByOwner(userId: string): ApiKey[] {
   return getDb()
     .select()

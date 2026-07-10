@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, mock, test } from "bun:test";
 import { Elysia } from "elysia";
+import * as jose from "jose";
 import type { ApiKey, ApiKeyScope, UserRecord } from "shared";
 
 process.env.JWT_SECRET = "scope-auth-test-secret";
@@ -47,6 +48,17 @@ mock.module("../storage", () => ({
       return undefined;
     }
     return apiKey;
+  },
+  getActiveApiKeyById: (id: string, now: number): ApiKey | undefined => {
+    const apiKey = [...state.apiKeys.values()].find((key) => key.id === id);
+    if (apiKey?.expiresAt !== undefined && apiKey.expiresAt <= now) {
+      return undefined;
+    }
+    if (apiKey === undefined) {
+      return undefined;
+    }
+    const { secretHash: _secretHash, ...publicApiKey } = apiKey;
+    return publicApiKey;
   },
   getUserById: (id: string): UserRecord | undefined => state.users.get(id),
   markApiKeyUsed: (id: string, lastUsedAt: number): void => {
@@ -207,5 +219,60 @@ describe("auth macro enforcement (e2e)", () => {
 
     expect(viaCookie.status).toBe(200);
     expect(await viaCookie.json()).toEqual({ id: "user-1" });
+  });
+
+  test("api-key dashboard sessions remain tied to active key state", async () => {
+    const { auth, apiKeyAuth } = await loadModules();
+    const app = new Elysia()
+      .use(auth.authPlugin)
+      .get("/session", ({ user }) => ({ id: user.id }), { session: true });
+    const key = apiKeyAuth.createApiKeyForUser({
+      userId: "user-1",
+      name: "dashboard",
+    });
+    const sessionToken = await auth.issueAuthToken("user-1", key.apiKey);
+
+    const active = await app.handle(authedRequest("/session", sessionToken));
+    expect(active.status).toBe(200);
+
+    state.apiKeys.delete(key.apiKey.prefix);
+    const revoked = await app.handle(authedRequest("/session", sessionToken));
+    expect(revoked.status).toBe(401);
+  });
+
+  test("caps api-key dashboard session expiry to the key expiry", async () => {
+    const { auth, apiKeyAuth } = await loadModules();
+    const expiresAt = Date.now() + 60_000;
+    const key = apiKeyAuth.createApiKeyForUser({
+      userId: "user-1",
+      name: "short-lived",
+      expiresAt,
+    });
+    const token = await auth.issueAuthToken("user-1", key.apiKey);
+    const payload = jose.decodeJwt(token);
+
+    expect(payload.apiKeyId).toBe(key.apiKey.id);
+    expect(payload.exp).toBe(Math.floor(expiresAt / 1000));
+  });
+
+  test("rate limits api-key-derived dashboard sessions", async () => {
+    const { auth, apiKeyAuth } = await loadModules();
+    const app = new Elysia()
+      .use(auth.authPlugin)
+      .get("/session", ({ user }) => ({ id: user.id }), { session: true });
+    const key = apiKeyAuth.createApiKeyForUser({
+      userId: "user-1",
+      name: "rate-limited",
+    });
+    const token = await auth.issueAuthToken("user-1", key.apiKey);
+
+    for (let index = 0; index < 300; index += 1) {
+      expect((await app.handle(authedRequest("/session", token))).status).toBe(
+        200,
+      );
+    }
+    expect((await app.handle(authedRequest("/session", token))).status).toBe(
+      429,
+    );
   });
 });

@@ -1,5 +1,8 @@
+import { GuestManagementTokenSchema } from "shared";
+
 export type GuestInstanceRecord = {
   id: string;
+  token: string;
   createdAt: number;
 };
 
@@ -12,11 +15,15 @@ const isGuestInstanceRecord = (
 
   const candidate = value as {
     id?: unknown;
+    token?: unknown;
     createdAt?: unknown;
   };
 
   return (
-    typeof candidate.id === "string" && typeof candidate.createdAt === "number"
+    typeof candidate.id === "string" &&
+    typeof candidate.token === "string" &&
+    GuestManagementTokenSchema.safeParse(candidate.token).success &&
+    typeof candidate.createdAt === "number"
   );
 };
 
@@ -50,10 +57,11 @@ export const pruneExpiredGuestInstanceRecords = (
 export const upsertGuestInstanceRecord = (
   records: GuestInstanceRecord[],
   id: string,
+  token: string,
   now: number,
 ): GuestInstanceRecord[] => {
   const existing = records.find((record) => record.id === id);
   const others = records.filter((record) => record.id !== id);
 
-  return [{ id, createdAt: existing?.createdAt ?? now }, ...others];
+  return [{ id, token, createdAt: existing?.createdAt ?? now }, ...others];
 };

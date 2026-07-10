@@ -10,8 +10,21 @@ interface LogStreamSocket {
 const listeners = new Map<string, Set<LogStreamSocket>>();
 const logWaiters = new Map<string, Set<() => void>>();
 const maxSocketBufferedBytes = 1024 * 1024;
+const streamEncoder = new TextEncoder();
 
-export const waitForInstanceLog = (instanceId: string, timeoutMs: number) => {
+const closeSlowSocket = (socket: LogStreamSocket): void => {
+  try {
+    socket.close?.(1013, "Log stream client is too slow");
+  } catch {
+    // The socket may already have closed between the state and buffer checks.
+  }
+};
+
+export const waitForInstanceLog = (
+  instanceId: string,
+  timeoutMs: number,
+  signal?: AbortSignal,
+) => {
   let waiters = logWaiters.get(instanceId);
   if (waiters === undefined) {
     waiters = new Set();
@@ -23,21 +36,30 @@ export const waitForInstanceLog = (instanceId: string, timeoutMs: number) => {
   const promise = new Promise<void>((resolve) => {
     resolvePromise = resolve;
   });
+  let timeout: ReturnType<typeof setTimeout> | undefined;
 
   const settle = () => {
     if (settled) {
       return;
     }
     settled = true;
-    clearTimeout(timeout);
+    if (timeout !== undefined) {
+      clearTimeout(timeout);
+    }
+    signal?.removeEventListener("abort", settle);
     waiters.delete(settle);
     if (waiters.size === 0) {
       logWaiters.delete(instanceId);
     }
     resolvePromise();
   };
-  const timeout = setTimeout(settle, timeoutMs);
+  timeout = setTimeout(settle, timeoutMs);
   waiters.add(settle);
+  if (signal?.aborted === true) {
+    settle();
+  } else {
+    signal?.addEventListener("abort", settle, { once: true });
+  }
 
   return { promise, cancel: settle };
 };
@@ -81,14 +103,30 @@ export const broadcastLog = (log: Log) => {
     return;
   }
   const payload = JSON.stringify(log);
+  const payloadBytes = streamEncoder.encode(payload).byteLength;
   for (const socket of sockets) {
     if (socket.readyState === 1) {
-      if ((socket.getBufferedAmount?.() ?? 0) > maxSocketBufferedBytes) {
-        socket.close?.(1013, "Log stream client is too slow");
+      let bufferedBytes = 0;
+      try {
+        bufferedBytes = socket.getBufferedAmount?.() ?? 0;
+      } catch {
+        closeSlowSocket(socket);
         sockets.delete(socket);
         continue;
       }
-      socket.send(payload);
+
+      if (payloadBytes + bufferedBytes > maxSocketBufferedBytes) {
+        closeSlowSocket(socket);
+        sockets.delete(socket);
+        continue;
+      }
+
+      try {
+        socket.send(payload);
+      } catch {
+        closeSlowSocket(socket);
+        sockets.delete(socket);
+      }
       continue;
     }
     sockets.delete(socket);

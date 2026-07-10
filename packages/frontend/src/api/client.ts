@@ -42,13 +42,18 @@ async function handleResponse<T>(response: Response): Promise<T> {
 type RequestOptions = {
   method?: "GET" | "POST" | "PATCH" | "PUT" | "DELETE";
   body?: unknown;
+  headers?: HeadersInit;
 };
 
 const request = async <T>(url: string, options: RequestOptions = {}) => {
   const hasBody = options.body !== undefined;
+  const headers = new Headers(options.headers);
+  if (hasBody) {
+    headers.set("Content-Type", "application/json");
+  }
   const response = await fetch(url, {
     method: options.method ?? "GET",
-    headers: hasBody ? { "Content-Type": "application/json" } : undefined,
+    headers,
     credentials: "include",
     body: hasBody ? JSON.stringify(options.body) : undefined,
   });
@@ -56,12 +61,13 @@ const request = async <T>(url: string, options: RequestOptions = {}) => {
 };
 
 export const apiClient = {
-  get: <T>(url: string) => request<T>(url),
-  post: <T>(url: string, body?: unknown) =>
-    request<T>(url, { method: "POST", body }),
-  patch: <T>(url: string, body: unknown) =>
-    request<T>(url, { method: "PATCH", body }),
-  put: <T>(url: string, body: unknown) =>
-    request<T>(url, { method: "PUT", body }),
-  delete: <T>(url: string) => request<T>(url, { method: "DELETE" }),
+  get: <T>(url: string, headers?: HeadersInit) => request<T>(url, { headers }),
+  post: <T>(url: string, body?: unknown, headers?: HeadersInit) =>
+    request<T>(url, { method: "POST", body, headers }),
+  patch: <T>(url: string, body: unknown, headers?: HeadersInit) =>
+    request<T>(url, { method: "PATCH", body, headers }),
+  put: <T>(url: string, body: unknown, headers?: HeadersInit) =>
+    request<T>(url, { method: "PUT", body, headers }),
+  delete: <T>(url: string, headers?: HeadersInit) =>
+    request<T>(url, { method: "DELETE", headers }),
 };

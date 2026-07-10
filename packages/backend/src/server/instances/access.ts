@@ -8,7 +8,7 @@ export const canReadInstance = ({
   user: User | undefined;
 }) => {
   if (instance.ownerId === GUEST_OWNER_ID) {
-    return true;
+    return false;
   }
 
   if (user?.id === instance.ownerId) {

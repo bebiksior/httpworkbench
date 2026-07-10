@@ -112,6 +112,156 @@ test("rejects negative content-length values", () => {
   expect(buffer.getError()).toBe("Invalid Content-Length");
 });
 
+test("rejects non-decimal content-length values", () => {
+  const buffer = new HttpRequestBuffer();
+  buffer.append(
+    encode(
+      [
+        "POST / HTTP/1.1",
+        "Host: demo.instances.example.com",
+        "Content-Length: 5junk",
+        "",
+        "hello",
+      ].join("\r\n"),
+    ),
+  );
+
+  expect(buffer.hasError()).toBe(true);
+  expect(buffer.getError()).toBe("Invalid Content-Length");
+});
+
+test("accepts matching duplicate content-length values", () => {
+  const buffer = new HttpRequestBuffer();
+  buffer.append(
+    encode(
+      [
+        "POST / HTTP/1.1",
+        "Host: demo.instances.example.com",
+        "Content-Length: 5",
+        "Content-Length: 5",
+        "",
+        "hello",
+      ].join("\r\n"),
+    ),
+  );
+
+  expect(buffer.hasError()).toBe(false);
+  expect(buffer.isComplete()).toBe(true);
+});
+
+test("rejects conflicting duplicate content-length values", () => {
+  const buffer = new HttpRequestBuffer();
+  buffer.append(
+    encode(
+      [
+        "POST / HTTP/1.1",
+        "Host: demo.instances.example.com",
+        "Content-Length: 5",
+        "Content-Length: 10",
+        "",
+        "hello",
+      ].join("\r\n"),
+    ),
+  );
+
+  expect(buffer.hasError()).toBe(true);
+  expect(buffer.getError()).toBe("Conflicting Content-Length headers");
+});
+
+test("rejects transfer-encoded requests", () => {
+  const buffer = new HttpRequestBuffer();
+  buffer.append(
+    encode(
+      [
+        "POST / HTTP/1.1",
+        "Host: demo.instances.example.com",
+        "Transfer-Encoding: chunked",
+        "",
+        "",
+      ].join("\r\n"),
+    ),
+  );
+
+  expect(buffer.hasError()).toBe(true);
+  expect(buffer.getError()).toBe("Transfer-Encoding is not supported");
+});
+
+test("rejects requests with transfer-encoding and content-length", () => {
+  const buffer = new HttpRequestBuffer();
+  buffer.append(
+    encode(
+      [
+        "POST / HTTP/1.1",
+        "Host: demo.instances.example.com",
+        "Transfer-Encoding: chunked",
+        "Content-Length: 5",
+        "",
+        "",
+      ].join("\r\n"),
+    ),
+  );
+
+  expect(buffer.hasError()).toBe(true);
+  expect(buffer.getError()).toBe(
+    "Conflicting Transfer-Encoding and Content-Length",
+  );
+});
+
+test("rejects whitespace before a header colon", () => {
+  const buffer = new HttpRequestBuffer();
+  buffer.append(
+    encode(
+      [
+        "POST / HTTP/1.1",
+        "Host: demo.instances.example.com",
+        "Content-Length : 5",
+        "",
+        "hello",
+      ].join("\r\n"),
+    ),
+  );
+
+  expect(buffer.hasError()).toBe(true);
+  expect(buffer.getError()).toBe("Invalid header name");
+});
+
+test("rejects obsolete folded headers", () => {
+  const buffer = new HttpRequestBuffer();
+  buffer.append(
+    encode(
+      [
+        "POST / HTTP/1.1",
+        "Host: demo.instances.example.com",
+        "Content-Length: 5",
+        " 5",
+        "",
+        "hello",
+      ].join("\r\n"),
+    ),
+  );
+
+  expect(buffer.hasError()).toBe(true);
+  expect(buffer.getError()).toBe("Obsolete folded headers are not supported");
+});
+
+test("returns only the framed request when extra bytes follow", () => {
+  const buffer = new HttpRequestBuffer();
+  const firstRequest = [
+    "POST / HTTP/1.1",
+    "Host: demo.instances.example.com",
+    "Content-Length: 5",
+    "",
+    "hello",
+  ].join("\r\n");
+  buffer.append(
+    encode(`${firstRequest}GET /smuggled HTTP/1.1\r\nHost: other\r\n\r\n`),
+  );
+
+  expect(buffer.hasError()).toBe(false);
+  expect(buffer.isComplete()).toBe(true);
+  expect(buffer.getRaw()).toBe(firstRequest);
+});
+
 test("rejects bodies larger than the configured limit", () => {
   const rawRequest = [
     "POST / HTTP/1.1",

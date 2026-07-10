@@ -1,10 +1,10 @@
+import { INSTANCE_RAW_LIMIT_BYTES } from "./constants";
 import type { Config } from "./schemas";
 
 const weekInMs = 7 * 24 * 60 * 60 * 1000;
 const defaultInstanceTtlMs = 2 * weekInMs;
 const maxInstanceTtlMs = 30 * 24 * 60 * 60 * 1000;
 const hostedInstanceLimit = 100;
-const staticInstanceRawLimitBytes = 10 * 1024 * 1024;
 const defaultInstancesSubdomain = "instances";
 
 export type PublicConfigEnv = {
@@ -72,7 +72,7 @@ export const buildPublicConfig = (env: PublicConfigEnv): Config => {
     defaultTtlMs: isHosted ? defaultInstanceTtlMs : undefined,
     maxTtlMs: isHosted ? maxInstanceTtlMs : undefined,
     maxInstancesPerOwner: isHosted ? hostedInstanceLimit : undefined,
-    rawLimitBytes: staticInstanceRawLimitBytes,
+    rawLimitBytes: INSTANCE_RAW_LIMIT_BYTES,
     dnsEnabled: parseBooleanEnv(env.DNS_ENABLED) ?? false,
     smtpEnabled: parseBooleanEnv(env.SMTP_ENABLED) ?? false,
     instancesDomain: resolveInstancesDomain(env),

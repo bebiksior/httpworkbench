@@ -11,7 +11,14 @@ import { InstanceLog } from "./components/InstanceLog";
 
 const route = useRoute();
 const instanceId = computed(() => route.params.id as string);
-const { instance, logs, showNotFound } = useInstanceDetailLogic(instanceId);
+const {
+  instance,
+  logs,
+  showNotFound,
+  hasOlderLogs,
+  isLoadingOlder,
+  loadOlderLogs,
+} = useInstanceDetailLogic(instanceId);
 const {
   isHidden: isSidePanelHidden,
   isTransitioning: isSidePanelTransitioning,
@@ -193,6 +200,18 @@ const exitLogOnEscape = (event: KeyboardEvent) => {
               >
                 {{ eventsLabel }}
               </span>
+              <Button
+                v-if="hasOlderLogs"
+                label="Load older"
+                icon="pi pi-history"
+                severity="secondary"
+                text
+                size="small"
+                :loading="isLoadingOlder"
+                :disabled="isLoadingOlder"
+                aria-label="Load older request logs"
+                @click="loadOlderLogs"
+              />
             </div>
 
             <div class="flex flex-col gap-2 sm:flex-row sm:items-center">

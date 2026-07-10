@@ -1,14 +1,8 @@
-import {
-  createRenderer,
-  defineComponent,
-  nextTick,
-  ref,
-  type ComputedRef,
-} from "vue";
+import { createRenderer, defineComponent, nextTick, ref } from "vue";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import type { InstanceDetailResponse, Log } from "shared";
 import {
-  MAX_RETAINED_LOGS,
+  MAX_RETAINED_RECENT_LOGS,
   parseStreamLog,
   useInstanceLogStream,
 } from "./useInstanceLogStream";
@@ -38,6 +32,7 @@ class FakeWebSocket {
   static instances: FakeWebSocket[] = [];
 
   readonly url: string;
+  readonly protocols?: string | string[];
   readyState = FakeWebSocket.CONNECTING;
   sent: string[] = [];
   onopen: ((event: Event) => unknown) | null = null;
@@ -45,8 +40,9 @@ class FakeWebSocket {
   onerror: ((event: Event) => unknown) | null = null;
   onclose: ((event: CloseEvent) => unknown) | null = null;
 
-  constructor(url: string) {
+  constructor(url: string, protocols?: string | string[]) {
     this.url = url;
+    this.protocols = protocols;
     FakeWebSocket.instances.push(this);
   }
 
@@ -85,20 +81,30 @@ const renderer = createRenderer<Record<string, never>, Record<string, never>>({
 
 let visibilityChangeListener: EventListener | undefined;
 
-const mountStream = (refetch = vi.fn()) => {
+const mountStream = (
+  refetch = vi.fn(),
+  options: Parameters<typeof useInstanceLogStream>[3] = {},
+) => {
   const id = ref("instance-1");
   const detail = ref<InstanceDetailResponse>();
-  let logs: ComputedRef<Log[]> | undefined;
+  let stream: ReturnType<typeof useInstanceLogStream> | undefined;
   const app = renderer.createApp(
     defineComponent({
       setup() {
-        logs = useInstanceLogStream(id, detail, refetch);
+        stream = useInstanceLogStream(id, detail, refetch, options);
         return () => null;
       },
     }),
   );
   app.mount({});
-  return { app, detail, id, logs: () => logs, refetch };
+  return {
+    app,
+    detail,
+    id,
+    logs: () => stream?.logs,
+    stream: () => stream,
+    refetch,
+  };
 };
 
 describe("instance log stream lifecycle", () => {
@@ -203,25 +209,25 @@ describe("instance log stream lifecycle", () => {
     expect(FakeWebSocket.instances).toHaveLength(2);
   });
 
-  test("keeps newest logs first, deduplicates IDs, and bounds retention", () => {
+  test("bounds the live segment while keeping streamed logs newest-first", () => {
     const { app, logs } = mountStream();
     const socket = FakeWebSocket.instances[0];
     socket?.open();
 
-    for (let index = 1; index <= MAX_RETAINED_LOGS + 1; index += 1) {
+    for (let index = 1; index <= MAX_RETAINED_RECENT_LOGS + 1; index += 1) {
       socket?.message(JSON.stringify({ ...log, id: `log-${index}` }));
     }
     socket?.message(
-      JSON.stringify({ ...log, id: `log-${MAX_RETAINED_LOGS + 1}` }),
+      JSON.stringify({ ...log, id: `log-${MAX_RETAINED_RECENT_LOGS + 1}` }),
     );
 
-    expect(logs()?.value).toHaveLength(MAX_RETAINED_LOGS);
-    expect(logs()?.value[0]?.id).toBe(`log-${MAX_RETAINED_LOGS + 1}`);
+    expect(logs()?.value).toHaveLength(MAX_RETAINED_RECENT_LOGS);
+    expect(logs()?.value[0]?.id).toBe(`log-${MAX_RETAINED_RECENT_LOGS + 1}`);
     expect(logs()?.value.at(-1)?.id).toBe("log-2");
     app.unmount();
   });
 
-  test("normalizes detail snapshots to the same newest-first bounded order", async () => {
+  test("normalizes detail snapshots to newest-first order", async () => {
     const { app, detail, logs } = mountStream();
     detail.value = {
       instance: {
@@ -280,6 +286,109 @@ describe("instance log stream lifecycle", () => {
     await nextTick();
 
     expect(logs()?.value).toEqual([log]);
+    app.unmount();
+  });
+
+  test("appends older pages and preserves them across recent resyncs", async () => {
+    const loadOlderPage = vi.fn(async () => ({
+      logs: [
+        { ...log, id: "oldest" },
+        { ...log, id: "older" },
+      ],
+      olderLogsCursor: "next-page",
+    }));
+    const { app, detail, logs, stream } = mountStream(vi.fn(), {
+      loadOlderPage,
+    });
+    const socket = FakeWebSocket.instances[0];
+    socket?.open();
+    detail.value = {
+      instance: {
+        id: "instance-1",
+        ownerId: "owner",
+        createdAt: 1,
+        webhookIds: [],
+        public: false,
+        locked: false,
+        raw: "HTTP/1.1 200 OK\r\n\r\nok",
+      },
+      logs: [
+        { ...log, id: "recent-1" },
+        { ...log, id: "recent-2" },
+      ],
+      olderLogsCursor: "first-page",
+    } as InstanceDetailResponse;
+    await nextTick();
+
+    await stream()?.loadOlder();
+    expect(loadOlderPage).toHaveBeenCalledWith("first-page");
+    expect(logs()?.value.map(({ id }) => id)).toEqual([
+      "recent-2",
+      "recent-1",
+      "older",
+      "oldest",
+    ]);
+
+    for (let index = 1; index <= MAX_RETAINED_RECENT_LOGS + 20; index += 1) {
+      socket?.message(JSON.stringify({ ...log, id: `stream-${index}` }));
+    }
+    expect(logs()?.value).toHaveLength(MAX_RETAINED_RECENT_LOGS + 2);
+    expect(
+      logs()
+        ?.value.slice(-2)
+        .map(({ id }) => id),
+    ).toEqual(["older", "oldest"]);
+
+    detail.value = {
+      ...detail.value,
+      logs: [
+        { ...log, id: "recent-2" },
+        { ...log, id: "recent-3" },
+      ],
+      olderLogsCursor: "first-page",
+    } as InstanceDetailResponse;
+    await nextTick();
+
+    expect(logs()?.value[0]?.id).toBe("recent-3");
+    expect(
+      logs()
+        ?.value.slice(-2)
+        .map(({ id }) => id),
+    ).toEqual(["older", "oldest"]);
+    expect(stream()?.hasOlderLogs.value).toBe(true);
+    app.unmount();
+  });
+
+  test("clears loaded history when an empty detail snapshot arrives", async () => {
+    const { app, detail, logs } = mountStream();
+    detail.value = {
+      instance: {
+        id: "instance-1",
+        ownerId: "owner",
+        createdAt: 1,
+        webhookIds: [],
+        public: false,
+        locked: false,
+        raw: "HTTP/1.1 200 OK\r\n\r\nok",
+      },
+      logs: [{ ...log, id: "existing" }],
+    };
+    await nextTick();
+    expect(logs()?.value).toHaveLength(1);
+
+    detail.value = { ...detail.value, logs: [] };
+    await nextTick();
+    expect(logs()?.value).toEqual([]);
+    app.unmount();
+  });
+
+  test("uses the guest token WebSocket subprotocol", () => {
+    const { app } = mountStream(vi.fn(), {
+      getWebSocketProtocols: () => ["guest-token.secret"],
+    });
+    expect(FakeWebSocket.instances[0]?.protocols).toEqual([
+      "guest-token.secret",
+    ]);
     app.unmount();
   });
 });

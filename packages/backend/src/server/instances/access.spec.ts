@@ -56,7 +56,7 @@ describe("canReadInstance", () => {
     ).toBe(true);
   });
 
-  test("allows guest-owned instances to be read without auth", () => {
+  test("requires the dedicated guest management path for guest instances", () => {
     expect(
       canReadInstance({
         instance: {
@@ -65,6 +65,6 @@ describe("canReadInstance", () => {
         },
         user: undefined,
       }),
-    ).toBe(true);
+    ).toBe(false);
   });
 });

@@ -17,16 +17,53 @@ import { ForbiddenError } from "@/api/errors";
 import { invalidateInstanceQueries, queryKeys } from "@/queries/keys";
 import { useAuthStore } from "@/stores/auth";
 import { useGuestInstancesStore } from "@/stores/guestInstances";
+import type { GuestInstanceRecord } from "@/stores/guestInstances.utils";
 
 type InstancesOptions = {
   enabled?: MaybeRefOrGetter<boolean>;
+};
+
+const GUEST_SUMMARY_BATCH_SIZE = 100;
+
+export const loadGuestInstanceSummaries = async (
+  records: readonly GuestInstanceRecord[],
+  loadBatch = guestInstancesApi.getSummaries,
+) => {
+  const batches: GuestInstanceRecord[][] = [];
+  for (
+    let index = 0;
+    index < records.length;
+    index += GUEST_SUMMARY_BATCH_SIZE
+  ) {
+    batches.push(records.slice(index, index + GUEST_SUMMARY_BATCH_SIZE));
+  }
+  const pages: InstanceSummary[][] = [];
+  for (const batch of batches) {
+    pages.push(
+      await loadBatch({
+        instances: batch.map(({ id, token }) => ({ id, token })),
+      }),
+    );
+  }
+  return pages.flat();
+};
+
+const requireGuestToken = (
+  getToken: (id: string) => string | undefined,
+  id: string,
+) => {
+  const token = getToken(id);
+  if (token === undefined) {
+    throw new ForbiddenError("Guest instance credentials are missing");
+  }
+  return token;
 };
 
 export const useInstances = (options?: InstancesOptions) => {
   const authStore = useAuthStore();
   const guestInstancesStore = useGuestInstancesStore();
   const { isGuest } = storeToRefs(authStore);
-  const { ids } = storeToRefs(guestInstancesStore);
+  const { ids, records } = storeToRefs(guestInstancesStore);
 
   const guestKey = computed(() =>
     isGuest.value ? ids.value.join(",") : undefined,
@@ -34,14 +71,16 @@ export const useInstances = (options?: InstancesOptions) => {
 
   const fetchGuestInstances = async () => {
     guestInstancesStore.cleanupExpired();
-    const tracked = [...ids.value];
+    const tracked = [...records.value];
     if (tracked.length === 0) {
       return [];
     }
 
-    const instances = await guestInstancesApi.getSummaries({ ids: tracked });
+    const instances = await loadGuestInstanceSummaries(tracked);
     const foundIds = new Set(instances.map((instance) => instance.id));
-    const missing = tracked.filter((id) => !foundIds.has(id));
+    const missing = tracked
+      .map(({ id }) => id)
+      .filter((id) => !foundIds.has(id));
 
     if (missing.length > 0) {
       missing.forEach((id) => guestInstancesStore.forgetInstance(id));
@@ -74,16 +113,15 @@ export const useCreateInstance = () => {
   const { isGuest } = storeToRefs(authStore);
 
   return useMutation({
-    mutationFn: (input: CreateInstanceInput) => {
+    mutationFn: async (input: CreateInstanceInput) => {
       if (isGuest.value) {
-        return guestInstancesApi.create(input);
+        const created = await guestInstancesApi.create(input);
+        guestInstancesStore.trackInstance(created.instance.id, created.token);
+        return created.instance;
       }
       return instancesApi.create(input);
     },
-    onSuccess: async (instance) => {
-      if (isGuest.value) {
-        guestInstancesStore.trackInstance(instance.id);
-      }
+    onSuccess: async () => {
       await invalidateInstanceQueries(queryClient);
     },
   });
@@ -117,7 +155,10 @@ export const useCloneInstance = () => {
           ? source
           : (
               await (isGuest.value
-                ? guestInstancesApi.getById(source.id)
+                ? guestInstancesApi.getById(
+                    source.id,
+                    requireGuestToken(guestInstancesStore.getToken, source.id),
+                  )
                 : instancesApi.getById(source.id))
             ).instance;
       const input: CreateInstanceInput = {
@@ -125,13 +166,13 @@ export const useCloneInstance = () => {
         webhookIds: isGuest.value ? undefined : instance.webhookIds,
       };
 
-      const created = isGuest.value
-        ? await guestInstancesApi.create(input)
-        : await instancesApi.create(input);
-
       if (isGuest.value) {
-        return created;
+        const created = await guestInstancesApi.create(input);
+        guestInstancesStore.trackInstance(created.instance.id, created.token);
+        return created.instance;
       }
+
+      const created = await instancesApi.create(input);
 
       const clonedLabel =
         instance.label === undefined
@@ -144,9 +185,6 @@ export const useCloneInstance = () => {
       return instancesApi.rename(created.id, { label: clonedLabel });
     },
     onSuccess: async (instance) => {
-      if (isGuest.value) {
-        guestInstancesStore.trackInstance(instance.id);
-      }
       await invalidateInstanceQueries(queryClient, instance.id);
     },
   });
@@ -155,12 +193,17 @@ export const useCloneInstance = () => {
 export const useUpdateInstance = () => {
   const queryClient = useQueryClient();
   const authStore = useAuthStore();
+  const guestInstancesStore = useGuestInstancesStore();
   const { isGuest } = storeToRefs(authStore);
 
   return useMutation({
     mutationFn: ({ id, input }: { id: string; input: UpdateInstanceInput }) => {
       if (isGuest.value) {
-        return guestInstancesApi.update(id, input);
+        return guestInstancesApi.update(
+          id,
+          requireGuestToken(guestInstancesStore.getToken, id),
+          input,
+        );
       }
       return instancesApi.update(id, input);
     },
@@ -179,7 +222,10 @@ export const useDeleteInstance = () => {
   return useMutation({
     mutationFn: (id: string) => {
       if (isGuest.value) {
-        return guestInstancesApi.delete(id);
+        return guestInstancesApi.delete(
+          id,
+          requireGuestToken(guestInstancesStore.getToken, id),
+        );
       }
       return instancesApi.delete(id);
     },
@@ -195,6 +241,7 @@ export const useDeleteInstance = () => {
 export const useClearLogs = () => {
   const queryClient = useQueryClient();
   const authStore = useAuthStore();
+  const guestInstancesStore = useGuestInstancesStore();
   const { isGuest } = storeToRefs(authStore);
 
   return useMutation({
@@ -209,14 +256,17 @@ export const useClearLogs = () => {
           if (detail === undefined) {
             return undefined;
           }
-          return { ...detail, logs: [] };
+          return { ...detail, logs: [], olderLogsCursor: undefined };
         },
       );
       return { previousDetails };
     },
     mutationFn: (id: string) => {
       if (isGuest.value) {
-        return guestInstancesApi.clearLogs(id);
+        return guestInstancesApi.clearLogs(
+          id,
+          requireGuestToken(guestInstancesStore.getToken, id),
+        );
       }
       return instancesApi.clearLogs(id);
     },
@@ -277,13 +327,18 @@ export const useRenameInstance = () => {
 export const useSetInstanceLocked = () => {
   const queryClient = useQueryClient();
   const authStore = useAuthStore();
+  const guestInstancesStore = useGuestInstancesStore();
   const { isGuest } = storeToRefs(authStore);
 
   return useMutation({
     mutationFn: async ({ id, locked }: { id: string; locked: boolean }) => {
       const input: SetInstanceLockedInput = { locked };
       if (isGuest.value) {
-        return guestInstancesApi.setLocked(id, input);
+        return guestInstancesApi.setLocked(
+          id,
+          requireGuestToken(guestInstancesStore.getToken, id),
+          input,
+        );
       }
       return instancesApi.setLocked(id, input);
     },

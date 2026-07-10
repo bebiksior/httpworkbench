@@ -84,6 +84,7 @@ describe("storage db migrations", () => {
     expect(tables).toEqual([
       { name: "__drizzle_migrations" },
       { name: "apiKeys" },
+      { name: "guestInstanceCredentials" },
       { name: "instanceModerations" },
       { name: "instanceWebhooks" },
       { name: "instances" },
@@ -187,16 +188,19 @@ describe("storage db migrations", () => {
       INSERT INTO instances VALUES
         ('valid', 'owner', 1, NULL, NULL, 0, 0, 'static', 'HTTP/1.1 200 OK\r\n\r\nvalid', NULL),
         ('dynamic', 'owner', 2, NULL, NULL, 0, 0, 'dynamic', NULL, '[]'),
-        ('null-raw', 'owner', 3, NULL, NULL, 0, 0, 'static', NULL, NULL);
+        ('null-raw', 'owner', 3, NULL, NULL, 0, 0, 'static', NULL, NULL),
+        ('legacy-guest', 'guest', 4, NULL, NULL, 0, 0, 'static', 'HTTP/1.1 200 OK\r\n\r\nguest', NULL);
       INSERT INTO instanceWebhooks VALUES ('valid', 'webhook-1', 0);
       INSERT INTO instanceWebhooks VALUES ('dynamic', 'webhook-1', 0);
       INSERT INTO logs (id, instanceId, type, timestamp, address, raw) VALUES
         ('log-valid', 'valid', 'http', 1, '127.0.0.1', 'valid'),
         ('log-dynamic', 'dynamic', 'http', 2, '127.0.0.1', 'dynamic'),
-        ('log-null', 'null-raw', 'http', 3, '127.0.0.1', 'null');
+        ('log-null', 'null-raw', 'http', 3, '127.0.0.1', 'null'),
+        ('log-guest', 'legacy-guest', 'http', 4, '127.0.0.1', 'guest');
       INSERT INTO instanceModerations VALUES
         ('valid', 0, 0, 0, '[]', NULL, 0, 0, 0, 0),
-        ('dynamic', 0, 0, 0, '[]', NULL, 0, 0, 0, 0);
+        ('dynamic', 0, 0, 0, '[]', NULL, 0, 0, 0, 0),
+        ('legacy-guest', 0, 0, 0, '[]', NULL, 0, 0, 0, 0);
     `);
     for (const migration of migrations.slice(0, 3)) {
       sqlite
@@ -242,6 +246,13 @@ describe("storage db migrations", () => {
       ),
     ).toBe(false);
     expect(migrated.query("PRAGMA foreign_key_check").all()).toEqual([]);
+    expect(
+      migrated
+        .query(
+          "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'guestInstanceCredentials'",
+        )
+        .all(),
+    ).toEqual([{ name: "guestInstanceCredentials" }]);
     migrated.close();
   });
 });

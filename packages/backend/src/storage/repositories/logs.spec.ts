@@ -20,6 +20,7 @@ import {
   getLogsForInstance,
   getLogsForInstancePage,
   getRecentLogsForInstance,
+  getRecentLogsForInstancePage,
 } from "./logs";
 import {
   addInstance,
@@ -208,6 +209,25 @@ describe("addLog", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
+  test("does not deliver webhooks after an instance expires", async () => {
+    const fetchMock = mock(() => Promise.resolve(new Response(null)));
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+    seedStorage({
+      instances: [
+        createInstance({
+          expiresAt: 999,
+          webhookIds: ["webhook-logs-test"],
+        }),
+      ],
+      webhooks: [createWebhook()],
+    });
+
+    addLog(createLog({ timestamp: 1_000 }));
+    await flushPendingWebhookNotifications();
+
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   test("flushes pending webhook deliveries before shutdown", async () => {
     const webhookId = "webhook-logs-flush-test";
     let resolveFetch: ((response: Response) => void) | undefined;
@@ -277,6 +297,7 @@ describe("addLog", () => {
 
     expect(firstPage.logs.map((log) => log.id)).toEqual(["log-1", "log-2"]);
     expect(firstPage.nextCursor).toEqual({ seq: 2 });
+    expect(firstPage.resumeCursor).toEqual({ seq: 2 });
 
     const secondPage = getLogsForInstancePage({
       instanceId: "inst-1",
@@ -286,6 +307,15 @@ describe("addLog", () => {
 
     expect(secondPage.logs.map((log) => log.id)).toEqual(["log-3"]);
     expect(secondPage.nextCursor).toBeUndefined();
+    expect(secondPage.resumeCursor).toEqual({ seq: 3 });
+
+    const waitingPage = getLogsForInstancePage({
+      instanceId: "inst-1",
+      limit: 2,
+      cursor: secondPage.resumeCursor,
+    });
+    expect(waitingPage.logs).toEqual([]);
+    expect(waitingPage.resumeCursor).toEqual({ seq: 3 });
   });
 
   test("loads only the requested number of most recent logs", () => {
@@ -301,6 +331,25 @@ describe("addLog", () => {
     expect(recent).toHaveLength(100);
     expect(recent[0]?.id).toBe("log-6");
     expect(recent.at(-1)?.id).toBe("log-105");
+
+    const firstPage = getRecentLogsForInstancePage({
+      instanceId: "inst-1",
+      limit: 100,
+    });
+    expect(firstPage.olderCursor).toEqual({ seq: 6 });
+    const olderPage = getRecentLogsForInstancePage({
+      instanceId: "inst-1",
+      limit: 100,
+      before: firstPage.olderCursor,
+    });
+    expect(olderPage.logs.map((log) => log.id)).toEqual([
+      "log-1",
+      "log-2",
+      "log-3",
+      "log-4",
+      "log-5",
+    ]);
+    expect(olderPage.olderCursor).toBeUndefined();
   });
 
   test("filters paginated logs by type and timestamp", () => {

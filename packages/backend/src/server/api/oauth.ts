@@ -76,7 +76,7 @@ export const oauthRoutes = new Elysia({ name: "routes/oauth" })
         });
       }
       cookie.auth_token.set({
-        value: await issueAuthToken(auth.user.id),
+        value: await issueAuthToken(auth.user.id, auth.apiKey),
         ...sessionCookie,
       });
       return auth.user;

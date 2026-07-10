@@ -1,6 +1,8 @@
 import { describe, expect, test } from "vitest";
 import {
   CreateInstanceSchema,
+  CreateGuestInstanceSchema,
+  GuestInstanceSummariesRequestSchema,
   InstanceSchema,
   InstancesResponseSchema,
   UpdateInstanceSchema,
@@ -35,6 +37,13 @@ describe("static-only instance contracts", () => {
         processors: [{ name: "handler", code: "return response" }],
       }).success,
     ).toBe(false);
+    expect(
+      CreateInstanceSchema.safeParse({
+        raw: instance.raw,
+        kind: "dynamic",
+        processors: [],
+      }).success,
+    ).toBe(false);
 
     const parsed = InstanceSchema.parse({
       ...instance,
@@ -44,6 +53,28 @@ describe("static-only instance contracts", () => {
     expect(parsed).toEqual({ ...instance, public: false, locked: false });
     expect("kind" in parsed).toBe(false);
     expect("processors" in parsed).toBe(false);
+  });
+
+  test("strictly validates guest management inputs", () => {
+    expect(CreateGuestInstanceSchema.parse({ raw: instance.raw })).toEqual({
+      raw: instance.raw,
+    });
+    expect(
+      CreateGuestInstanceSchema.safeParse({
+        raw: instance.raw,
+        webhookIds: ["webhook-1"],
+      }).success,
+    ).toBe(false);
+    expect(
+      GuestInstanceSummariesRequestSchema.safeParse({
+        instances: [{ id: "abcd1234", token: "a".repeat(64) }],
+      }).success,
+    ).toBe(true);
+    expect(
+      GuestInstanceSummariesRequestSchema.safeParse({
+        instances: [{ id: "not-an-id", token: "secret" }],
+      }).success,
+    ).toBe(false);
   });
 
   test("uses lightweight instance summaries for list responses", () => {

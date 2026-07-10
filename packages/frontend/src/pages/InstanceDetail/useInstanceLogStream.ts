@@ -13,7 +13,17 @@ import { apiPaths } from "@/api/paths";
 const STREAM_OPEN_TIMEOUT_MS = 10_000;
 const STREAM_HEARTBEAT_INTERVAL_MS = 10_000;
 const STREAM_HEARTBEAT_TIMEOUT_MS = 25_000;
-export const MAX_RETAINED_LOGS = 500;
+export const MAX_RETAINED_RECENT_LOGS = 500;
+
+type OlderLogsPage = {
+  logs: Log[];
+  olderLogsCursor?: string;
+};
+
+type InstanceLogStreamOptions = {
+  loadOlderPage?: (cursor: string) => Promise<OlderLogsPage>;
+  getWebSocketProtocols?: () => string[] | undefined;
+};
 
 export const parseStreamLog = (data: unknown): Log | undefined => {
   if (typeof data !== "string" || data === "pong") {
@@ -31,12 +41,20 @@ export const useInstanceLogStream = (
   instanceId: MaybeRefOrGetter<string>,
   detail: MaybeRefOrGetter<InstanceDetailResponse | undefined>,
   refetch: () => unknown,
+  options: InstanceLogStreamOptions = {},
 ) => {
   const resolvedInstanceId = computed(() => toValue(instanceId));
   // Logs are kept newest-first so consumers do not need to reverse and copy the
   // complete collection after every streamed event.
-  const streamLogs = ref<Log[]>([]);
+  const recentLogs = ref<Log[]>([]);
+  const explicitlyLoadedOlderLogs = ref<Log[]>([]);
+  const streamLogs = computed(() => [
+    ...recentLogs.value,
+    ...explicitlyLoadedOlderLogs.value,
+  ]);
   const logIds = new Set<string>();
+  const olderLogsCursor = ref<string>();
+  const isLoadingOlder = ref(false);
 
   let connection: WebSocket | undefined;
   let reconnectTimeout: ReturnType<typeof setTimeout> | undefined;
@@ -46,9 +64,9 @@ export const useInstanceLogStream = (
   let generation = 0;
   let lastHeartbeatAt = 0;
   let lastPingSentAt: number | undefined;
+  let hasLoadedOlderPages = false;
   let resyncState:
-    | { generation: number; logs: Log[]; promise: Promise<void> }
-    | undefined;
+    { generation: number; logs: Log[]; promise: Promise<void> } | undefined;
 
   const replaceLogs = (logs: readonly Log[]) => {
     logIds.clear();
@@ -60,11 +78,12 @@ export const useInstanceLogStream = (
       }
       logIds.add(log.id);
       next.push(log);
-      if (next.length === MAX_RETAINED_LOGS) {
+      if (next.length === MAX_RETAINED_RECENT_LOGS) {
         break;
       }
     }
-    streamLogs.value = next;
+    recentLogs.value = next;
+    explicitlyLoadedOlderLogs.value = [];
   };
 
   const prependLog = (log: Log) => {
@@ -72,14 +91,60 @@ export const useInstanceLogStream = (
       return;
     }
     logIds.add(log.id);
-    const next = [log, ...streamLogs.value];
-    if (next.length > MAX_RETAINED_LOGS) {
+    const next = [log, ...recentLogs.value];
+    if (next.length > MAX_RETAINED_RECENT_LOGS) {
       const removed = next.pop();
       if (removed !== undefined) {
         logIds.delete(removed.id);
       }
     }
-    streamLogs.value = next;
+    recentLogs.value = next;
+  };
+
+  const mergeRecentLogs = (logs: readonly Log[]) => {
+    for (const log of logs) {
+      prependLog(log);
+    }
+  };
+
+  const appendOlderLogs = (logs: readonly Log[]) => {
+    const next = [...explicitlyLoadedOlderLogs.value];
+    for (let index = logs.length - 1; index >= 0; index -= 1) {
+      const log = logs[index];
+      if (log === undefined || logIds.has(log.id)) {
+        continue;
+      }
+      logIds.add(log.id);
+      next.push(log);
+    }
+    explicitlyLoadedOlderLogs.value = next;
+  };
+
+  const loadOlder = async () => {
+    const cursor = olderLogsCursor.value;
+    if (
+      cursor === undefined ||
+      isLoadingOlder.value ||
+      options.loadOlderPage === undefined
+    ) {
+      return;
+    }
+
+    const expectedGeneration = generation;
+    isLoadingOlder.value = true;
+    try {
+      const page = await options.loadOlderPage(cursor);
+      if (generation !== expectedGeneration) {
+        return;
+      }
+      appendOlderLogs(page.logs);
+      olderLogsCursor.value = page.olderLogsCursor;
+      hasLoadedOlderPages = true;
+    } finally {
+      if (generation === expectedGeneration) {
+        isLoadingOlder.value = false;
+      }
+    }
   };
 
   const resyncLogs = () => {
@@ -164,9 +229,12 @@ export const useInstanceLogStream = (
     clearOpenTimeout();
     const expectedGeneration = generation;
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const ws = new WebSocket(
-      `${protocol}//${window.location.host}${apiPaths.instanceStream(id)}`,
-    );
+    const url = `${protocol}//${window.location.host}${apiPaths.instanceStream(id)}`;
+    const protocols = options.getWebSocketProtocols?.();
+    const ws =
+      protocols === undefined
+        ? new WebSocket(url)
+        : new WebSocket(url, protocols);
     connection = ws;
     lastHeartbeatAt = Date.now();
     lastPingSentAt = undefined;
@@ -251,6 +319,9 @@ export const useInstanceLogStream = (
       reconnectAttempt = 0;
       closeConnection();
       replaceLogs([]);
+      olderLogsCursor.value = undefined;
+      isLoadingOlder.value = false;
+      hasLoadedOlderPages = false;
       if (id !== "") {
         openStream(id);
       }
@@ -262,7 +333,20 @@ export const useInstanceLogStream = (
     () => toValue(detail),
     (value) => {
       if (value?.instance.id === resolvedInstanceId.value) {
-        replaceLogs(value.logs);
+        if (
+          value.logs.length === 0 ||
+          (value.olderLogsCursor === undefined && hasLoadedOlderPages)
+        ) {
+          replaceLogs(value.logs);
+          hasLoadedOlderPages = false;
+        } else if (streamLogs.value.length === 0) {
+          replaceLogs(value.logs);
+        } else {
+          mergeRecentLogs(value.logs);
+        }
+        if (!hasLoadedOlderPages) {
+          olderLogsCursor.value = value.olderLogsCursor;
+        }
       }
     },
     { immediate: true },
@@ -321,5 +405,10 @@ export const useInstanceLogStream = (
     closeConnection();
   });
 
-  return computed(() => streamLogs.value);
+  return {
+    logs: streamLogs,
+    hasOlderLogs: computed(() => olderLogsCursor.value !== undefined),
+    isLoadingOlder: computed(() => isLoadingOlder.value),
+    loadOlder,
+  };
 };

@@ -3,6 +3,9 @@ const MAX_HEADER_SIZE = 8 * 1024;
 const MAX_BODY_SIZE = 32 * 1024 * 1024;
 const MAX_REQUEST_SIZE = MAX_HEADER_SIZE + MAX_BODY_SIZE;
 
+type FramingResult =
+  { ok: true; contentLength: number } | { ok: false; error: string };
+
 export class HttpRequestBuffer {
   private buffer: Uint8Array = new Uint8Array(0);
   private length = 0;
@@ -44,19 +47,18 @@ export class HttpRequestBuffer {
       const headerString = new TextDecoder().decode(
         this.buffer.subarray(0, headersEnd),
       );
-      const contentLength = this.parseContentLength(headerString);
-
-      if (contentLength !== undefined && contentLength < 0) {
-        this.error = "Invalid Content-Length";
+      const framing = this.parseFraming(headerString);
+      if (!framing.ok) {
+        this.error = framing.error;
         return;
       }
 
-      if (contentLength !== undefined && contentLength > MAX_BODY_SIZE) {
+      if (framing.contentLength > MAX_BODY_SIZE) {
         this.error = "Body too large";
         return;
       }
 
-      this.expectedLength = headersEnd + (contentLength ?? 0);
+      this.expectedLength = headersEnd + framing.contentLength;
     }
   }
 
@@ -76,7 +78,11 @@ export class HttpRequestBuffer {
   }
 
   getRaw(): string {
-    return new TextDecoder().decode(this.buffer.subarray(0, this.length));
+    const framedLength =
+      this.error === undefined && this.expectedLength !== undefined
+        ? Math.min(this.length, this.expectedLength)
+        : this.length;
+    return new TextDecoder().decode(this.buffer.subarray(0, framedLength));
   }
 
   private findHeadersEnd(): number {
@@ -115,18 +121,65 @@ export class HttpRequestBuffer {
     this.buffer = next;
   }
 
-  private parseContentLength(headerString: string): number | undefined {
+  private parseFraming(headerString: string): FramingResult {
     const lines = headerString.split("\r\n");
-    for (const line of lines) {
-      const lowerLine = line.toLowerCase();
-      if (lowerLine.startsWith("content-length:")) {
-        const value = line.slice("content-length:".length).trim();
-        const parsed = parseInt(value, 10);
-        if (!Number.isNaN(parsed)) {
-          return parsed;
+    const contentLengths: number[] = [];
+    let hasTransferEncoding = false;
+
+    for (const line of lines.slice(1)) {
+      if (line.startsWith(" ") || line.startsWith("\t")) {
+        return {
+          ok: false,
+          error: "Obsolete folded headers are not supported",
+        };
+      }
+
+      const separatorIndex = line.indexOf(":");
+      if (separatorIndex === -1) {
+        continue;
+      }
+
+      const rawName = line.slice(0, separatorIndex);
+      if (rawName !== rawName.trim()) {
+        return { ok: false, error: "Invalid header name" };
+      }
+      const name = rawName.toLowerCase();
+      const value = line.slice(separatorIndex + 1).trim();
+      if (name === "transfer-encoding") {
+        hasTransferEncoding = true;
+        continue;
+      }
+      if (name !== "content-length") {
+        continue;
+      }
+
+      for (const candidate of value.split(",")) {
+        const normalized = candidate.trim();
+        if (!/^\d+$/.test(normalized)) {
+          return { ok: false, error: "Invalid Content-Length" };
         }
+        const parsed = Number(normalized);
+        if (!Number.isSafeInteger(parsed)) {
+          return { ok: false, error: "Invalid Content-Length" };
+        }
+        contentLengths.push(parsed);
       }
     }
-    return undefined;
+
+    if (hasTransferEncoding) {
+      return {
+        ok: false,
+        error:
+          contentLengths.length === 0
+            ? "Transfer-Encoding is not supported"
+            : "Conflicting Transfer-Encoding and Content-Length",
+      };
+    }
+
+    const contentLength = contentLengths[0] ?? 0;
+    if (contentLengths.some((value) => value !== contentLength)) {
+      return { ok: false, error: "Conflicting Content-Length headers" };
+    }
+    return { ok: true, contentLength };
   }
 }

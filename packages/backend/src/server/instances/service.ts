@@ -1,12 +1,20 @@
-import { GUEST_INSTANCE_TTL_MS, GUEST_OWNER_ID, type Instance } from "shared";
+import {
+  GUEST_INSTANCE_RAW_LIMIT_BYTES,
+  GUEST_INSTANCE_TTL_MS,
+  GUEST_MAX_ACTIVE_INSTANCES,
+  GUEST_OWNER_ID,
+  type Instance,
+} from "shared";
 import { instancePolicies } from "../../config";
 import {
   addInstance,
+  addGuestInstance,
   countActiveInstancesByOwner,
   getInstanceById,
   getWebhooksByOwner,
   updateInstance,
 } from "../../storage";
+import { createGuestManagementCredential } from "../guestAccess";
 import { generateInstanceID, validateStaticRaw } from "../utils";
 
 type InstanceServiceErrorCode =
@@ -23,8 +31,7 @@ export type InstanceServiceError = {
 };
 
 export type InstanceServiceResult<T> =
-  | { ok: true; value: T }
-  | { ok: false; error: InstanceServiceError };
+  { ok: true; value: T } | { ok: false; error: InstanceServiceError };
 
 const fail = (
   code: InstanceServiceErrorCode,
@@ -63,6 +70,15 @@ const validateRaw = (raw: string): InstanceServiceResult<string> => {
     : fail("invalid_raw", result.error, result.status);
 };
 
+const rawEncoder = new TextEncoder();
+
+const validateGuestRaw = (raw: string): InstanceServiceResult<string> => {
+  if (rawEncoder.encode(raw).length > GUEST_INSTANCE_RAW_LIMIT_BYTES) {
+    return fail("invalid_raw", "Guest response exceeds 1MB limit", 413);
+  }
+  return validateRaw(raw);
+};
+
 export const getOwnedInstance = (
   instanceId: string,
   ownerId: string,
@@ -82,7 +98,6 @@ type CreateInstanceInput = {
   raw: string;
   webhookIds?: string[];
   label?: string;
-  guest?: boolean;
 };
 
 export const createInstance = (
@@ -93,16 +108,12 @@ export const createInstance = (
     return raw;
   }
 
-  const webhookIds =
-    input.guest === true
-      ? ({ ok: true, value: [] as string[] } as const)
-      : validateWebhookIds(input.ownerId, input.webhookIds ?? []);
+  const webhookIds = validateWebhookIds(input.ownerId, input.webhookIds ?? []);
   if (!webhookIds.ok) {
     return webhookIds;
   }
 
   if (
-    input.guest !== true &&
     instancePolicies.maxInstancesPerOwner !== undefined &&
     countActiveInstancesByOwner(input.ownerId) >=
       instancePolicies.maxInstancesPerOwner
@@ -112,11 +123,9 @@ export const createInstance = (
 
   const now = Date.now();
   const expiresAt =
-    input.guest === true
-      ? now + GUEST_INSTANCE_TTL_MS
-      : instancePolicies.defaultTtlMs === undefined
-        ? undefined
-        : now + instancePolicies.defaultTtlMs;
+    instancePolicies.defaultTtlMs === undefined
+      ? undefined
+      : now + instancePolicies.defaultTtlMs;
 
   return {
     ok: true,
@@ -139,7 +148,6 @@ type UpdateInstanceInput = {
   ownerId: string;
   raw: string;
   webhookIds?: string[];
-  guest?: boolean;
 };
 
 export const replaceInstance = (
@@ -156,11 +164,9 @@ export const replaceInstance = (
   }
 
   const webhookIds =
-    input.guest === true
-      ? ({ ok: true, value: [] as string[] } as const)
-      : input.webhookIds === undefined
-        ? ({ ok: true, value: owned.value.webhookIds } as const)
-        : validateWebhookIds(input.ownerId, input.webhookIds);
+    input.webhookIds === undefined
+      ? ({ ok: true, value: owned.value.webhookIds } as const)
+      : validateWebhookIds(input.ownerId, input.webhookIds);
   if (!webhookIds.ok) {
     return webhookIds;
   }
@@ -176,13 +182,58 @@ export const replaceInstance = (
     : { ok: true, value: updated };
 };
 
-export const createGuestInstance = (raw: string) =>
-  createInstance({ ownerId: GUEST_OWNER_ID, raw, guest: true });
+export const createGuestInstance = (
+  raw: string,
+): InstanceServiceResult<{ instance: Instance; token: string }> => {
+  const validatedRaw = validateGuestRaw(raw);
+  if (!validatedRaw.ok) {
+    return validatedRaw;
+  }
+  if (
+    countActiveInstancesByOwner(GUEST_OWNER_ID) >= GUEST_MAX_ACTIVE_INSTANCES
+  ) {
+    return fail("instance_limit", "Guest instance limit reached", 503);
+  }
 
-export const replaceGuestInstance = (instanceId: string, raw: string) =>
-  replaceInstance({
-    instanceId,
-    ownerId: GUEST_OWNER_ID,
-    raw,
-    guest: true,
-  });
+  const now = Date.now();
+  const credential = createGuestManagementCredential();
+  const instance = addGuestInstance(
+    {
+      id: generateInstanceID(),
+      ownerId: GUEST_OWNER_ID,
+      createdAt: now,
+      expiresAt: now + GUEST_INSTANCE_TTL_MS,
+      webhookIds: [],
+      public: false,
+      locked: false,
+      raw: validatedRaw.value,
+    },
+    credential.tokenHash,
+  );
+  return {
+    ok: true,
+    value: { instance, token: credential.token },
+  };
+};
+
+export const replaceGuestInstance = (
+  instanceId: string,
+  raw: string,
+): InstanceServiceResult<Instance> => {
+  const owned = getOwnedInstance(instanceId, GUEST_OWNER_ID);
+  if (!owned.ok) {
+    return owned;
+  }
+  const validatedRaw = validateGuestRaw(raw);
+  if (!validatedRaw.ok) {
+    return validatedRaw;
+  }
+  const updated = updateInstance(instanceId, (instance) => ({
+    ...instance,
+    raw: validatedRaw.value,
+    webhookIds: [],
+  }));
+  return updated === undefined
+    ? fail("not_found", "Not found", 404)
+    : { ok: true, value: updated };
+};

@@ -1,9 +1,9 @@
 import type { Log } from "shared";
 import { LogSchema } from "shared";
-import { and, asc, desc, eq, gt, gte } from "drizzle-orm";
+import { and, asc, desc, eq, gt, gte, lt } from "drizzle-orm";
 import { getDb } from "../db";
 import { sendDiscordNotificationThrottled } from "../../server/webhooks";
-import { getWebhookIdsForInstance } from "./instances";
+import { getActiveWebhookIdsForInstance } from "./instances";
 import {
   isDiscordMutedForInstance,
   recordRequestAndMaybeTombstoneInTransaction,
@@ -15,7 +15,7 @@ const pendingWebhookNotifications = new Set<Promise<void>>();
 
 const notifyWebhooks = async (log: Log, now: number): Promise<void> => {
   try {
-    const webhookIds = getWebhookIdsForInstance(log.instanceId);
+    const webhookIds = getActiveWebhookIdsForInstance(log.instanceId, now);
     if (webhookIds.length === 0) {
       return;
     }
@@ -87,8 +87,34 @@ export function getRecentLogsForInstance(
   instanceId: string,
   limit: number,
 ): Log[] {
+  return getRecentLogsForInstancePage({ instanceId, limit }).logs;
+}
+
+type GetRecentLogsPageInput = {
+  instanceId: string;
+  limit: number;
+  before?: LogsPageCursor;
+  type?: Log["type"];
+};
+
+type RecentLogsPage = {
+  logs: Log[];
+  olderCursor?: LogsPageCursor;
+};
+
+export function getRecentLogsForInstancePage(
+  input: GetRecentLogsPageInput,
+): RecentLogsPage {
+  const filters = [eq(logs.instanceId, input.instanceId)];
+  if (input.before !== undefined) {
+    filters.push(lt(logs.seq, input.before.seq));
+  }
+  if (input.type !== undefined) {
+    filters.push(eq(logs.type, input.type));
+  }
   const rows = getDb()
     .select({
+      seq: logs.seq,
       id: logs.id,
       instanceId: logs.instanceId,
       type: logs.type,
@@ -97,12 +123,20 @@ export function getRecentLogsForInstance(
       raw: logs.raw,
     })
     .from(logs)
-    .where(eq(logs.instanceId, instanceId))
+    .where(and(...filters))
     .orderBy(desc(logs.seq))
-    .limit(limit)
+    .limit(input.limit + 1)
     .all();
 
-  return rows.reverse();
+  const pageRows = rows.slice(0, input.limit);
+  const oldestIncluded = pageRows.at(-1);
+  return {
+    logs: pageRows.map(({ seq: _seq, ...log }) => log).reverse(),
+    olderCursor:
+      rows.length > input.limit && oldestIncluded !== undefined
+        ? { seq: oldestIncluded.seq }
+        : undefined,
+  };
 }
 
 export type LogsPageCursor = {
@@ -120,6 +154,7 @@ type GetLogsPageInput = {
 type LogsPage = {
   logs: Log[];
   nextCursor?: LogsPageCursor;
+  resumeCursor?: LogsPageCursor;
 };
 
 export function getLogsForInstancePage(input: GetLogsPageInput): LogsPage {
@@ -155,6 +190,12 @@ export function getLogsForInstancePage(input: GetLogsPageInput): LogsPage {
 
   return {
     logs: pageRows.map(({ seq: _seq, ...log }) => log),
+    resumeCursor:
+      lastRow === undefined
+        ? input.cursor
+        : {
+            seq: lastRow.seq,
+          },
     nextCursor:
       rows.length > input.limit && lastRow !== undefined
         ? { seq: lastRow.seq }

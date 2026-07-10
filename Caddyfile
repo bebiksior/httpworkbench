@@ -13,10 +13,17 @@ http://{$DOMAIN}, https://{$DOMAIN} {
 	}
 
 	encode gzip zstd
+	header {
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		X-Frame-Options "DENY"
+		Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
+	}
 	header /assets/* Cache-Control "public, max-age=31536000, immutable"
 
 	handle /api/* {
 		reverse_proxy backend:8081 {
+			header_up X-Internal-Real-IP {remote_host}
 			header_up -X-Forwarded-For
 			header_up -X-Forwarded-Host
 			header_up -X-Forwarded-Proto

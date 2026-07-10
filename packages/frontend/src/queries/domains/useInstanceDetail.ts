@@ -98,7 +98,12 @@ export const useInstanceDetail = (instanceId: MaybeRefOrGetter<string>) => {
       const useGuestApi = isGuest.value && ids.value.includes(id);
       try {
         if (useGuestApi) {
-          return await guestInstancesApi.getById(id);
+          const token = guestInstancesStore.getToken(id);
+          if (token === undefined) {
+            guestInstancesStore.forgetInstance(id);
+            throw new NotFoundError("Guest instance credentials are missing");
+          }
+          return await guestInstancesApi.getById(id, token);
         }
         return await instancesApi.getById(id);
       } catch (error) {

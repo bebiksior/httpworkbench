@@ -14,7 +14,9 @@ import {
   jsonToolResult,
   requireOwnedInstance,
   requireScope,
+  toolError,
 } from "./context";
+import { createConcurrentWatchLimiter } from "./watchLimit";
 
 const readLogsPage = (input: {
   auth: ApiKeyAuthContext;
@@ -40,6 +42,10 @@ const readLogsPage = (input: {
   });
   return {
     logs: page.logs,
+    resumeCursor:
+      page.resumeCursor === undefined
+        ? input.cursor
+        : encodeLogsCursor(page.resumeCursor),
     nextCursor:
       page.nextCursor === undefined
         ? undefined
@@ -56,6 +62,10 @@ const logsInputSchema = {
 };
 
 const mcpLogWatchTimeoutMs = 20_000;
+const mcpLogWatchLimiter = createConcurrentWatchLimiter({
+  maxPerKey: 4,
+  maxGlobal: 100,
+});
 
 export const registerLogTools = (server: McpServer) => {
   server.registerTool(
@@ -103,7 +113,8 @@ export const registerLogTools = (server: McpServer) => {
     "watch_instance_logs",
     {
       title: "Watch Instance Logs",
-      description: "Poll for new logs while waiting for an interaction.",
+      description:
+        "Wait for new logs. Pass the returned resumeCursor as cursor on the next call; nextCursor only indicates another historical page is already available.",
       inputSchema: logsInputSchema,
       annotations: {
         readOnlyHint: true,
@@ -114,16 +125,33 @@ export const registerLogTools = (server: McpServer) => {
     async (input, extra) => {
       const auth = getAuthContext(extra);
       requireScope(auth, "logs:stream");
-      const waiter = waitForInstanceLog(input.instanceId, mcpLogWatchTimeoutMs);
+      requireOwnedInstance(input.instanceId, auth);
+      const release = mcpLogWatchLimiter.acquire(auth.apiKey.id);
+      if (release === undefined) {
+        return toolError("Too many concurrent log watches");
+      }
+
+      const waiter = waitForInstanceLog(
+        input.instanceId,
+        mcpLogWatchTimeoutMs,
+        extra.signal,
+      );
       try {
+        if (extra.signal.aborted) {
+          return toolError("Log watch cancelled");
+        }
         let page = readLogsPage({ ...input, auth });
         if (page.logs.length === 0) {
           await waiter.promise;
+          if (extra.signal.aborted) {
+            return toolError("Log watch cancelled");
+          }
           page = readLogsPage({ ...input, auth });
         }
         return jsonToolResult({ ...page, pollAfterMs: 1000 });
       } finally {
         waiter.cancel();
+        release();
       }
     },
   );

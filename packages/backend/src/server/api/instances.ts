@@ -2,7 +2,9 @@ import { Elysia, status } from "elysia";
 import { z } from "zod";
 import {
   CreateInstanceSchema,
+  GUEST_OWNER_ID,
   InstanceDetailResponseSchema,
+  RecentLogsPageResponseSchema,
   RenameInstanceSchema,
   SetInstanceLockedSchema,
   SetInstancePublicSchema,
@@ -13,7 +15,7 @@ import {
   deleteInstance,
   getInstanceById,
   getInstanceSummariesByOwner,
-  getRecentLogsForInstance,
+  getRecentLogsForInstancePage,
   getLogsForInstancePage,
   updateInstance,
 } from "../../storage";
@@ -37,9 +39,15 @@ import { clampLogLimit, decodeLogsCursor, encodeLogsCursor } from "../utils";
 
 const LogsQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(500).optional(),
-  cursor: z.string().optional(),
+  cursor: z.string().max(256).optional(),
   type: z.enum(["http", "dns", "smtp"]).optional(),
   sinceTimestamp: z.coerce.number().int().min(0).optional(),
+});
+
+const RecentLogsQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(500).optional(),
+  cursor: z.string().max(256).optional(),
+  type: z.enum(["http", "dns", "smtp"]).optional(),
 });
 
 const INSTANCE_DETAIL_LOG_LIMIT = 100;
@@ -95,6 +103,9 @@ export const instancesRoutes = new Elysia({ name: "routes/instances" })
       if (instance === undefined) {
         return status(404, { error: "Not found" });
       }
+      if (instance.ownerId === GUEST_OWNER_ID) {
+        return status(404, { error: "Not found" });
+      }
 
       const access = await resolveOptionalAccess(
         request,
@@ -114,10 +125,20 @@ export const instancesRoutes = new Elysia({ name: "routes/instances" })
 
       const includeLogs =
         publiclyReadable || !apiKeyMissingScope(access, "logs:read");
-      const logs = includeLogs
-        ? getRecentLogsForInstance(instance.id, INSTANCE_DETAIL_LOG_LIMIT)
-        : [];
-      return InstanceDetailResponseSchema.parse({ instance, logs });
+      const page = includeLogs
+        ? getRecentLogsForInstancePage({
+            instanceId: instance.id,
+            limit: INSTANCE_DETAIL_LOG_LIMIT,
+          })
+        : { logs: [], olderCursor: undefined };
+      return InstanceDetailResponseSchema.parse({
+        instance,
+        logs: page.logs,
+        olderLogsCursor:
+          page.olderCursor === undefined
+            ? undefined
+            : encodeLogsCursor(page.olderCursor),
+      });
     },
     {
       detail: {
@@ -198,6 +219,60 @@ export const instancesRoutes = new Elysia({ name: "routes/instances" })
         summary: "Extend instance expiration",
         description:
           "Reset the instance's expiration to the maximum TTL from now.",
+      },
+    },
+  )
+  .get(
+    "/api/instances/:id/logs/recent",
+    async ({ params, query, request, cookie }) => {
+      const instance = getInstanceById(params.id);
+      if (instance === undefined || instance.ownerId === GUEST_OWNER_ID) {
+        return status(404, { error: "Not found" });
+      }
+      const access = await resolveOptionalAccess(
+        request,
+        readSessionCookie(cookie),
+      );
+      if (!canReadInstance({ instance, user: access?.user })) {
+        return status(404, { error: "Not found" });
+      }
+      if (!enforceApiKeyRateLimit(access)) {
+        return status(429, { error: "Rate limit exceeded" });
+      }
+      const publiclyReadable = canReadInstance({
+        instance,
+        user: undefined,
+      });
+      if (!publiclyReadable && apiKeyMissingScope(access, "logs:read")) {
+        return insufficientScopeResponse("logs:read");
+      }
+
+      const before =
+        query.cursor === undefined ? undefined : decodeLogsCursor(query.cursor);
+      if (query.cursor !== undefined && before === undefined) {
+        return status(400, { error: "Invalid cursor" });
+      }
+      const page = getRecentLogsForInstancePage({
+        instanceId: instance.id,
+        limit: clampLogLimit(query.limit),
+        before,
+        type: query.type,
+      });
+      return RecentLogsPageResponseSchema.parse({
+        logs: page.logs,
+        olderLogsCursor:
+          page.olderCursor === undefined
+            ? undefined
+            : encodeLogsCursor(page.olderCursor),
+      });
+    },
+    {
+      query: RecentLogsQuerySchema,
+      detail: {
+        tags: ["Logs"],
+        summary: "Read recent instance logs",
+        description:
+          "Read logs newest-page first and follow olderLogsCursor backward.",
       },
     },
   )

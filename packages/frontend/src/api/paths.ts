@@ -6,6 +6,8 @@ export const apiPaths = {
   guestInstance: (id: string) => path("/api/guest/instances/:id", { id }),
   guestInstanceLogs: (id: string) =>
     path("/api/guest/instances/:id/logs", { id }),
+  guestInstanceRecentLogs: (id: string, query = "") =>
+    `${path("/api/guest/instances/:id/logs/recent", { id })}${query}`,
   guestInstanceLock: (id: string) =>
     path("/api/guest/instances/:id/lock", { id }),
   guestInstances: "/api/guest/instances",
@@ -14,6 +16,8 @@ export const apiPaths = {
   instanceExtend: (id: string) => path("/api/instances/:id/extend", { id }),
   instanceLock: (id: string) => path("/api/instances/:id/lock", { id }),
   instanceLogs: (id: string) => path("/api/instances/:id/logs", { id }),
+  instanceRecentLogs: (id: string, query = "") =>
+    `${path("/api/instances/:id/logs/recent", { id })}${query}`,
   instancePublic: (id: string) => path("/api/instances/:id/public", { id }),
   instanceRename: (id: string) => path("/api/instances/:id/rename", { id }),
   instanceStream: (id: string) => path("/api/instances/:id/stream", { id }),

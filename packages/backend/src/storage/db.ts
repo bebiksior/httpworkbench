@@ -52,10 +52,9 @@ const countAppliedMigrations = (sqlite: Database) => {
 
   return (
     sqlite
-      .query<
-        { count: number },
-        []
-      >("SELECT COUNT(*) AS count FROM __drizzle_migrations")
+      .query<{ count: number }, []>(
+        "SELECT COUNT(*) AS count FROM __drizzle_migrations",
+      )
       .get()?.count ?? 0
   );
 };

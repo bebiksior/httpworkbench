@@ -188,4 +188,30 @@ describe("sendDiscordTestNotification", () => {
         "Test HTTP 203.0.113.10 example-instance 2026-04-12T12:00:00.000Z GET /example HTTP/1.1\nHost: example.httpworkbench.dev\nUser-Agent: webhook-test-button\nX-Test: true",
     });
   });
+
+  test("bounds concurrent outbound Discord requests", async () => {
+    const pendingResponses: Array<(response: Response) => void> = [];
+    const fetchMock = mock(
+      () =>
+        new Promise<Response>((resolve) => {
+          pendingResponses.push(resolve);
+        }),
+    );
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    const activeRequests = Array.from({ length: 16 }, () =>
+      sendDiscordTestNotification({ url: webhook.url }),
+    );
+    await Bun.sleep(0);
+
+    expect(fetchMock).toHaveBeenCalledTimes(16);
+    await expect(
+      sendDiscordTestNotification({ url: webhook.url }),
+    ).rejects.toThrow("Discord webhook concurrency limit reached");
+
+    for (const resolve of pendingResponses) {
+      resolve(new Response(null, { status: 204 }));
+    }
+    await Promise.all(activeRequests);
+  });
 });

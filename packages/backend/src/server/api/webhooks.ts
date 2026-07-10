@@ -12,10 +12,17 @@ import {
   updateWebhook,
 } from "../../storage";
 import { authPlugin } from "../auth";
+import { createBoundedProtocolRateLimiter } from "../protocolRateLimit";
 import {
   sendDiscordTestNotification,
   validateDiscordWebhookUrl,
 } from "../webhooks";
+
+const webhookTestRateLimiter = createBoundedProtocolRateLimiter({
+  maxRequests: 5,
+  windowMs: 60_000,
+  maxEntries: 10_000,
+});
 
 const normalizeWebhookMessage = (message?: string) => {
   if (message === undefined) {
@@ -54,7 +61,10 @@ export const webhooksRoutes = new Elysia({ name: "routes/webhooks" })
   )
   .post(
     "/api/webhooks/test",
-    async ({ body }) => {
+    async ({ body, user }) => {
+      if (!webhookTestRateLimiter.check(user.id, Date.now())) {
+        return status(429, { error: "Webhook test rate limit exceeded" });
+      }
       const validation = validateDiscordWebhookUrl(body.url);
       if (!validation.valid) {
         return status(400, {

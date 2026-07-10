@@ -3,6 +3,7 @@ import type {
   Instance,
   InstanceDetailResponse,
   InstanceSummary,
+  RecentLogsPageResponse,
   RenameInstanceInput,
   SetInstanceLockedInput,
   SetInstancePublicInput,
@@ -13,6 +14,7 @@ import {
   InstanceDetailResponseSchema,
   InstanceSchema,
   InstancesResponseSchema,
+  RecentLogsPageResponseSchema,
   RenameInstanceSchema,
   SetInstanceLockedSchema,
   SetInstancePublicSchema,
@@ -21,6 +23,11 @@ import {
 import { apiClient } from "../client";
 import { parseResponse } from "../parseResponse";
 import { apiPaths } from "../paths";
+
+const recentLogsQuery = (cursor: string) => {
+  const params = new URLSearchParams({ limit: "100", cursor });
+  return `?${params.toString()}`;
+};
 
 export const instancesApi = {
   getAll: async (): Promise<InstanceSummary[]> => {
@@ -31,6 +38,16 @@ export const instancesApi = {
   getById: async (id: string): Promise<InstanceDetailResponse> => {
     const data = await apiClient.get<unknown>(apiPaths.instance(id));
     return parseResponse(InstanceDetailResponseSchema, data, "instance detail");
+  },
+
+  getOlderLogs: async (
+    id: string,
+    cursor: string,
+  ): Promise<RecentLogsPageResponse> => {
+    const data = await apiClient.get<unknown>(
+      apiPaths.instanceRecentLogs(id, recentLogsQuery(cursor)),
+    );
+    return parseResponse(RecentLogsPageResponseSchema, data, "older logs");
   },
 
   create: async (input: CreateInstanceInput): Promise<Instance> => {

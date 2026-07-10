@@ -31,11 +31,15 @@ export const createBoundedProtocolRateLimiter = ({
   return {
     canCheck(key: string, now: number): boolean {
       const current = entries.get(key);
-      return (
-        current === undefined ||
-        now - current.windowStartedAt >= windowMs ||
-        current.count < maxRequests
-      );
+      if (current !== undefined) {
+        return (
+          now - current.windowStartedAt >= windowMs ||
+          current.count < maxRequests
+        );
+      }
+
+      pruneExpired(now);
+      return entries.size < maxEntries;
     },
     check(key: string, now: number): boolean {
       const current = entries.get(key);
@@ -53,10 +57,7 @@ export const createBoundedProtocolRateLimiter = ({
       pruneExpired(now);
 
       if (entries.size >= maxEntries) {
-        const oldestKey = entries.keys().next().value;
-        if (oldestKey !== undefined) {
-          entries.delete(oldestKey);
-        }
+        return false;
       }
 
       entries.set(key, { windowStartedAt: now, count: 1 });

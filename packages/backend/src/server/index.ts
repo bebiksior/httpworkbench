@@ -1,4 +1,5 @@
 import { Elysia, status } from "elysia";
+import { GUEST_INSTANCE_TTL_MS, GUEST_OWNER_ID } from "shared";
 import {
   addLog,
   flushPendingWebhookNotifications,
@@ -25,6 +26,10 @@ import { handleMcpRequest } from "./mcp";
 import { openApiPlugin } from "./openapi";
 import { canReadInstance } from "./instances/access";
 import {
+  authenticateGuestInstance,
+  readGuestWebSocketProtocol,
+} from "./guestAccess";
+import {
   broadcastLog,
   createInstancesServer,
   subscribeToLogStream,
@@ -32,9 +37,17 @@ import {
 } from "./instances";
 import { createDnsServer } from "./dns";
 import { createSmtpServer } from "./smtp";
+import { createBoundedProtocolRateLimiter } from "./protocolRateLimit";
 import { version } from "../version";
 
+const guestStreamRateLimiter = createBoundedProtocolRateLimiter({
+  maxRequests: 60,
+  windowMs: 60_000,
+  maxEntries: 10_000,
+});
+
 const buildApiServer = (port: number) => {
+  const maxRequestBodySize = 12 * 1024 * 1024;
   return new Elysia()
     .onError({ as: "global" }, ({ code, error, set }) => {
       if (code === "VALIDATION") {
@@ -74,6 +87,22 @@ const buildApiServer = (port: number) => {
         if (instance === undefined) {
           return status(404, { error: "Not found" });
         }
+        if (instance.ownerId === GUEST_OWNER_ID) {
+          const clientKey =
+            request.headers.get("x-internal-real-ip") ?? "unknown";
+          if (!guestStreamRateLimiter.check(clientKey, Date.now())) {
+            return status(429, { error: "Guest stream rate limit exceeded" });
+          }
+          const guestProtocol = readGuestWebSocketProtocol(request);
+          if (
+            guestProtocol === undefined ||
+            !authenticateGuestInstance(params.id, guestProtocol.token)
+          ) {
+            return status(404, { error: "Not found" });
+          }
+          set.headers["Sec-WebSocket-Protocol"] = guestProtocol.protocol;
+          return;
+        }
         const access = await resolveOptionalAccess(
           request,
           readSessionCookie(cookie),
@@ -108,7 +137,7 @@ const buildApiServer = (port: number) => {
         unsubscribeFromLogStream(ws.data.params.id, ws.raw);
       },
     })
-    .listen(port, () => {
+    .listen({ port, maxRequestBodySize }, () => {
       console.log(`API server running on port ${port}`);
     });
 };
@@ -147,8 +176,14 @@ export const initServer = async () => {
 
   let cleanupInterval: ReturnType<typeof setInterval> | undefined;
   const defaultTtlMs = instancePolicies.defaultTtlMs;
-  if (defaultTtlMs !== undefined) {
-    const intervalMs = Math.min(defaultTtlMs, 60 * 60 * 1000);
+  if (defaultTtlMs !== undefined || instancePolicies.allowGuest) {
+    const shortestTtlMs = Math.min(
+      defaultTtlMs ?? Number.POSITIVE_INFINITY,
+      instancePolicies.allowGuest
+        ? GUEST_INSTANCE_TTL_MS
+        : Number.POSITIVE_INFINITY,
+    );
+    const intervalMs = Math.min(shortestTtlMs, 60 * 60 * 1000);
     const runCleanup = () => {
       try {
         removeExpiredInstances(Date.now());
