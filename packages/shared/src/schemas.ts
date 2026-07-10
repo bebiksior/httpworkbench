@@ -33,6 +33,8 @@ export type Instance = z.infer<typeof InstanceSchema>;
 export const InstanceSummarySchema = InstanceSchema.omit({
   raw: true,
   webhookIds: true,
+}).extend({
+  logCount: z.number().int().nonnegative(),
 });
 
 export type InstanceSummary = z.infer<typeof InstanceSummarySchema>;

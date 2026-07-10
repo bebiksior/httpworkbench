@@ -17,6 +17,7 @@ describe("loadGuestInstanceSummaries", () => {
           createdAt: index,
           public: false,
           locked: false,
+          logCount: 0,
         })),
     );
 

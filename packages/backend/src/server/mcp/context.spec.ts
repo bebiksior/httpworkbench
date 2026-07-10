@@ -16,6 +16,11 @@ const instance: Instance = {
   raw: "HTTP/1.1 200 OK\r\n\r\nok",
 };
 
+const instanceSummary = {
+  ...instance,
+  logCount: 3,
+};
+
 describe("MCP instance serialization", () => {
   test("serializes static-only instance details", () => {
     const serialized = serializeInstance(instance);
@@ -26,11 +31,12 @@ describe("MCP instance serialization", () => {
   });
 
   test("omits response content and legacy fields from summaries", () => {
-    const serialized = serializeInstanceSummary(instance);
+    const serialized = serializeInstanceSummary(instanceSummary);
 
     expect(serialized.id).toBe(instance.id);
     expect("raw" in serialized).toBe(false);
     expect("kind" in serialized).toBe(false);
     expect("processors" in serialized).toBe(false);
+    expect(serialized.logCount).toBe(3);
   });
 });

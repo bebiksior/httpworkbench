@@ -54,5 +54,6 @@ export const serializeInstanceSummary = (instance: InstanceSummary) => ({
   label: instance.label,
   public: instance.public,
   locked: instance.locked,
+  logCount: instance.logCount,
   url: `${instance.id}.${Bun.env.INSTANCES_DOMAIN ?? ""}`,
 });

@@ -78,7 +78,9 @@ describe("static-only instance contracts", () => {
   });
 
   test("uses lightweight instance summaries for list responses", () => {
-    const [summary] = InstancesResponseSchema.parse([instance]);
+    const [summary] = InstancesResponseSchema.parse([
+      { ...instance, logCount: 2 },
+    ]);
     if (summary === undefined) {
       throw new Error("Expected an instance summary");
     }
@@ -89,6 +91,7 @@ describe("static-only instance contracts", () => {
       createdAt: instance.createdAt,
       public: false,
       locked: false,
+      logCount: 2,
     });
     expect("raw" in summary).toBe(false);
     expect("webhookIds" in summary).toBe(false);

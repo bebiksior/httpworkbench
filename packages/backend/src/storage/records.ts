@@ -43,7 +43,7 @@ export const toDomainInstance = (
   });
 
 export const toDomainInstanceSummary = (
-  row: Omit<InstanceRow, "raw">,
+  row: Omit<InstanceRow, "raw"> & { logCount: number },
 ): InstanceSummary =>
   InstanceSummarySchema.parse({
     id: row.id,
@@ -53,6 +53,7 @@ export const toDomainInstanceSummary = (
     label: row.label ?? undefined,
     public: row.isPublic,
     locked: row.isLocked,
+    logCount: row.logCount,
   });
 
 export const toInstanceRow = (instance: Instance): InstanceInsertRow => {

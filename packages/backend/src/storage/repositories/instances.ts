@@ -22,6 +22,7 @@ import {
   guestInstanceCredentials,
   instances,
   instanceWebhooks,
+  logs,
 } from "../schema";
 
 const activeInstanceCondition = (now: number) =>
@@ -104,11 +105,14 @@ export function getInstanceSummariesByOwner(
       label: instances.label,
       isPublic: instances.isPublic,
       isLocked: instances.isLocked,
+      logCount: count(logs.id),
     })
     .from(instances)
+    .leftJoin(logs, eq(logs.instanceId, instances.id))
     .where(
       and(eq(instances.ownerId, ownerId), activeInstanceCondition(Date.now())),
     )
+    .groupBy(instances.id)
     .orderBy(asc(instances.createdAt), asc(instances.id))
     .all();
 
@@ -132,8 +136,10 @@ export function getInstanceSummariesByIds(
       label: instances.label,
       isPublic: instances.isPublic,
       isLocked: instances.isLocked,
+      logCount: count(logs.id),
     })
     .from(instances)
+    .leftJoin(logs, eq(logs.instanceId, instances.id))
     .where(
       and(
         inArray(instances.id, ids),
@@ -141,6 +147,7 @@ export function getInstanceSummariesByIds(
         activeInstanceCondition(Date.now()),
       ),
     )
+    .groupBy(instances.id)
     .all();
 
   const summariesById = new Map(

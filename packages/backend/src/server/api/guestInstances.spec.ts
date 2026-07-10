@@ -155,6 +155,17 @@ describe("guest instance routes", () => {
   test("loads only correctly tokened guest references in one batch", async () => {
     const first = await createGuest("first");
     const second = await createGuest("second");
+    getDb()
+      .insert(logs)
+      .values({
+        id: "guest-summary-log",
+        instanceId: second.instance.id,
+        type: "dns",
+        timestamp: 1,
+        address: "127.0.0.1",
+        raw: "example.com A",
+      })
+      .run();
 
     const response = await call("/api/guest/instances/list", "POST", {
       instances: [
@@ -170,6 +181,7 @@ describe("guest instance routes", () => {
       second.instance.id,
       first.instance.id,
     ]);
+    expect(summaries.map(({ logCount }) => logCount)).toEqual([1, 0]);
     expect(summaries.every((summary) => !("raw" in summary))).toBe(true);
     expect(summaries.every((summary) => !("webhookIds" in summary))).toBe(true);
   });

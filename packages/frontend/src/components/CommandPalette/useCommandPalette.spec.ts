@@ -13,6 +13,7 @@ const instances: InstanceSummary[] = [
     label: "Checkout hook",
     public: false,
     locked: false,
+    logCount: 0,
   },
   {
     id: "beta-id",
@@ -20,6 +21,7 @@ const instances: InstanceSummary[] = [
     createdAt: 2,
     public: false,
     locked: false,
+    logCount: 0,
   },
 ];
 

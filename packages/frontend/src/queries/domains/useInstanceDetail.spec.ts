@@ -45,6 +45,7 @@ describe("buildInstanceDetailPlaceholder", () => {
       createdAt: 1,
       public: false,
       locked: false,
+      logCount: 0,
     };
 
     queryClient.setQueryData(
@@ -83,6 +84,7 @@ describe("buildInstanceDetailPlaceholder", () => {
       createdAt: 1,
       public: false,
       locked: false,
+      logCount: 0,
     };
     queryClient.setQueryData([...queryKeys.instances.all, "user"], [target]);
 

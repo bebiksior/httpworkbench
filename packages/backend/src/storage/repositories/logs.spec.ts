@@ -460,6 +460,7 @@ describe("addLog", () => {
       createdAt: 1,
       public: false,
       locked: false,
+      logCount: 0,
     });
     expect("raw" in summary).toBe(false);
     expect("webhookIds" in summary).toBe(false);

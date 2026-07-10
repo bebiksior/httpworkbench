@@ -113,6 +113,17 @@ describe("authenticated instance routes", () => {
       raw: "HTTP/1.1 200 OK\n\nlarge response body",
     });
     const created = (await createdResponse.json()) as { id: string };
+    getDb()
+      .insert(logs)
+      .values({
+        id: "summary-log",
+        instanceId: created.id,
+        type: "http",
+        timestamp: 1,
+        address: "127.0.0.1",
+        raw: "GET / HTTP/1.1",
+      })
+      .run();
     const token = await issueAuthToken("owner-1");
 
     const response = await app.handle(
@@ -129,6 +140,7 @@ describe("authenticated instance routes", () => {
         createdAt: expect.any(Number),
         public: false,
         locked: false,
+        logCount: 1,
       },
     ]);
   });
