@@ -1,7 +1,7 @@
 import { Elysia, status } from "elysia";
 import { GUEST_INSTANCE_TTL_MS, GUEST_OWNER_ID } from "shared";
 import {
-  addLog,
+  addLogWithOutcome,
   flushPendingWebhookNotifications,
   getInstanceAccessMetadata,
   hasActiveInstance,
@@ -30,14 +30,17 @@ import {
   readGuestWebSocketProtocol,
 } from "./guestAccess";
 import {
+  broadcastInstanceRemoved,
   broadcastLog,
   createInstancesServer,
   subscribeToLogStream,
   unsubscribeFromLogStream,
 } from "./instances";
+import { instanceSummaryStreamRoutes } from "./instances/instanceSummaryStreamRoutes";
 import { createDnsServer } from "./dns";
 import { createSmtpServer } from "./smtp";
 import { createBoundedProtocolRateLimiter } from "./protocolRateLimit";
+import { isAllowedWebSocketOrigin } from "./webSocketOrigin";
 import { version } from "../version";
 
 const guestStreamRateLimiter = createBoundedProtocolRateLimiter({
@@ -81,8 +84,12 @@ const buildApiServer = (port: number) => {
     .use(guestInstancesRoutes)
     .use(webhooksRoutes)
     .use(apiKeysRoutes)
+    .use(instanceSummaryStreamRoutes)
     .ws("/api/instances/:id/stream", {
       async beforeHandle({ params, request, set, cookie }) {
+        if (!isAllowedWebSocketOrigin(request)) {
+          return status(403, { error: "Invalid origin" });
+        }
         const instance = getInstanceAccessMetadata(params.id);
         if (instance === undefined) {
           return status(404, { error: "Not found" });
@@ -153,8 +160,9 @@ export const initServer = async () => {
         config: dnsConfig,
         deps: {
           hasActiveInstance: async (id) => hasActiveInstance(id),
-          addLog: async (log) => addLog(log),
+          addLog: addLogWithOutcome,
           broadcastLog,
+          broadcastInstanceRemoved,
           createId: () => crypto.randomUUID(),
           now: () => Date.now(),
         },
@@ -166,8 +174,9 @@ export const initServer = async () => {
         config: smtpConfig,
         deps: {
           hasActiveInstance: async (id) => hasActiveInstance(id),
-          addLog: async (log) => addLog(log),
+          addLog: addLogWithOutcome,
           broadcastLog,
+          broadcastInstanceRemoved,
           createId: () => crypto.randomUUID(),
           now: () => Date.now(),
         },
@@ -186,7 +195,9 @@ export const initServer = async () => {
     const intervalMs = Math.min(shortestTtlMs, 60 * 60 * 1000);
     const runCleanup = () => {
       try {
-        removeExpiredInstances(Date.now());
+        for (const instanceId of removeExpiredInstances(Date.now())) {
+          broadcastInstanceRemoved(instanceId);
+        }
       } catch (error) {
         console.error("Failed to cleanup expired instances", error);
       }

@@ -2,6 +2,7 @@ import { createServer, type Server as TcpServer, type Socket } from "node:net";
 import dgram, { type RemoteInfo, type Socket as UdpSocket } from "node:dgram";
 import type { Packet } from "dns-packet";
 import type { Log } from "shared";
+import type { AddLogOutcome } from "../../storage";
 import { dnsConfig, type DnsConfig } from "../../config";
 import { createBoundedProtocolRateLimiter } from "../protocolRateLimit";
 import {
@@ -36,8 +37,9 @@ const dnsLogRateLimit = createBoundedProtocolRateLimiter({
 
 export type DnsServerDependencies = {
   hasActiveInstance: (id: string) => Promise<boolean>;
-  addLog: (log: Log) => Promise<Log>;
+  addLog: (log: Log) => Log | AddLogOutcome | Promise<Log | AddLogOutcome>;
   broadcastLog: (log: Log) => void;
+  broadcastInstanceRemoved?: (instanceId: string) => void;
   createId: () => string;
   now: () => number;
 };
@@ -236,8 +238,20 @@ export const handleDnsRequest = async ({
           } satisfies Log;
 
           try {
-            await deps.addLog(log);
-            deps.broadcastLog(log);
+            const pendingOutcome = deps.addLog(log);
+            const outcome =
+              pendingOutcome instanceof Promise
+                ? await pendingOutcome
+                : pendingOutcome;
+            if (
+              outcome !== undefined &&
+              "tombstoned" in outcome &&
+              outcome.tombstoned
+            ) {
+              deps.broadcastInstanceRemoved?.(log.instanceId);
+            } else {
+              deps.broadcastLog(log);
+            }
           } catch (error) {
             console.error("Failed to persist DNS log", error);
           }

@@ -1,5 +1,6 @@
 import { createServer, type Server as TcpServer, type Socket } from "node:net";
 import type { Log } from "shared";
+import type { AddLogOutcome } from "../../storage";
 import { smtpConfig, type SmtpConfig } from "../../config";
 import { createBoundedProtocolRateLimiter } from "../protocolRateLimit";
 import {
@@ -30,8 +31,9 @@ const smtpLogRateLimit = createBoundedProtocolRateLimiter({
 
 export type SmtpServerDependencies = {
   hasActiveInstance: (id: string) => Promise<boolean>;
-  addLog: (log: Log) => Promise<Log>;
+  addLog: (log: Log) => Log | AddLogOutcome | Promise<Log | AddLogOutcome>;
   broadcastLog: (log: Log) => void;
+  broadcastInstanceRemoved?: (instanceId: string) => void;
   createId: () => string;
   now: () => number;
 };
@@ -154,8 +156,20 @@ export const createSmtpSession = ({
       } satisfies Log;
 
       try {
-        await deps.addLog(log);
-        deps.broadcastLog(log);
+        const pendingOutcome = deps.addLog(log);
+        const outcome =
+          pendingOutcome instanceof Promise
+            ? await pendingOutcome
+            : pendingOutcome;
+        if (
+          outcome !== undefined &&
+          "tombstoned" in outcome &&
+          outcome.tombstoned
+        ) {
+          deps.broadcastInstanceRemoved?.(log.instanceId);
+        } else {
+          deps.broadcastLog(log);
+        }
       } catch (error) {
         console.error("Failed to persist SMTP log", error);
       }

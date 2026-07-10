@@ -162,6 +162,44 @@ export function getInstanceSummariesByIds(
   });
 }
 
+export function getInstanceLogCountsByOwner(ownerId: string) {
+  return getDb()
+    .select({
+      instanceId: instances.id,
+      count: count(logs.id),
+    })
+    .from(instances)
+    .leftJoin(logs, eq(logs.instanceId, instances.id))
+    .where(
+      and(eq(instances.ownerId, ownerId), activeInstanceCondition(Date.now())),
+    )
+    .groupBy(instances.id)
+    .orderBy(asc(instances.createdAt), asc(instances.id))
+    .all();
+}
+
+export function getInstanceLogCountsByIds(ids: string[], ownerId: string) {
+  if (ids.length === 0) {
+    return [];
+  }
+  return getDb()
+    .select({
+      instanceId: instances.id,
+      count: count(logs.id),
+    })
+    .from(instances)
+    .leftJoin(logs, eq(logs.instanceId, instances.id))
+    .where(
+      and(
+        inArray(instances.id, ids),
+        eq(instances.ownerId, ownerId),
+        activeInstanceCondition(Date.now()),
+      ),
+    )
+    .groupBy(instances.id)
+    .all();
+}
+
 export function getActiveGuestCredentialHash(
   instanceId: string,
   now = Date.now(),

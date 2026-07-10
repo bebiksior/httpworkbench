@@ -10,8 +10,10 @@ import {
 
 const addLogMock = mock();
 const broadcastLogMock = mock();
+const broadcastInstanceRemovedMock = mock();
 const getServableInstanceByIdMock = mock();
 const listenMock = mock();
+let addLogTombstoned = false;
 
 mock.module("../../config", () => ({
   dnsConfig: {
@@ -20,7 +22,10 @@ mock.module("../../config", () => ({
 }));
 
 mock.module("../../storage", () => ({
-  addLog: addLogMock,
+  addLogWithOutcome: (log: unknown) => {
+    addLogMock(log);
+    return { log, tombstoned: addLogTombstoned };
+  },
 }));
 
 mock.module("../../storage/repositories/instances", () => ({
@@ -29,6 +34,10 @@ mock.module("../../storage/repositories/instances", () => ({
 
 mock.module("./logStream", () => ({
   broadcastLog: broadcastLogMock,
+}));
+
+mock.module("./instanceSummaryStream", () => ({
+  broadcastInstanceRemoved: broadcastInstanceRemovedMock,
 }));
 
 const { createInstancesServer, resetInstanceResponseCacheForTests } =
@@ -67,6 +76,7 @@ describe("createInstancesServer", () => {
 
   beforeEach(() => {
     mock.clearAllMocks();
+    addLogTombstoned = false;
     resetInstanceResponseCacheForTests();
     spyOn(console, "error").mockImplementation(() => undefined);
     spyOn(console, "log").mockImplementation(() => undefined);
@@ -152,6 +162,23 @@ describe("createInstancesServer", () => {
       addLogMock.mock.calls[0]?.[0],
     );
     expect(decode(socket.write.mock.calls[0]?.[0])).toContain("Body too large");
+  });
+
+  test("removes summary subscribers when moderation tombstones an instance", async () => {
+    addLogTombstoned = true;
+    getServableInstanceByIdMock.mockReturnValue(
+      createStaticInstance("HTTP/1.1 200 OK\r\n\r\nok"),
+    );
+    const socket = createSocket();
+
+    handlers.open(socket);
+    await handlers.data(
+      socket,
+      encode(createRawRequest(["Host: demo.instances.example.com"])),
+    );
+
+    expect(broadcastInstanceRemovedMock).toHaveBeenCalledWith("demo");
+    expect(broadcastLogMock).not.toHaveBeenCalled();
   });
 
   test("logs sanitized requests and writes large static responses", async () => {

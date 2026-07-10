@@ -1,8 +1,9 @@
 import { listen, type Socket } from "bun";
 import { type Log } from "shared";
-import { addLog } from "../../storage";
+import { addLogWithOutcome } from "../../storage";
 import { getServableInstanceById } from "../../storage/repositories/instances";
 import { broadcastLog } from "./logStream";
+import { broadcastInstanceRemoved } from "./instanceSummaryStream";
 import { HttpRequestBuffer } from "./httpBuffer";
 import {
   adjustContentLength,
@@ -116,8 +117,12 @@ const tryLogInteraction = <T>(
       rawWithoutInternalHeaders,
     );
 
-    addLog(log);
-    broadcastLog(log);
+    const outcome = addLogWithOutcome(log);
+    if (outcome.tombstoned) {
+      broadcastInstanceRemoved(log.instanceId);
+    } else {
+      broadcastLog(log);
+    }
     return true;
   } catch (error) {
     console.error(error);
@@ -197,8 +202,12 @@ export const createInstancesServer = (
             rawWithoutInternalHeaders,
           );
 
-          addLog(log);
-          broadcastLog(log);
+          const outcome = addLogWithOutcome(log);
+          if (outcome.tombstoned) {
+            broadcastInstanceRemoved(log.instanceId);
+          } else {
+            broadcastLog(log);
+          }
           didLog = true;
 
           respond(socket, encodeInstanceResponse(instance));

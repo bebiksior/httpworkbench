@@ -1,4 +1,5 @@
 import type { Log } from "shared";
+import { broadcastInstanceLogAdded } from "./instanceSummaryStream";
 
 interface LogStreamSocket {
   send(data: string): unknown;
@@ -91,6 +92,7 @@ export const unsubscribeFromLogStream = (
 };
 
 export const broadcastLog = (log: Log) => {
+  broadcastInstanceLogAdded(log.instanceId);
   const waiters = logWaiters.get(log.instanceId);
   if (waiters !== undefined) {
     for (const settle of [...waiters]) {

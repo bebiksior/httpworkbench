@@ -17,6 +17,11 @@ export const queryKeys = {
   },
 } as const;
 
+export const instanceListQueryKey = (isGuest: boolean, guestKey?: string) =>
+  isGuest
+    ? ([...queryKeys.instances.all, "guest", guestKey] as const)
+    : ([...queryKeys.instances.all, "user"] as const);
+
 export const invalidateInstanceQueries = async (
   queryClient: QueryClient,
   id?: string,

@@ -14,7 +14,11 @@ import type {
 import { guestInstancesApi } from "@/api/domains/guestInstances";
 import { instancesApi } from "@/api/domains/instances";
 import { ForbiddenError } from "@/api/errors";
-import { invalidateInstanceQueries, queryKeys } from "@/queries/keys";
+import {
+  instanceListQueryKey,
+  invalidateInstanceQueries,
+  queryKeys,
+} from "@/queries/keys";
 import { useAuthStore } from "@/stores/auth";
 import { useGuestInstancesStore } from "@/stores/guestInstances";
 import type { GuestInstanceRecord } from "@/stores/guestInstances.utils";
@@ -90,12 +94,9 @@ export const useInstances = (options?: InstancesOptions) => {
   };
 
   return useQuery({
-    queryKey: computed(() => {
-      if (isGuest.value) {
-        return [...queryKeys.instances.all, "guest", guestKey.value];
-      }
-      return [...queryKeys.instances.all, "user"];
-    }),
+    queryKey: computed(() =>
+      instanceListQueryKey(isGuest.value, guestKey.value),
+    ),
     queryFn: async () => {
       if (isGuest.value) {
         return fetchGuestInstances();
@@ -276,9 +277,7 @@ export const useClearLogs = () => {
       }
     },
     onSettled: (_data, _error, id) =>
-      queryClient.invalidateQueries({
-        queryKey: queryKeys.instances.detail(id),
-      }),
+      invalidateInstanceQueries(queryClient, id),
   });
 };
 

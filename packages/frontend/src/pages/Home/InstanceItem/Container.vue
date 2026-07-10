@@ -130,15 +130,27 @@ const handleCloneClick = () => {
             severity="success"
             rounded
           />
-          <Tag
-            :value="`${instance.logCount.toLocaleString()} logs`"
-            severity="secondary"
-            rounded
-          />
           <i v-if="instance.locked" class="pi pi-lock text-surface-400" />
         </div>
-        <div class="text-xs sm:text-sm text-surface-400">
-          Created {{ formattedDate }}
+        <div
+          class="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs sm:text-sm"
+        >
+          <span>
+            <span class="text-surface-400">Created</span>
+            <span
+              class="ml-1 text-[11px] text-surface-600 dark:text-surface-200 sm:text-xs"
+            >
+              {{ formattedDate }}
+            </span>
+          </span>
+          <span>
+            <span class="text-surface-400">Logs</span>
+            <span
+              class="ml-1 text-[11px] text-surface-600 dark:text-surface-200 sm:text-xs"
+            >
+              {{ instance.logCount.toLocaleString() }}
+            </span>
+          </span>
         </div>
       </div>
 

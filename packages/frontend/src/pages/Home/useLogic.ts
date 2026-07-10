@@ -9,13 +9,27 @@ import {
 } from "@/queries/domains/useInstances";
 import { isAbsent } from "@/utils/types";
 import { DEFAULT_HTTP_RESPONSE } from "@/utils/httpResponse";
+import { useInstanceLogCountStream } from "./useInstanceLogCountStream";
 
 export const useHomeLogic = () => {
   const router = useRouter();
   const notify = useNotify();
   const searchQuery = ref("");
 
-  const { data: instances, isLoading, error, refetch } = useInstances();
+  const {
+    data: instances,
+    isLoading,
+    isFetching,
+    error,
+    refetch,
+  } = useInstances();
+  useInstanceLogCountStream({
+    enabled: computed(() => instances.value !== undefined),
+    instanceIds: computed(
+      () => instances.value?.map((instance) => instance.id) ?? [],
+    ),
+    isFetching,
+  });
 
   const createMutation = useCreateInstance();
 

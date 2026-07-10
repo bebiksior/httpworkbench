@@ -38,7 +38,9 @@ const trackWebhookNotification = (pending: Promise<void>) => {
   );
 };
 
-export function addLog(log: Log): Log {
+export type AddLogOutcome = { log: Log; tombstoned: boolean };
+
+export function addLogWithOutcome(log: Log): AddLogOutcome {
   const parsed = LogSchema.parse(log);
   const now = parsed.timestamp;
   const { tombstoned } = getDb().transaction(
@@ -53,12 +55,16 @@ export function addLog(log: Log): Log {
     { behavior: "immediate" },
   );
   if (tombstoned) {
-    return parsed;
+    return { log: parsed, tombstoned: true };
   }
 
   trackWebhookNotification(notifyWebhooks(parsed, now));
 
-  return parsed;
+  return { log: parsed, tombstoned: false };
+}
+
+export function addLog(log: Log): Log {
+  return addLogWithOutcome(log).log;
 }
 
 export async function flushPendingWebhookNotifications(): Promise<void> {
