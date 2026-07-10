@@ -87,8 +87,7 @@ describe("createInstancesServer", () => {
     createInstancesServer(8082, listenMock);
 
     const options = listenMock.mock.calls[0]?.[0] as
-      | { socket: ServerHandlers }
-      | undefined;
+      { socket: ServerHandlers } | undefined;
     if (options === undefined) {
       throw new Error("listen was not called");
     }
