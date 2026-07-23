@@ -1,8 +1,10 @@
-import { afterEach, describe, expect, mock, test } from "bun:test";
+import { afterEach, describe, expect, jest, mock, test } from "bun:test";
 import type { Log, Webhook } from "shared";
+import { abusePolicy } from "../../config/abuse";
 import {
-  resetDiscordNotificationThrottleStateForTests,
-  sendDiscordNotificationThrottled,
+  flushDiscordNotificationQueue,
+  queueDiscordNotification,
+  resetDiscordNotificationStateForTests,
   sendDiscordNotification,
   sendDiscordTestNotification,
 } from "./service";
@@ -26,26 +28,77 @@ const log: Log = {
 
 const originalFetch = globalThis.fetch;
 
-describe("sendDiscordNotificationThrottled", () => {
+describe("queueDiscordNotification", () => {
   afterEach(() => {
-    resetDiscordNotificationThrottleStateForTests();
+    resetDiscordNotificationStateForTests();
+    jest.useRealTimers();
     globalThis.fetch = originalFetch;
     mock.restore();
   });
 
-  test("skips a second send to the same webhook within 1 second", async () => {
-    const fetchMock = mock(() =>
-      Promise.resolve(new Response(null, { status: 204 })),
+  test("debounces a burst and keeps HTTP visible among DNS logs", async () => {
+    let requestBody = "";
+    const fetchMock = mock(
+      (_input: string | URL | Request, init?: { body?: unknown }) => {
+        requestBody = String(init?.body ?? "");
+        return Promise.resolve(new Response(null, { status: 204 }));
+      },
     );
     globalThis.fetch = fetchMock as unknown as typeof fetch;
+    jest.useFakeTimers();
 
-    await sendDiscordNotificationThrottled(webhook, log);
-    await sendDiscordNotificationThrottled(webhook, log);
+    queueDiscordNotification(webhook, {
+      ...log,
+      id: "dns-1",
+      type: "dns",
+      timestamp: 1,
+      raw: "A example.test",
+    });
+    queueDiscordNotification(webhook, {
+      ...log,
+      id: "http-1",
+      type: "http",
+      timestamp: 2,
+      raw: "GET /important HTTP/1.1",
+    });
+    queueDiscordNotification(webhook, {
+      ...log,
+      id: "dns-2",
+      type: "dns",
+      timestamp: 3,
+      raw: "AAAA example.test",
+    });
 
+    jest.advanceTimersByTime(abusePolicy.discordWebhookDebounceMs - 1);
+    expect(fetchMock).not.toHaveBeenCalled();
+
+    jest.advanceTimersByTime(1);
     expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    await flushDiscordNotificationQueue();
+    expect(JSON.parse(requestBody)).toMatchObject({
+      embeds: [
+        {
+          title: "HTTP Log Received (3 total)",
+          fields: [
+            { name: "Type", value: "HTTP" },
+            { name: "Address" },
+            { name: "Timestamp" },
+            {
+              name: "Debounced batch",
+              value: "HTTP: 1\nDNS: 2",
+            },
+            {
+              name: "Raw Content",
+              value: "```\nGET /important HTTP/1.1\n```",
+            },
+          ],
+        },
+      ],
+    });
   });
 
-  test("allows at most five Discord sends per instance per minute", async () => {
+  test("allows at most five queued Discord batches per instance per minute", async () => {
     const fetchMock = mock(() =>
       Promise.resolve(new Response(null, { status: 204 })),
     );
@@ -55,46 +108,55 @@ describe("sendDiscordNotificationThrottled", () => {
     Date.now = () => fixedNow;
     try {
       for (let i = 0; i < 5; i += 1) {
-        await sendDiscordNotificationThrottled(
-          {
-            ...webhook,
-            id: `webhook-${i}`,
-          },
-          log,
-        );
+        expect(
+          queueDiscordNotification(
+            {
+              ...webhook,
+              id: `webhook-${i}`,
+            },
+            log,
+          ),
+        ).toBe(true);
       }
-      await sendDiscordNotificationThrottled(
-        { ...webhook, id: "webhook-extra" },
-        log,
-      );
+      expect(
+        queueDiscordNotification({ ...webhook, id: "webhook-extra" }, log),
+      ).toBe(false);
 
+      await flushDiscordNotificationQueue();
       expect(fetchMock).toHaveBeenCalledTimes(5);
     } finally {
       Date.now = originalDateNow;
     }
   });
 
-  test("does not consume a webhook slot when the instance limit rejects it", async () => {
+  test("coalesced logs do not consume additional instance slots", async () => {
     const fetchMock = mock(() =>
       Promise.resolve(new Response(null, { status: 204 })),
     );
     globalThis.fetch = fetchMock as unknown as typeof fetch;
-    let now = 1_700_000_000_000;
+    const now = 1_700_000_000_000;
     const originalDateNow = Date.now;
     Date.now = () => now;
     try {
-      for (let i = 0; i < 5; i += 1) {
-        await sendDiscordNotificationThrottled(
-          { ...webhook, id: `webhook-${i}` },
-          log,
-        );
+      for (let i = 0; i < 10; i += 1) {
+        expect(
+          queueDiscordNotification(webhook, {
+            ...log,
+            id: `log-${i}`,
+          }),
+        ).toBe(true);
       }
-      await sendDiscordNotificationThrottled(webhook, log);
+      for (let i = 2; i < 6; i += 1) {
+        expect(
+          queueDiscordNotification({ ...webhook, id: `webhook-${i}` }, log),
+        ).toBe(true);
+      }
+      expect(
+        queueDiscordNotification({ ...webhook, id: "webhook-extra" }, log),
+      ).toBe(false);
 
-      now += 60_000;
-      await sendDiscordNotificationThrottled(webhook, log);
-
-      expect(fetchMock).toHaveBeenCalledTimes(6);
+      await flushDiscordNotificationQueue();
+      expect(fetchMock).toHaveBeenCalledTimes(5);
     } finally {
       Date.now = originalDateNow;
     }
@@ -103,7 +165,7 @@ describe("sendDiscordNotificationThrottled", () => {
 
 describe("sendDiscordNotification", () => {
   afterEach(() => {
-    resetDiscordNotificationThrottleStateForTests();
+    resetDiscordNotificationStateForTests();
     globalThis.fetch = originalFetch;
     mock.restore();
   });
@@ -161,7 +223,7 @@ describe("sendDiscordNotification", () => {
 
 describe("sendDiscordTestNotification", () => {
   afterEach(() => {
-    resetDiscordNotificationThrottleStateForTests();
+    resetDiscordNotificationStateForTests();
     globalThis.fetch = originalFetch;
     mock.restore();
   });

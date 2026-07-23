@@ -2,7 +2,10 @@ import type { Log } from "shared";
 import { LogSchema } from "shared";
 import { and, asc, desc, eq, gt, gte, lt } from "drizzle-orm";
 import { getDb } from "../db";
-import { sendDiscordNotificationThrottled } from "../../server/webhooks";
+import {
+  flushDiscordNotificationQueue,
+  queueDiscordNotification,
+} from "../../server/webhooks";
 import { getActiveWebhookIdsForInstance } from "./instances";
 import {
   isDiscordMutedForInstance,
@@ -11,9 +14,7 @@ import {
 import { logs } from "../schema";
 import { getWebhooksByIds } from "./webhooks";
 
-const pendingWebhookNotifications = new Set<Promise<void>>();
-
-const notifyWebhooks = async (log: Log, now: number): Promise<void> => {
+const notifyWebhooks = (log: Log, now: number): void => {
   try {
     const webhookIds = getActiveWebhookIdsForInstance(log.instanceId, now);
     if (webhookIds.length === 0) {
@@ -23,19 +24,12 @@ const notifyWebhooks = async (log: Log, now: number): Promise<void> => {
       return;
     }
     const webhooks = getWebhooksByIds(webhookIds);
-    await Promise.all(
-      webhooks.map((webhook) => sendDiscordNotificationThrottled(webhook, log)),
-    );
+    for (const webhook of webhooks) {
+      queueDiscordNotification(webhook, log);
+    }
   } catch (error) {
     console.error("Error sending webhook notifications:", error);
   }
-};
-const trackWebhookNotification = (pending: Promise<void>) => {
-  pendingWebhookNotifications.add(pending);
-  pending.then(
-    () => pendingWebhookNotifications.delete(pending),
-    () => pendingWebhookNotifications.delete(pending),
-  );
 };
 
 export type AddLogOutcome = { log: Log; tombstoned: boolean };
@@ -58,7 +52,7 @@ export function addLogWithOutcome(log: Log): AddLogOutcome {
     return { log: parsed, tombstoned: true };
   }
 
-  trackWebhookNotification(notifyWebhooks(parsed, now));
+  notifyWebhooks(parsed, now);
 
   return { log: parsed, tombstoned: false };
 }
@@ -68,9 +62,7 @@ export function addLog(log: Log): Log {
 }
 
 export async function flushPendingWebhookNotifications(): Promise<void> {
-  while (pendingWebhookNotifications.size > 0) {
-    await Promise.allSettled(Array.from(pendingWebhookNotifications));
-  }
+  await flushDiscordNotificationQueue();
 }
 
 export function getLogsForInstance(instanceId: string): Log[] {

@@ -208,6 +208,9 @@ describe("addLog", () => {
     expect(getLogsForInstance("inst-1")).toEqual([log]);
 
     await Bun.sleep(10);
+    expect(fetchMock).not.toHaveBeenCalled();
+
+    await flushPendingWebhookNotifications();
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 

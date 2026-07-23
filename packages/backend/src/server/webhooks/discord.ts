@@ -21,6 +21,11 @@ const DISCORD_WEBHOOK_URL_POLICY = {
   allowedProtocols: ["https"],
 } as const;
 
+export type DiscordLogBatchSummary = {
+  total: number;
+  counts: Record<Log["type"], number>;
+};
+
 export function validateDiscordWebhookUrl(url: string): {
   valid: boolean;
   error?: string;
@@ -87,6 +92,7 @@ const renderDiscordMessageTemplate = (template: string, log: Log): string => {
 export const buildDiscordNotificationPayload = (
   log: Log,
   messageTemplate?: string,
+  batch?: DiscordLogBatchSummary,
 ) => {
   const color = DISCORD_LOG_COLORS[log.type];
   const timestamp = new Date(log.timestamp).toISOString();
@@ -108,12 +114,30 @@ export const buildDiscordNotificationPayload = (
           renderDiscordMessageTemplate(messageTemplate, log),
           MAX_MESSAGE_CONTENT_LENGTH,
         );
+  const batchFields =
+    batch === undefined || batch.total <= 1
+      ? []
+      : [
+          {
+            name: "Debounced batch",
+            value: (["http", "dns", "smtp"] as const)
+              .flatMap((type) => {
+                const count = batch.counts[type];
+                return count === 0 ? [] : [`${type.toUpperCase()}: ${count}`];
+              })
+              .join("\n"),
+            inline: false,
+          },
+        ];
 
   return {
     content,
     embeds: [
       {
-        title: `${log.type.toUpperCase()} Log Received`,
+        title:
+          batch === undefined || batch.total <= 1
+            ? `${log.type.toUpperCase()} Log Received`
+            : `${log.type.toUpperCase()} Log Received (${batch.total} total)`,
         color,
         fields: [
           {
@@ -131,6 +155,7 @@ export const buildDiscordNotificationPayload = (
             value: timestamp,
             inline: false,
           },
+          ...batchFields,
           {
             name: "Raw Content",
             value: `\`\`\`\n${truncatedRaw}\n\`\`\``,
