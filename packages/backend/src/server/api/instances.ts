@@ -30,10 +30,6 @@ import {
 } from "../auth";
 import { canReadInstance } from "../instances/access";
 import {
-  broadcastInstanceLogsCleared,
-  broadcastInstanceRemoved,
-} from "../instances";
-import {
   createInstance,
   getOwnedInstance,
   replaceInstance,
@@ -185,7 +181,6 @@ export const instancesRoutes = new Elysia({ name: "routes/instances" })
         return status(409, { error: "Instance is locked" });
       }
       deleteInstance(params.id);
-      broadcastInstanceRemoved(params.id);
       return { message: "Deleted" };
     },
     {
@@ -329,7 +324,6 @@ export const instancesRoutes = new Elysia({ name: "routes/instances" })
         return loaded.res;
       }
       clearLogsForInstance(params.id);
-      broadcastInstanceLogsCleared(params.id);
       return { message: "Logs cleared" };
     },
     {

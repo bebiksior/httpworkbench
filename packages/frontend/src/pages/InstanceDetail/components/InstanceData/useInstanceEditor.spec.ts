@@ -1,4 +1,4 @@
-import { computed, effectScope, ref } from "vue";
+import { computed, effectScope, nextTick, ref } from "vue";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import type { Instance } from "shared";
 
@@ -24,8 +24,12 @@ vi.mock("@/composables", () => ({
 
 import { useInstanceEditor } from "./useInstanceEditor";
 
-const makeInstance = (raw: string, webhookIds: string[] = []): Instance => ({
-  id: "instance-1",
+const makeInstance = (
+  raw: string,
+  webhookIds: string[] = [],
+  id = "instance-1",
+): Instance => ({
+  id,
   ownerId: "owner-1",
   createdAt: 1,
   webhookIds,
@@ -78,6 +82,68 @@ describe("useInstanceEditor", () => {
       id: "instance-1",
       input: { raw: "new raw", webhookIds: ["webhook-1"] },
     });
+    scope.stop();
+  });
+
+  test("resets dirty raw content and webhooks when the route reuses the editor", async () => {
+    const instance = ref(makeInstance("first raw", ["webhook-1"]));
+    const scope = effectScope();
+    const editor = scope.run(() =>
+      useInstanceEditor(
+        instance,
+        computed(() => true),
+      ),
+    );
+    expect(editor).toBeDefined();
+    if (editor === undefined) return;
+
+    editor.handleEditorChange("unsaved first raw");
+    instance.value = makeInstance("second raw", ["webhook-2"], "instance-2");
+    await nextTick();
+
+    expect(editor.rawContent.value).toBe("second raw");
+    expect(editor.isDirty.value).toBe(false);
+    expect(editor.selectedWebhookIds.value).toEqual(["webhook-2"]);
+
+    mocks.updateInstance.mockResolvedValueOnce(instance.value);
+    await editor.handleSave();
+    expect(mocks.updateInstance).toHaveBeenCalledWith({
+      id: "instance-2",
+      input: { raw: "second raw", webhookIds: ["webhook-2"] },
+    });
+    scope.stop();
+  });
+
+  test("ignores an old instance webhook response after navigation", async () => {
+    const instance = ref(makeInstance("first raw", ["webhook-1"]));
+    const scope = effectScope();
+    const editor = scope.run(() =>
+      useInstanceEditor(
+        instance,
+        computed(() => true),
+      ),
+    );
+    expect(editor).toBeDefined();
+    if (editor === undefined) return;
+
+    let resolveWebhookSave: ((instance: Instance) => void) | undefined;
+    mocks.updateInstance.mockImplementationOnce(
+      () =>
+        new Promise<Instance>((resolve) => {
+          resolveWebhookSave = resolve;
+        }),
+    );
+    const webhookSave = editor.handleWebhookChange(["pending-webhook"]);
+
+    instance.value = makeInstance("second raw", ["webhook-2"], "instance-2");
+    await nextTick();
+    resolveWebhookSave?.(
+      makeInstance("first raw", ["pending-webhook"], "instance-1"),
+    );
+    await webhookSave;
+
+    expect(editor.rawContent.value).toBe("second raw");
+    expect(editor.selectedWebhookIds.value).toEqual(["webhook-2"]);
     scope.stop();
   });
 });

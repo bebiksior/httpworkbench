@@ -30,15 +30,19 @@ export const useInstanceEditor = (
   const hasUnsavedRawChanges = (value: string) =>
     normalizeLineEndings(value) !== normalizeLineEndings(savedRawContent.value);
 
+  let activeInstanceId: string | undefined;
+
   watch(
     instance,
     (newInstance) => {
+      const instanceChanged = activeInstanceId !== newInstance.id;
+      activeInstanceId = newInstance.id;
       savedRawContent.value = newInstance.raw;
-      if (!isDirty.value) {
+      if (instanceChanged || !isDirty.value) {
         rawContent.value = newInstance.raw;
       }
       isDirty.value = hasUnsavedRawChanges(rawContent.value);
-      if (!isSavingWebhooks.value) {
+      if (instanceChanged || !isSavingWebhooks.value) {
         selectedWebhookIds.value = [...newInstance.webhookIds];
       }
     },
@@ -53,17 +57,20 @@ export const useInstanceEditor = (
 
   const handleSave = async () => {
     if (!canManageInstance.value || isUpdating.value) return;
+    const instanceId = instance.value.id;
     const raw = rawContent.value;
     isSavingRaw.value = true;
     try {
       const updated = await updateInstance({
-        id: instance.value.id,
+        id: instanceId,
         input: { raw, webhookIds: selectedWebhookIds.value },
       });
+      if (instance.value.id !== instanceId) return;
       savedRawContent.value = updated.raw;
       isDirty.value = hasUnsavedRawChanges(rawContent.value);
       notify.success("Raw response updated");
     } catch (error) {
+      if (instance.value.id !== instanceId) return;
       notify.error("Update failed", error);
     } finally {
       isSavingRaw.value = false;
@@ -72,16 +79,19 @@ export const useInstanceEditor = (
 
   const handleWebhookChange = async (webhookIds: string[]) => {
     if (!canManageInstance.value || isUpdating.value) return;
+    const instanceId = instance.value.id;
     const previousIds = [...selectedWebhookIds.value];
     selectedWebhookIds.value = [...webhookIds];
     isSavingWebhooks.value = true;
     try {
       const updated = await updateInstance({
-        id: instance.value.id,
+        id: instanceId,
         input: { raw: savedRawContent.value, webhookIds },
       });
+      if (instance.value.id !== instanceId) return;
       selectedWebhookIds.value = [...updated.webhookIds];
     } catch (error) {
+      if (instance.value.id !== instanceId) return;
       selectedWebhookIds.value = previousIds;
       notify.error("Failed to update webhooks", error);
     } finally {

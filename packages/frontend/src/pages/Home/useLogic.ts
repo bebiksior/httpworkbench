@@ -9,7 +9,8 @@ import {
 } from "@/queries/domains/useInstances";
 import { isAbsent } from "@/utils/types";
 import { DEFAULT_HTTP_RESPONSE } from "@/utils/httpResponse";
-import { useInstanceLogCountStream } from "./useInstanceLogCountStream";
+
+const INSTANCE_LIST_REFETCH_INTERVAL_MS = 5_000;
 
 export const useHomeLogic = () => {
   const router = useRouter();
@@ -19,16 +20,10 @@ export const useHomeLogic = () => {
   const {
     data: instances,
     isLoading,
-    isFetching,
     error,
     refetch,
-  } = useInstances();
-  useInstanceLogCountStream({
-    enabled: computed(() => instances.value !== undefined),
-    instanceIds: computed(
-      () => instances.value?.map((instance) => instance.id) ?? [],
-    ),
-    isFetching,
+  } = useInstances({
+    refetchInterval: INSTANCE_LIST_REFETCH_INTERVAL_MS,
   });
 
   const createMutation = useCreateInstance();

@@ -28,10 +28,6 @@ import {
   createGuestInstance,
   replaceGuestInstance,
 } from "../instances/service";
-import {
-  broadcastInstanceLogsCleared,
-  broadcastInstanceRemoved,
-} from "../instances";
 import { createBoundedProtocolRateLimiter } from "../protocolRateLimit";
 import { clampLogLimit, decodeLogsCursor, encodeLogsCursor } from "../utils";
 
@@ -196,7 +192,6 @@ export const guestInstancesRoutes = new Elysia({ name: "routes/guest" })
         return status(409, { error: "Instance is locked" });
       }
       deleteInstance(loaded.instance.id);
-      broadcastInstanceRemoved(loaded.instance.id);
       return { message: "Deleted" };
     },
     { params: ParamsSchema },
@@ -227,7 +222,6 @@ export const guestInstancesRoutes = new Elysia({ name: "routes/guest" })
         return loaded.error;
       }
       clearLogsForInstance(loaded.instance.id);
-      broadcastInstanceLogsCleared(loaded.instance.id);
       return { message: "Logs cleared" };
     },
     { params: ParamsSchema },

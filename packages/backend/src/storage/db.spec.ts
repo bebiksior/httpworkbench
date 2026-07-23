@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { Database } from "bun:sqlite";
@@ -94,6 +94,9 @@ describe("storage db migrations", () => {
       { name: "users" },
       { name: "webhooks" },
     ]);
+    expect(
+      readdirSync(dataDir).some((name) => name.includes(".pre-migration-")),
+    ).toBe(false);
   });
 
   test("initDb preserves existing data when reopened", () => {
@@ -145,7 +148,46 @@ describe("storage db migrations", () => {
     });
   });
 
-  test("reopening an already migrated database does not revalidate historical orphans", () => {
+  test("grandfathers orphans from databases migrated before the integrity marker", () => {
+    const sqlite = new Database(resolveSqliteDbPath(dataDir));
+    const migrations = readMigrationFiles({
+      migrationsFolder: path.join(import.meta.dir, "../../drizzle"),
+    });
+    for (const migration of migrations) {
+      for (const statement of migration.sql) {
+        sqlite.exec(statement);
+      }
+    }
+    sqlite.exec(`
+      CREATE TABLE __drizzle_migrations (
+        id SERIAL PRIMARY KEY,
+        hash TEXT NOT NULL,
+        created_at NUMERIC
+      );
+      INSERT INTO logs (id, instanceId, type, timestamp, address, raw)
+        VALUES ('orphan', 'missing', 'http', 1, '127.0.0.1', 'GET /');
+    `);
+    for (const migration of migrations) {
+      sqlite
+        .query(
+          "INSERT INTO __drizzle_migrations (hash, created_at) VALUES (?1, ?2)",
+        )
+        .run(migration.hash, migration.folderMillis);
+    }
+    sqlite.close();
+
+    const first = initDb({ dataDir });
+    expect(first.kind).toBe("ok");
+    closeDb();
+
+    const reopened = initDb({ dataDir });
+    expect(reopened.kind).toBe("ok");
+    if (reopened.kind === "ok") {
+      expect(reopened.stats.logsLength).toBe(1);
+    }
+  });
+
+  test("rejects an orphan added after a clean integrity check", () => {
     const first = initDb({ dataDir, reset: true });
     expect(first.kind).toBe("ok");
     closeDb();
@@ -160,9 +202,51 @@ describe("storage db migrations", () => {
     sqlite.close();
 
     const reopened = initDb({ dataDir });
-    expect(reopened.kind).toBe("ok");
-    if (reopened.kind === "ok") {
-      expect(reopened.stats.logsLength).toBe(1);
+    expect(reopened.kind).toBe("error");
+    if (reopened.kind === "error") {
+      expect(reopened.error.message).toContain("foreign key violations");
+    }
+  });
+
+  test("keeps rejecting migration violations after a restart", () => {
+    const dbPath = resolveSqliteDbPath(dataDir);
+    const sqlite = new Database(dbPath);
+    const migrations = readMigrationFiles({
+      migrationsFolder: path.join(import.meta.dir, "../../drizzle"),
+    });
+    for (const migration of migrations.slice(0, 3)) {
+      for (const statement of migration.sql) {
+        sqlite.exec(statement);
+      }
+    }
+    sqlite.exec(`
+      CREATE TABLE __drizzle_migrations (
+        id SERIAL PRIMARY KEY,
+        hash TEXT NOT NULL,
+        created_at NUMERIC
+      );
+      INSERT INTO logs (id, instanceId, type, timestamp, address, raw)
+        VALUES ('orphan', 'missing', 'http', 1, '127.0.0.1', 'GET /');
+    `);
+    for (const migration of migrations.slice(0, 3)) {
+      sqlite
+        .query(
+          "INSERT INTO __drizzle_migrations (hash, created_at) VALUES (?1, ?2)",
+        )
+        .run(migration.hash, migration.folderMillis);
+    }
+    sqlite.close();
+
+    const first = initDb({ dataDir });
+    expect(first.kind).toBe("error");
+    if (first.kind === "error") {
+      expect(first.error.message).toContain("foreign key violations");
+    }
+
+    const restarted = initDb({ dataDir });
+    expect(restarted.kind).toBe("error");
+    if (restarted.kind === "error") {
+      expect(restarted.error.message).toContain("foreign key violations");
     }
   });
 
@@ -214,6 +298,28 @@ describe("storage db migrations", () => {
     const upgraded = initDb({ dataDir });
     expect(upgraded.kind).toBe("ok");
     closeDb();
+
+    const backupName = readdirSync(dataDir).find((name) =>
+      name.includes(".pre-migration-"),
+    );
+    expect(backupName).toBeDefined();
+    if (backupName === undefined) {
+      return;
+    }
+    const backup = new Database(path.join(dataDir, backupName));
+    const backupColumns = backup
+      .query("PRAGMA table_info(instances)")
+      .all() as Array<{ name: string }>;
+    expect(backupColumns.some(({ name }) => name === "kind")).toBe(true);
+    expect(
+      backup.query("SELECT id, kind FROM instances ORDER BY id").all(),
+    ).toEqual([
+      { id: "dynamic", kind: "dynamic" },
+      { id: "legacy-guest", kind: "static" },
+      { id: "null-raw", kind: "static" },
+      { id: "valid", kind: "static" },
+    ]);
+    backup.close();
 
     const migrated = new Database(dbPath);
     expect(migrated.query("SELECT id, raw FROM instances").all()).toEqual([

@@ -6,7 +6,6 @@ import {
   getRecentLogsForInstance,
 } from "../../storage";
 import { createInstance, replaceInstance } from "../instances/service";
-import { broadcastInstanceRemoved } from "../instances";
 import { hasApiKeyScope } from "../apiKeyAuth";
 import {
   getAuthContext,
@@ -155,7 +154,6 @@ export const registerInstanceTools = (server: McpServer) => {
         return toolError("Instance is locked");
       }
       deleteInstance(instanceId);
-      broadcastInstanceRemoved(instanceId);
       return jsonToolResult({ deleted: true });
     },
   );

@@ -143,6 +143,15 @@ Cloudflare proxy settings:
 - `ns2.yourdomain.com`: `DNS only`
 - `NS` records are just `NS` records; there is no proxy toggle for them
 
+Caddy trusts `CF-Connecting-IP` only when the TCP connection comes from one of
+Cloudflare's [published proxy ranges](https://www.cloudflare.com/ips/). A
+request sent directly to the origin uses its socket address instead, even if it
+supplies a spoofed `CF-Connecting-IP` or forwarding header. The ranges are kept
+in `Caddyfile`; compare them with Cloudflare's current
+[IPv4](https://www.cloudflare.com/ips-v4/) and
+[IPv6](https://www.cloudflare.com/ips-v6/) lists when upgrading a self-hosted
+deployment.
+
 The wizard can start the stack for you, or you can run the compose command yourself at the end. The first startup may take a few minutes to build images and provision SSL certificates.
 
 ### Interaction Hostnames
@@ -168,6 +177,11 @@ docker compose -f docker-compose.yml -f docker-compose.dns.yml up -d --build
 
 The main app certificate still uses Cloudflare DNS challenge. Instance subdomains under the delegated interaction zone are issued directly with on-demand TLS by Caddy the first time they are requested, stored in Caddy's persistent data volume, and renewed automatically.
 
+Because the delegated interaction zone is `DNS only`, HTTP interactions reach
+Caddy directly and are logged and rate-limited by the connection's source
+address. Do not proxy this zone through Cloudflare: doing so changes protocol
+behavior and makes every interaction originate from a Cloudflare proxy.
+
 ### Email (SMTP) interaction logging
 
 HTTP Workbench can also receive email sent to any instance hostname and record it as an `SMTP` interaction alongside HTTP and DNS hits. A message sent to `anything@abc.instances.yourdomain.com` is logged against instance `abc`. The server only accepts and logs mail — it never relays or delivers it anywhere.
@@ -188,6 +202,52 @@ docker compose -f docker-compose.yml -f docker-compose.dns.yml -f docker-compose
 ```
 
 No extra DNS records are required. Sending mail servers fall back to a host's `A` record when it has no `MX` record (RFC 5321 "implicit MX"), and instance hostnames already resolve to your server. The only requirements are that instance `A` records point at the real origin IP (a Cloudflare-proxied/orange-cloud record will not work for SMTP) and that public TCP port `25` reaches the backend. The server accepts plaintext on port 25 and does not advertise STARTTLS, so senders deliver over plaintext.
+
+### Database migration backups
+
+Before applying new migrations to an existing database, the backend creates a
+consistent SQLite snapshot in the persistent data volume:
+
+```text
+${DATA_DIR}/db.sqlite.pre-migration-<appliedCount>-to-<availableCount>.backup
+```
+
+The deterministic file is retained and reused if startup is retried. No backup
+is created for a fresh database or when every migration is already applied.
+
+If an upgrade fails, stop the stack and list the available snapshots (do not
+use `docker compose down -v`, which deletes the data volume):
+
+```bash
+docker compose down
+docker compose run --rm --no-deps --entrypoint sh backend \
+  -c 'ls -1 /app/data/*.backup'
+```
+
+Then substitute the selected filename below. This preserves the failed database
+for diagnosis, restores the snapshot, and removes SQLite sidecars that belong to
+the failed database:
+
+```bash
+docker compose run --rm --no-deps --entrypoint sh backend -ec '
+  backup=/app/data/REPLACE_WITH_BACKUP_FILENAME
+  failed="/app/data/db.sqlite.failed-$(date -u +%Y%m%dT%H%M%SZ)"
+  cp /app/data/db.sqlite "$failed"
+  test ! -f /app/data/db.sqlite-wal || cp /app/data/db.sqlite-wal "$failed-wal"
+  test ! -f /app/data/db.sqlite-shm || cp /app/data/db.sqlite-shm "$failed-shm"
+  cp "$backup" /app/data/db.sqlite
+  rm -f /app/data/db.sqlite-wal /app/data/db.sqlite-shm
+'
+```
+
+Finally, check out the previous application version and rebuild the stack before
+starting it again. A database restored to a pre-migration snapshot must not be
+started with the failed/new application version.
+
+```bash
+git checkout PREVIOUS_GIT_REF
+docker compose up -d --build
+```
 
 ## Your Data
 

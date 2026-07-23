@@ -4,7 +4,6 @@ import {
   GUEST_INSTANCE_RAW_LIMIT_BYTES,
   INSTANCE_RAW_LIMIT_BYTES,
   INSTANCE_ID_PATTERN,
-  INSTANCE_SUMMARY_SUBSCRIPTION_BATCH_SIZE,
 } from "../constants";
 import { InstanceSchema, InstanceSummarySchema, LogSchema } from "../schemas";
 
@@ -54,64 +53,6 @@ export const GuestInstanceReferenceSchema = z
 
 export type GuestInstanceReference = z.infer<
   typeof GuestInstanceReferenceSchema
->;
-
-export const InstanceLogCountSchema = z
-  .object({
-    instanceId: InstanceIdSchema,
-    count: z.number().int().nonnegative(),
-  })
-  .strict();
-
-export type InstanceLogCount = z.infer<typeof InstanceLogCountSchema>;
-
-export const InstanceSummaryStreamClientMessageSchema = z.discriminatedUnion(
-  "type",
-  [
-    z.object({ type: z.literal("ping") }).strict(),
-    z
-      .object({
-        type: z.literal("subscribe"),
-        generation: z.number().int().nonnegative(),
-        instances: z
-          .array(GuestInstanceReferenceSchema)
-          .max(INSTANCE_SUMMARY_SUBSCRIPTION_BATCH_SIZE),
-        complete: z.boolean(),
-      })
-      .strict(),
-  ],
-);
-
-export type InstanceSummaryStreamClientMessage = z.infer<
-  typeof InstanceSummaryStreamClientMessageSchema
->;
-
-export const InstanceSummaryStreamServerMessageSchema = z.discriminatedUnion(
-  "type",
-  [
-    z.object({ type: z.literal("pong") }).strict(),
-    z
-      .object({
-        type: z.literal("snapshot"),
-        generation: z.number().int().nonnegative(),
-        sequence: z.number().int().positive(),
-        counts: z.array(InstanceLogCountSchema),
-      })
-      .strict(),
-    z
-      .object({
-        type: z.literal("counts"),
-        generation: z.number().int().nonnegative(),
-        sequence: z.number().int().positive(),
-        counts: z.array(InstanceLogCountSchema),
-        removedInstanceIds: z.array(InstanceIdSchema),
-      })
-      .strict(),
-  ],
-);
-
-export type InstanceSummaryStreamServerMessage = z.infer<
-  typeof InstanceSummaryStreamServerMessageSchema
 >;
 
 export const CreateGuestInstanceSchema = z

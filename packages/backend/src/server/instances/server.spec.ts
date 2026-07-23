@@ -10,7 +10,6 @@ import {
 
 const addLogMock = mock();
 const broadcastLogMock = mock();
-const broadcastInstanceRemovedMock = mock();
 const getServableInstanceByIdMock = mock();
 const listenMock = mock();
 let addLogTombstoned = false;
@@ -34,10 +33,6 @@ mock.module("../../storage/repositories/instances", () => ({
 
 mock.module("./logStream", () => ({
   broadcastLog: broadcastLogMock,
-}));
-
-mock.module("./instanceSummaryStream", () => ({
-  broadcastInstanceRemoved: broadcastInstanceRemovedMock,
 }));
 
 const { createInstancesServer, resetInstanceResponseCacheForTests } =
@@ -71,6 +66,10 @@ type ServerHandlers = {
   ) => Promise<void>;
 };
 
+type ListenOptions = {
+  socket: ServerHandlers;
+};
+
 describe("createInstancesServer", () => {
   let handlers: ServerHandlers;
 
@@ -87,8 +86,7 @@ describe("createInstancesServer", () => {
 
     createInstancesServer(8082, listenMock);
 
-    const options = listenMock.mock.calls[0]?.[0] as
-      { socket: ServerHandlers } | undefined;
+    const options = listenMock.mock.calls[0]?.[0] as ListenOptions | undefined;
     if (options === undefined) {
       throw new Error("listen was not called");
     }
@@ -164,7 +162,7 @@ describe("createInstancesServer", () => {
     expect(decode(socket.write.mock.calls[0]?.[0])).toContain("Body too large");
   });
 
-  test("removes summary subscribers when moderation tombstones an instance", async () => {
+  test("does not broadcast a log when moderation tombstones an instance", async () => {
     addLogTombstoned = true;
     getServableInstanceByIdMock.mockReturnValue(
       createStaticInstance("HTTP/1.1 200 OK\r\n\r\nok"),
@@ -177,7 +175,6 @@ describe("createInstancesServer", () => {
       encode(createRawRequest(["Host: demo.instances.example.com"])),
     );
 
-    expect(broadcastInstanceRemovedMock).toHaveBeenCalledWith("demo");
     expect(broadcastLogMock).not.toHaveBeenCalled();
   });
 

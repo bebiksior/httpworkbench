@@ -39,7 +39,6 @@ export type DnsServerDependencies = {
   hasActiveInstance: (id: string) => Promise<boolean>;
   addLog: (log: Log) => Log | AddLogOutcome | Promise<Log | AddLogOutcome>;
   broadcastLog: (log: Log) => void;
-  broadcastInstanceRemoved?: (instanceId: string) => void;
   createId: () => string;
   now: () => number;
 };
@@ -244,12 +243,10 @@ export const handleDnsRequest = async ({
                 ? await pendingOutcome
                 : pendingOutcome;
             if (
-              outcome !== undefined &&
-              "tombstoned" in outcome &&
-              outcome.tombstoned
+              outcome === undefined ||
+              !("tombstoned" in outcome) ||
+              !outcome.tombstoned
             ) {
-              deps.broadcastInstanceRemoved?.(log.instanceId);
-            } else {
               deps.broadcastLog(log);
             }
           } catch (error) {

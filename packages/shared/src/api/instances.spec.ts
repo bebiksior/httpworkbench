@@ -4,8 +4,6 @@ import {
   CreateGuestInstanceSchema,
   GuestInstanceSummariesRequestSchema,
   InstanceSchema,
-  InstanceSummaryStreamClientMessageSchema,
-  InstanceSummaryStreamServerMessageSchema,
   InstancesResponseSchema,
   UpdateInstanceSchema,
 } from "..";
@@ -97,42 +95,5 @@ describe("static-only instance contracts", () => {
     });
     expect("raw" in summary).toBe(false);
     expect("webhookIds" in summary).toBe(false);
-  });
-
-  test("strictly validates instance summary stream messages", () => {
-    expect(
-      InstanceSummaryStreamClientMessageSchema.safeParse({
-        type: "subscribe",
-        generation: 1,
-        instances: [{ id: "abcd1234", token: "a".repeat(64) }],
-        complete: true,
-      }).success,
-    ).toBe(true);
-    expect(
-      InstanceSummaryStreamClientMessageSchema.safeParse({
-        type: "subscribe",
-        generation: 1,
-        instances: [],
-        complete: true,
-        unexpected: true,
-      }).success,
-    ).toBe(false);
-    expect(
-      InstanceSummaryStreamServerMessageSchema.safeParse({
-        type: "counts",
-        generation: 1,
-        sequence: 2,
-        counts: [{ instanceId: "abcd1234", count: 0 }],
-        removedInstanceIds: [],
-      }).success,
-    ).toBe(true);
-    expect(
-      InstanceSummaryStreamServerMessageSchema.safeParse({
-        type: "snapshot",
-        generation: 1,
-        sequence: 1,
-        counts: [{ instanceId: "abcd1234", count: -1 }],
-      }).success,
-    ).toBe(false);
   });
 });

@@ -27,8 +27,6 @@ import {
   countActiveInstancesByOwner,
   deleteInstance,
   getInstanceAccessMetadata,
-  getInstanceLogCountsByIds,
-  getInstanceLogCountsByOwner,
   getInstanceSummariesByOwner,
   getServableInstanceById,
   getWebhookIdsForInstance,
@@ -482,28 +480,5 @@ describe("addLog", () => {
     expect(hasActiveInstance("expired")).toBe(false);
     expect(getServableInstanceById("expired")).toBeUndefined();
     expect(getWebhookIdsForInstance("inst-1")).toEqual(["webhook-logs-test"]);
-  });
-
-  test("loads exact log counts for owner and id summary subscriptions", () => {
-    seedStorage({
-      instances: [
-        createInstance(),
-        createInstance({ id: "inst-2" }),
-        createInstance({ id: "inst-3", ownerId: "user-2" }),
-      ],
-      logs: [
-        createLog(),
-        createLog({ id: "log-2" }),
-        createLog({ id: "log-3", instanceId: "inst-3" }),
-      ],
-    });
-
-    expect(getInstanceLogCountsByOwner("user-1")).toEqual([
-      { instanceId: "inst-1", count: 2 },
-      { instanceId: "inst-2", count: 0 },
-    ]);
-    expect(getInstanceLogCountsByIds(["inst-2", "inst-3"], "user-1")).toEqual([
-      { instanceId: "inst-2", count: 0 },
-    ]);
   });
 });

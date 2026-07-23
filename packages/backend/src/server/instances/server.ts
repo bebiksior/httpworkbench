@@ -3,7 +3,6 @@ import { type Log } from "shared";
 import { addLogWithOutcome } from "../../storage";
 import { getServableInstanceById } from "../../storage/repositories/instances";
 import { broadcastLog } from "./logStream";
-import { broadcastInstanceRemoved } from "./instanceSummaryStream";
 import { HttpRequestBuffer } from "./httpBuffer";
 import {
   adjustContentLength,
@@ -118,9 +117,7 @@ const tryLogInteraction = <T>(
     );
 
     const outcome = addLogWithOutcome(log);
-    if (outcome.tombstoned) {
-      broadcastInstanceRemoved(log.instanceId);
-    } else {
+    if (!outcome.tombstoned) {
       broadcastLog(log);
     }
     return true;
@@ -203,9 +200,7 @@ export const createInstancesServer = (
           );
 
           const outcome = addLogWithOutcome(log);
-          if (outcome.tombstoned) {
-            broadcastInstanceRemoved(log.instanceId);
-          } else {
+          if (!outcome.tombstoned) {
             broadcastLog(log);
           }
           didLog = true;

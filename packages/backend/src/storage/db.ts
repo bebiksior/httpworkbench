@@ -4,6 +4,7 @@ import { Database } from "bun:sqlite";
 import { count } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/bun-sqlite";
 import { migrate } from "drizzle-orm/bun-sqlite/migrator";
+import { readMigrationFiles } from "drizzle-orm/migrator";
 import {
   instances,
   apiKeys,
@@ -59,29 +60,127 @@ const countAppliedMigrations = (sqlite: Database) => {
   );
 };
 
-const openDatabase = (dbPath: string) => {
+const HISTORICAL_VIOLATIONS_STATE_OFFSET = 1_000_000_000;
+
+type MigrationIntegrityState = {
+  migrationCount: number;
+  allowHistoricalViolations: boolean;
+};
+
+const readMigrationIntegrityState = (
+  sqlite: Database,
+): MigrationIntegrityState | undefined => {
+  const row = sqlite
+    .query<{ user_version: number }, []>("PRAGMA user_version")
+    .get();
+  const encodedState = row?.user_version ?? 0;
+  if (encodedState === 0) {
+    return undefined;
+  }
+
+  const allowHistoricalViolations =
+    encodedState >= HISTORICAL_VIOLATIONS_STATE_OFFSET;
+  const encodedCount = allowHistoricalViolations
+    ? encodedState - HISTORICAL_VIOLATIONS_STATE_OFFSET
+    : encodedState;
+  return {
+    migrationCount: encodedCount - 1,
+    allowHistoricalViolations,
+  };
+};
+
+const writeMigrationIntegrityState = (
+  sqlite: Database,
+  state: MigrationIntegrityState,
+) => {
+  const encodedState =
+    state.migrationCount +
+    1 +
+    (state.allowHistoricalViolations ? HISTORICAL_VIOLATIONS_STATE_OFFSET : 0);
+  sqlite.run(`PRAGMA user_version = ${encodedState}`);
+};
+
+const createPreMigrationBackup = (
+  sqlite: Database,
+  dbPath: string,
+  appliedCount: number,
+  availableCount: number,
+) => {
+  const backupPath = `${dbPath}.pre-migration-${appliedCount}-to-${availableCount}.backup`;
+  if (!existsSync(backupPath)) {
+    sqlite.query("VACUUM INTO ?1").run(backupPath);
+  }
+};
+
+const openDatabase = (dbPath: string, databaseExisted: boolean) => {
   const sqlite = new Database(dbPath, { strict: true });
   sqlite.run("PRAGMA journal_mode = WAL");
   sqlite.run("PRAGMA synchronous = NORMAL");
   sqlite.run("PRAGMA busy_timeout = 5000");
   const db = createDrizzleDb(sqlite);
   try {
+    const migrationCountBefore = countAppliedMigrations(sqlite);
+    const availableMigrationCount = readMigrationFiles({
+      migrationsFolder: MIGRATIONS_FOLDER,
+    }).length;
+    const hasPendingMigrations = migrationCountBefore < availableMigrationCount;
+    if (databaseExisted && hasPendingMigrations) {
+      createPreMigrationBackup(
+        sqlite,
+        dbPath,
+        migrationCountBefore,
+        availableMigrationCount,
+      );
+    }
+
+    // Mark the pre-migration level before applying anything. If validation
+    // fails after Drizzle commits its migration records, the old marker makes
+    // every later startup repeat and fail the integrity check.
+    let integrityState = readMigrationIntegrityState(sqlite);
+    if (integrityState === undefined && hasPendingMigrations) {
+      integrityState = {
+        migrationCount: migrationCountBefore,
+        allowHistoricalViolations: false,
+      };
+      writeMigrationIntegrityState(sqlite, integrityState);
+    }
+
     // Table-rebuild migrations must run with foreign keys disabled at the
     // connection level; changing this pragma inside Drizzle's transaction is
     // ignored by SQLite.
     sqlite.run("PRAGMA foreign_keys = OFF");
-    const migrationCountBefore = countAppliedMigrations(sqlite);
     migrate(db, { migrationsFolder: MIGRATIONS_FOLDER });
     sqlite.run("PRAGMA foreign_keys = ON");
     const migrationCountAfter = countAppliedMigrations(sqlite);
-    if (migrationCountAfter > migrationCountBefore) {
-      const violations = sqlite.query("PRAGMA foreign_key_check").all();
-      if (violations.length > 0) {
-        throw new Error(
-          `Database migration produced foreign key violations: ${JSON.stringify(violations)}`,
-        );
+    const violations = sqlite.query("PRAGMA foreign_key_check").all();
+    if (violations.length > 0) {
+      if (
+        integrityState === undefined &&
+        migrationCountAfter === migrationCountBefore
+      ) {
+        // Databases already at the latest migration before this integrity
+        // marker existed keep their historical behavior. Any future migration
+        // will require a clean check.
+        writeMigrationIntegrityState(sqlite, {
+          migrationCount: migrationCountAfter,
+          allowHistoricalViolations: true,
+        });
+        return { sqlite, db };
       }
+      if (
+        integrityState?.allowHistoricalViolations === true &&
+        integrityState.migrationCount === migrationCountAfter
+      ) {
+        return { sqlite, db };
+      }
+      throw new Error(
+        `Database migration integrity check found foreign key violations: ${JSON.stringify(violations)}`,
+      );
     }
+    writeMigrationIntegrityState(sqlite, {
+      migrationCount: migrationCountAfter,
+      allowHistoricalViolations: false,
+    });
     return { sqlite, db };
   } catch (error) {
     sqlite.close();
@@ -119,6 +218,7 @@ const initializeState = (options: InitDbOptions = {}) => {
   mkdirSync(dataDir, { recursive: true });
 
   const dbPath = resolveSqliteDbPath(dataDir);
+  const databaseExisted = existsSync(dbPath);
   if (options.reset === true && existsSync(dbPath)) {
     rmSync(dbPath, { force: true });
     rmSync(`${dbPath}-shm`, { force: true });
@@ -134,7 +234,10 @@ const initializeState = (options: InitDbOptions = {}) => {
     existingState.sqlite.close();
   }
 
-  const { sqlite, db } = openDatabase(dbPath);
+  const { sqlite, db } = openDatabase(
+    dbPath,
+    databaseExisted && options.reset !== true,
+  );
   const nextState = { sqlite, db, dataDir, dbPath };
   dbState = nextState;
   return nextState;

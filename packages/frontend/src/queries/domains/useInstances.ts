@@ -25,6 +25,7 @@ import type { GuestInstanceRecord } from "@/stores/guestInstances.utils";
 
 type InstancesOptions = {
   enabled?: MaybeRefOrGetter<boolean>;
+  refetchInterval?: number | false;
 };
 
 const GUEST_SUMMARY_BATCH_SIZE = 100;
@@ -104,6 +105,8 @@ export const useInstances = (options?: InstancesOptions) => {
       return instancesApi.getAll();
     },
     enabled: computed(() => toValue(options?.enabled ?? true)),
+    refetchInterval: options?.refetchInterval,
+    refetchIntervalInBackground: false,
   });
 };
 

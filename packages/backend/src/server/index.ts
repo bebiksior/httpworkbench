@@ -1,5 +1,9 @@
 import { Elysia, status } from "elysia";
-import { GUEST_INSTANCE_TTL_MS, GUEST_OWNER_ID } from "shared";
+import {
+  GUEST_INSTANCE_TTL_MS,
+  GUEST_OWNER_ID,
+  INSTANCE_RAW_LIMIT_BYTES,
+} from "shared";
 import {
   addLogWithOutcome,
   flushPendingWebhookNotifications,
@@ -30,13 +34,11 @@ import {
   readGuestWebSocketProtocol,
 } from "./guestAccess";
 import {
-  broadcastInstanceRemoved,
   broadcastLog,
   createInstancesServer,
   subscribeToLogStream,
   unsubscribeFromLogStream,
 } from "./instances";
-import { instanceSummaryStreamRoutes } from "./instances/instanceSummaryStreamRoutes";
 import { createDnsServer } from "./dns";
 import { createSmtpServer } from "./smtp";
 import { createBoundedProtocolRateLimiter } from "./protocolRateLimit";
@@ -49,8 +51,11 @@ const guestStreamRateLimiter = createBoundedProtocolRateLimiter({
   maxEntries: 10_000,
 });
 
-const buildApiServer = (port: number) => {
-  const maxRequestBodySize = 12 * 1024 * 1024;
+// JSON.stringify can expand one string character to a six-byte escape. Leave
+// additional room for the request envelope and bounded companion fields.
+const maxRequestBodySize = INSTANCE_RAW_LIMIT_BYTES * 6 + 1024 * 1024;
+
+export const buildApiServer = (port: number) => {
   return new Elysia()
     .onError({ as: "global" }, ({ code, error, set }) => {
       if (code === "VALIDATION") {
@@ -84,7 +89,6 @@ const buildApiServer = (port: number) => {
     .use(guestInstancesRoutes)
     .use(webhooksRoutes)
     .use(apiKeysRoutes)
-    .use(instanceSummaryStreamRoutes)
     .ws("/api/instances/:id/stream", {
       async beforeHandle({ params, request, set, cookie }) {
         if (!isAllowedWebSocketOrigin(request)) {
@@ -162,7 +166,6 @@ export const initServer = async () => {
           hasActiveInstance: async (id) => hasActiveInstance(id),
           addLog: addLogWithOutcome,
           broadcastLog,
-          broadcastInstanceRemoved,
           createId: () => crypto.randomUUID(),
           now: () => Date.now(),
         },
@@ -176,7 +179,6 @@ export const initServer = async () => {
           hasActiveInstance: async (id) => hasActiveInstance(id),
           addLog: addLogWithOutcome,
           broadcastLog,
-          broadcastInstanceRemoved,
           createId: () => crypto.randomUUID(),
           now: () => Date.now(),
         },
@@ -195,9 +197,7 @@ export const initServer = async () => {
     const intervalMs = Math.min(shortestTtlMs, 60 * 60 * 1000);
     const runCleanup = () => {
       try {
-        for (const instanceId of removeExpiredInstances(Date.now())) {
-          broadcastInstanceRemoved(instanceId);
-        }
+        removeExpiredInstances(Date.now());
       } catch (error) {
         console.error("Failed to cleanup expired instances", error);
       }

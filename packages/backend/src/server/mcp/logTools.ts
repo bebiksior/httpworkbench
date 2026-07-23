@@ -2,7 +2,6 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import * as z from "zod/v4";
 import { clearLogsForInstance, getLogsForInstancePage } from "../../storage";
 import type { ApiKeyAuthContext } from "../apiKeyAuth";
-import { broadcastInstanceLogsCleared } from "../instances";
 import { waitForInstanceLog } from "../instances/logStream";
 import {
   clampLogLimit,
@@ -87,7 +86,6 @@ export const registerLogTools = (server: McpServer) => {
       requireScope(auth, "instances:write");
       requireOwnedInstance(instanceId, auth);
       clearLogsForInstance(instanceId);
-      broadcastInstanceLogsCleared(instanceId);
       return jsonToolResult({ cleared: true });
     },
   );

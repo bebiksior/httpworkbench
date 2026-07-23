@@ -29,3 +29,18 @@ test("rejects new keys at capacity without resetting active buckets", () => {
   expect(limiter.check("a", 2)).toBe(false);
   expect(limiter.check("c", 1000)).toBe(true);
 });
+
+test("recovers capacity as soon as a staggered bucket expires", () => {
+  const limiter = createBoundedProtocolRateLimiter({
+    maxRequests: 2,
+    windowMs: 1000,
+    maxEntries: 2,
+  });
+
+  expect(limiter.check("a", 0)).toBe(true);
+  expect(limiter.check("b", 500)).toBe(true);
+  expect(limiter.check("a", 1000)).toBe(true);
+
+  expect(limiter.canCheck("c", 1500)).toBe(true);
+  expect(limiter.check("c", 1500)).toBe(true);
+});

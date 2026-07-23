@@ -13,19 +13,26 @@ export const createBoundedProtocolRateLimiter = ({
   maxEntries: number;
 }) => {
   const entries = new Map<string, RateLimitEntry>();
-  let lastPrunedAt = Number.NEGATIVE_INFINITY;
+  let nextExpiryAt = Number.POSITIVE_INFINITY;
 
   const pruneExpired = (now: number) => {
-    if (now - lastPrunedAt < windowMs) {
+    if (now < nextExpiryAt) {
       return;
     }
 
-    lastPrunedAt = now;
+    nextExpiryAt = Number.POSITIVE_INFINITY;
     for (const [key, entry] of entries) {
       if (now - entry.windowStartedAt >= windowMs) {
         entries.delete(key);
+      } else {
+        nextExpiryAt = Math.min(nextExpiryAt, entry.windowStartedAt + windowMs);
       }
     }
+  };
+
+  const addEntry = (key: string, now: number) => {
+    entries.set(key, { windowStartedAt: now, count: 1 });
+    nextExpiryAt = Math.min(nextExpiryAt, now + windowMs);
   };
 
   return {
@@ -60,12 +67,12 @@ export const createBoundedProtocolRateLimiter = ({
         return false;
       }
 
-      entries.set(key, { windowStartedAt: now, count: 1 });
+      addEntry(key, now);
       return true;
     },
     reset(): void {
       entries.clear();
-      lastPrunedAt = Number.NEGATIVE_INFINITY;
+      nextExpiryAt = Number.POSITIVE_INFINITY;
     },
   };
 };
