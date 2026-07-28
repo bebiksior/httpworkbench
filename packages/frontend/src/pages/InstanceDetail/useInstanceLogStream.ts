@@ -55,6 +55,7 @@ export const useInstanceLogStream = (
   const logIds = new Set<string>();
   const olderLogsCursor = ref<string>();
   const isLoadingOlder = ref(false);
+  const needsRetentionSnapshot = ref(false);
 
   let connection: WebSocket | undefined;
   let reconnectTimeout: ReturnType<typeof setTimeout> | undefined;
@@ -62,13 +63,25 @@ export const useInstanceLogStream = (
   let healthInterval: ReturnType<typeof setInterval> | undefined;
   let reconnectAttempt = 0;
   let generation = 0;
+  let paginationGeneration = 0;
   let lastHeartbeatAt = 0;
   let lastPingSentAt: number | undefined;
   let hasLoadedOlderPages = false;
   let resyncState:
-    { generation: number; logs: Log[]; promise: Promise<void> } | undefined;
+    | {
+        generation: number;
+        logs: Log[];
+        promise: Promise<void>;
+        replaceSnapshot: boolean;
+        refreshed: boolean;
+      }
+    | undefined;
 
   const replaceLogs = (logs: readonly Log[]) => {
+    paginationGeneration += 1;
+    isLoadingOlder.value = false;
+    hasLoadedOlderPages = false;
+    needsRetentionSnapshot.value = false;
     logIds.clear();
     const next: Log[] = [];
     for (let index = logs.length - 1; index >= 0; index -= 1) {
@@ -86,24 +99,44 @@ export const useInstanceLogStream = (
     explicitlyLoadedOlderLogs.value = [];
   };
 
-  const prependLog = (log: Log) => {
+  const prependLog = (log: Log, requestCompaction = true) => {
     if (logIds.has(log.id)) {
       return;
     }
     logIds.add(log.id);
     const next = [log, ...recentLogs.value];
+    let shouldRequestCompaction = false;
     if (next.length > MAX_RETAINED_RECENT_LOGS) {
       const removed = next.pop();
       if (removed !== undefined) {
         logIds.delete(removed.id);
       }
+      needsRetentionSnapshot.value = true;
+      shouldRequestCompaction = requestCompaction;
     }
     recentLogs.value = next;
+    if (shouldRequestCompaction) {
+      void resyncLogs({ replaceSnapshot: true });
+    }
   };
 
   const mergeRecentLogs = (logs: readonly Log[]) => {
     for (const log of logs) {
       prependLog(log);
+    }
+  };
+
+  const removeLogsById = (logs: readonly Log[]) => {
+    if (logs.length === 0) {
+      return;
+    }
+    const ids = new Set(logs.map((log) => log.id));
+    recentLogs.value = recentLogs.value.filter((log) => !ids.has(log.id));
+    explicitlyLoadedOlderLogs.value = explicitlyLoadedOlderLogs.value.filter(
+      (log) => !ids.has(log.id),
+    );
+    for (const id of ids) {
+      logIds.delete(id);
     }
   };
 
@@ -125,56 +158,97 @@ export const useInstanceLogStream = (
     if (
       cursor === undefined ||
       isLoadingOlder.value ||
+      needsRetentionSnapshot.value ||
       options.loadOlderPage === undefined
     ) {
       return;
     }
 
     const expectedGeneration = generation;
+    const expectedPaginationGeneration = paginationGeneration;
     isLoadingOlder.value = true;
     try {
       const page = await options.loadOlderPage(cursor);
-      if (generation !== expectedGeneration) {
+      if (
+        generation !== expectedGeneration ||
+        paginationGeneration !== expectedPaginationGeneration
+      ) {
         return;
       }
       appendOlderLogs(page.logs);
       olderLogsCursor.value = page.olderLogsCursor;
       hasLoadedOlderPages = true;
     } finally {
-      if (generation === expectedGeneration) {
+      if (
+        generation === expectedGeneration &&
+        paginationGeneration === expectedPaginationGeneration
+      ) {
         isLoadingOlder.value = false;
       }
     }
   };
 
-  const resyncLogs = () => {
+  function resyncLogs(
+    options: { replaceSnapshot?: boolean } = {},
+  ): Promise<void> {
+    const replaceSnapshot =
+      options.replaceSnapshot === true || needsRetentionSnapshot.value;
     if (resyncState?.generation === generation) {
+      if (replaceSnapshot) {
+        resyncState.replaceSnapshot = true;
+      }
       return resyncState.promise;
     }
 
+    const previousDetail = toValue(detail);
     const state = {
       generation,
       logs: [] as Log[],
       promise: Promise.resolve(),
+      replaceSnapshot,
+      refreshed: false,
     };
+    resyncState = state;
     state.promise = (async () => {
       try {
         await refetch();
         await nextTick();
-      } finally {
-        if (generation === state.generation) {
-          for (const log of state.logs) {
-            prependLog(log);
+        const snapshot = toValue(detail);
+        if (
+          generation === state.generation &&
+          snapshot !== previousDetail &&
+          snapshot?.instance.id === resolvedInstanceId.value
+        ) {
+          state.refreshed = true;
+          removeLogsById(state.logs);
+          if (state.replaceSnapshot) {
+            replaceLogs(snapshot.logs);
+            olderLogsCursor.value = snapshot.olderLogsCursor;
+          } else {
+            mergeRecentLogs(snapshot.logs);
           }
         }
+      } catch {
+        // Refetch errors are surfaced through the query state.
+      } finally {
         if (resyncState === state) {
           resyncState = undefined;
         }
+        if (generation === state.generation) {
+          for (const log of state.logs) {
+            prependLog(log, false);
+          }
+          if (
+            needsRetentionSnapshot.value &&
+            (!state.replaceSnapshot || state.refreshed)
+          ) {
+            void resyncLogs({ replaceSnapshot: true });
+          }
+        }
       }
     })();
-    resyncState = state;
     return state.promise;
-  };
+  }
 
   const isStale = (id: string, expectedGeneration: number, ws?: WebSocket) =>
     generation !== expectedGeneration ||
@@ -320,8 +394,6 @@ export const useInstanceLogStream = (
       closeConnection();
       replaceLogs([]);
       olderLogsCursor.value = undefined;
-      isLoadingOlder.value = false;
-      hasLoadedOlderPages = false;
       if (id !== "") {
         openStream(id);
       }
@@ -338,7 +410,6 @@ export const useInstanceLogStream = (
           (value.olderLogsCursor === undefined && hasLoadedOlderPages)
         ) {
           replaceLogs(value.logs);
-          hasLoadedOlderPages = false;
         } else if (streamLogs.value.length === 0) {
           replaceLogs(value.logs);
         } else {
@@ -407,7 +478,10 @@ export const useInstanceLogStream = (
 
   return {
     logs: streamLogs,
-    hasOlderLogs: computed(() => olderLogsCursor.value !== undefined),
+    hasOlderLogs: computed(
+      () =>
+        !needsRetentionSnapshot.value && olderLogsCursor.value !== undefined,
+    ),
     isLoadingOlder: computed(() => isLoadingOlder.value),
     loadOlder,
   };

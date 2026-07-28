@@ -29,6 +29,8 @@ type PendingDiscordBatch = {
 };
 const pendingDiscordBatches = new Map<string, PendingDiscordBatch>();
 const activeDiscordNotifications = new Set<Promise<void>>();
+const getDiscordBatchKey = (webhookId: string, instanceId: string) =>
+  JSON.stringify([webhookId, instanceId]);
 const EXAMPLE_DISCORD_LOG: Log = {
   id: "test-log",
   instanceId: "example-instance",
@@ -129,16 +131,16 @@ const trackDiscordNotification = (notification: Promise<void>) => {
 };
 
 const deliverPendingDiscordBatch = (
-  webhookId: string,
+  batchKey: string,
   expectedBatch: PendingDiscordBatch,
 ) => {
-  const batch = pendingDiscordBatches.get(webhookId);
+  const batch = pendingDiscordBatches.get(batchKey);
   if (batch !== expectedBatch) {
     return Promise.resolve();
   }
 
   clearTimeout(batch.timeout);
-  pendingDiscordBatches.delete(webhookId);
+  pendingDiscordBatches.delete(batchKey);
   return trackDiscordNotification(
     sendDiscordNotification(
       batch.webhook,
@@ -169,7 +171,8 @@ const addToPendingDiscordBatch = (
 };
 
 export function queueDiscordNotification(webhook: Webhook, log: Log): boolean {
-  const pending = pendingDiscordBatches.get(webhook.id);
+  const batchKey = getDiscordBatchKey(webhook.id, log.instanceId);
+  const pending = pendingDiscordBatches.get(batchKey);
   if (pending !== undefined) {
     addToPendingDiscordBatch(pending, webhook, log);
     return true;
@@ -196,10 +199,10 @@ export function queueDiscordNotification(webhook: Webhook, log: Log): boolean {
       },
     },
     timeout: setTimeout(() => {
-      void deliverPendingDiscordBatch(webhook.id, batch);
+      void deliverPendingDiscordBatch(batchKey, batch);
     }, abusePolicy.discordWebhookDebounceMs),
   };
-  pendingDiscordBatches.set(webhook.id, batch);
+  pendingDiscordBatches.set(batchKey, batch);
   return true;
 }
 
@@ -209,8 +212,8 @@ export async function flushDiscordNotificationQueue(): Promise<void> {
     activeDiscordNotifications.size > 0
   ) {
     const pending = Array.from(pendingDiscordBatches.entries());
-    const deliveries = pending.map(([webhookId, batch]) =>
-      deliverPendingDiscordBatch(webhookId, batch),
+    const deliveries = pending.map(([batchKey, batch]) =>
+      deliverPendingDiscordBatch(batchKey, batch),
     );
     await Promise.allSettled([...deliveries, ...activeDiscordNotifications]);
   }

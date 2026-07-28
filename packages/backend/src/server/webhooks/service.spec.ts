@@ -161,6 +161,82 @@ describe("queueDiscordNotification", () => {
       Date.now = originalDateNow;
     }
   });
+
+  test("keeps shared webhook batches separate by instance", async () => {
+    const requestBodies: unknown[] = [];
+    const fetchMock = mock(
+      (_input: string | URL | Request, init?: { body?: unknown }) => {
+        requestBodies.push(JSON.parse(String(init?.body ?? "")));
+        return Promise.resolve(new Response(null, { status: 204 }));
+      },
+    );
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    expect(queueDiscordNotification(webhook, log)).toBe(true);
+    expect(
+      queueDiscordNotification(webhook, {
+        ...log,
+        id: "log-2",
+        instanceId: "inst-2",
+      }),
+    ).toBe(true);
+
+    await flushDiscordNotificationQueue();
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(requestBodies).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          embeds: [
+            expect.objectContaining({
+              footer: { text: "Instance: inst-1" },
+            }),
+          ],
+        }),
+        expect.objectContaining({
+          embeds: [
+            expect.objectContaining({
+              footer: { text: "Instance: inst-2" },
+            }),
+          ],
+        }),
+      ]),
+    );
+  });
+
+  test("does not bypass an instance limit through a shared pending webhook", async () => {
+    const fetchMock = mock(() =>
+      Promise.resolve(new Response(null, { status: 204 })),
+    );
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+    const fixedNow = 1_700_000_000_000;
+    const originalDateNow = Date.now;
+    Date.now = () => fixedNow;
+    try {
+      for (let i = 0; i < 5; i += 1) {
+        expect(
+          queueDiscordNotification(
+            { ...webhook, id: `instance-two-webhook-${i}` },
+            { ...log, id: `instance-two-log-${i}`, instanceId: "inst-2" },
+          ),
+        ).toBe(true);
+      }
+
+      expect(queueDiscordNotification(webhook, log)).toBe(true);
+      expect(
+        queueDiscordNotification(webhook, {
+          ...log,
+          id: "instance-two-shared-log",
+          instanceId: "inst-2",
+        }),
+      ).toBe(false);
+
+      await flushDiscordNotificationQueue();
+      expect(fetchMock).toHaveBeenCalledTimes(6);
+    } finally {
+      Date.now = originalDateNow;
+    }
+  });
 });
 
 describe("sendDiscordNotification", () => {

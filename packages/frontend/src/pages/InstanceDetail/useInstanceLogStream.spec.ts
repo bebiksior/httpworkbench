@@ -209,21 +209,63 @@ describe("instance log stream lifecycle", () => {
     expect(FakeWebSocket.instances).toHaveLength(2);
   });
 
-  test("bounds the live segment while keeping streamed logs newest-first", () => {
-    const { app, logs } = mountStream();
+  test("refreshes the older cursor before compacting streamed logs", async () => {
+    const refetch = vi.fn();
+    const loadOlderPage = vi.fn(async () => ({ logs: [] }));
+    const { app, detail, logs, stream } = mountStream(refetch, {
+      loadOlderPage,
+    });
     const socket = FakeWebSocket.instances[0];
-    socket?.open();
+    detail.value = {
+      instance: {
+        id: "instance-1",
+        ownerId: "owner",
+        createdAt: 1,
+        webhookIds: [],
+        public: false,
+        locked: false,
+        raw: "HTTP/1.1 200 OK\r\n\r\nok",
+      },
+      logs: Array.from({ length: 100 }, (_, index) => ({
+        ...log,
+        id: `initial-${index + 1}`,
+      })),
+      olderLogsCursor: "initial-cursor",
+    };
+    await nextTick();
+    await socket?.open();
+
+    let finishCompaction: (() => void) | undefined;
+    refetch.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          finishCompaction = resolve;
+        }),
+    );
 
     for (let index = 1; index <= MAX_RETAINED_RECENT_LOGS + 1; index += 1) {
       socket?.message(JSON.stringify({ ...log, id: `log-${index}` }));
     }
-    socket?.message(
-      JSON.stringify({ ...log, id: `log-${MAX_RETAINED_RECENT_LOGS + 1}` }),
-    );
 
     expect(logs()?.value).toHaveLength(MAX_RETAINED_RECENT_LOGS);
+    expect(finishCompaction).toBeDefined();
+
+    detail.value = {
+      ...detail.value,
+      logs: Array.from({ length: 100 }, (_, index) => ({
+        ...log,
+        id: `log-${MAX_RETAINED_RECENT_LOGS - 98 + index}`,
+      })),
+      olderLogsCursor: "refreshed-cursor",
+    } as InstanceDetailResponse;
+    finishCompaction?.();
+    await nextTick();
+    await nextTick();
+
+    expect(logs()?.value).toHaveLength(100);
     expect(logs()?.value[0]?.id).toBe(`log-${MAX_RETAINED_RECENT_LOGS + 1}`);
-    expect(logs()?.value.at(-1)?.id).toBe("log-2");
+    await stream()?.loadOlder();
+    expect(loadOlderPage).toHaveBeenCalledWith("refreshed-cursor");
     app.unmount();
   });
 
@@ -253,7 +295,7 @@ describe("instance log stream lifecycle", () => {
     app.unmount();
   });
 
-  test("preserves logs that arrive while an opening snapshot is loading", async () => {
+  test("keeps streamed logs ahead of an older opening snapshot", async () => {
     let finishRefetch: (() => void) | undefined;
     const refetch = vi.fn(
       () =>
@@ -276,16 +318,18 @@ describe("instance log stream lifecycle", () => {
         locked: false,
         raw: "HTTP/1.1 200 OK\r\n\r\nok",
       },
-      logs: [],
+      logs: [{ ...log, id: "snapshot-log" }],
     };
     await nextTick();
-    expect(logs()?.value).toEqual([]);
 
     finishRefetch?.();
     await nextTick();
     await nextTick();
 
-    expect(logs()?.value).toEqual([log]);
+    expect(logs()?.value.map(({ id }) => id)).toEqual([
+      "log-1",
+      "snapshot-log",
+    ]);
     app.unmount();
   });
 
@@ -329,10 +373,10 @@ describe("instance log stream lifecycle", () => {
       "oldest",
     ]);
 
-    for (let index = 1; index <= MAX_RETAINED_RECENT_LOGS + 20; index += 1) {
+    for (let index = 1; index <= MAX_RETAINED_RECENT_LOGS - 3; index += 1) {
       socket?.message(JSON.stringify({ ...log, id: `stream-${index}` }));
     }
-    expect(logs()?.value).toHaveLength(MAX_RETAINED_RECENT_LOGS + 2);
+    expect(logs()?.value).toHaveLength(MAX_RETAINED_RECENT_LOGS + 1);
     expect(
       logs()
         ?.value.slice(-2)
