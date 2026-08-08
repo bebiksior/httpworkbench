@@ -1,3 +1,5 @@
+import { useInstanceDetailPreferencesStore } from "@/stores";
+import { storeToRefs } from "pinia";
 import { onBeforeUnmount, ref } from "vue";
 
 const DEFAULT_TRANSITION_DURATION_MS = 260;
@@ -5,7 +7,8 @@ const DEFAULT_TRANSITION_DURATION_MS = 260;
 export const useSidePanel = (
   transitionDurationMs = DEFAULT_TRANSITION_DURATION_MS,
 ) => {
-  const isHidden = ref(false);
+  const preferences = useInstanceDetailPreferencesStore();
+  const { sidePanelHidden: isHidden } = storeToRefs(preferences);
   const isTransitioning = ref(false);
   let transitionTimeout: number | null = null;
 

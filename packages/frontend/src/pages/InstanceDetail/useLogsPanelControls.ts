@@ -1,5 +1,7 @@
+import { useInstanceDetailPreferencesStore } from "@/stores";
 import type { Log, LogType } from "shared";
 import { refDebounced } from "@vueuse/core";
+import { storeToRefs } from "pinia";
 import { computed, ref, toValue, type MaybeRefOrGetter, watch } from "vue";
 import { useRoute } from "vue-router";
 
@@ -8,8 +10,9 @@ export const useLogsPanelControls = (
   setSidePanelHidden: (hidden: boolean) => void,
 ) => {
   const route = useRoute();
+  const preferences = useInstanceDetailPreferencesStore();
+  const { selectedLogTypes: selectedTypes } = storeToRefs(preferences);
   const searchQuery = ref("");
-  const selectedTypes = ref<LogType[]>(["http", "dns", "smtp"]);
 
   const viewQuery = computed(() => {
     const raw = route.query.view;
@@ -89,8 +92,6 @@ export const useLogsPanelControls = (
     (view) => {
       if (view === "logs") {
         setSidePanelHidden(true);
-      } else {
-        setSidePanelHidden(false);
       }
     },
     { immediate: true },
