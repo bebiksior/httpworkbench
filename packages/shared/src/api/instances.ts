@@ -42,6 +42,7 @@ export type InstancesResponse = z.infer<typeof InstancesResponseSchema>;
 export const InstanceIdSchema = z.string().regex(INSTANCE_ID_PATTERN);
 export const GuestManagementTokenSchema = z
   .string()
+  .max(1024)
   .regex(GUEST_MANAGEMENT_TOKEN_PATTERN);
 
 export const GuestInstanceReferenceSchema = z

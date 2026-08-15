@@ -2,23 +2,30 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { GUEST_MAX_ACTIVE_INSTANCES, GUEST_OWNER_ID } from "shared";
+import {
+  GuestManagementTokenSchema,
+  GUEST_MAX_ACTIVE_INSTANCES,
+  GUEST_OWNER_ID,
+} from "shared";
 import { instancePolicies } from "../../config";
 import {
   addWebhook,
   closeDb,
   deleteInstance,
   getDb,
-  getActiveGuestCredentialHash,
+  getInstanceById,
   initDb,
 } from "../../storage";
 import { instances } from "../../storage/schema";
-import {
+
+process.env.JWT_SECRET = "instance-service-test-secret";
+
+const {
   createGuestInstance,
   createInstance,
   replaceGuestInstance,
   replaceInstance,
-} from "./service";
+} = await import("./service");
 
 const validRaw = "HTTP/1.1 200 OK\nContent-Type: text/plain\n\nhello";
 const originalInstanceLimit = instancePolicies.maxInstancesPerOwner;
@@ -69,15 +76,18 @@ describe("instance service", () => {
     expect("kind" in result.value).toBe(false);
   });
 
-  test("creates token-protected guests and enforces the smaller raw limit", () => {
-    const created = createGuestInstance(validRaw);
+  test("creates token-protected guests and enforces the smaller raw limit", async () => {
+    const created = await createGuestInstance(validRaw);
     expect(created.ok).toBe(true);
     if (!created.ok) {
       return;
     }
-    const storedHash = getActiveGuestCredentialHash(created.value.instance.id);
-    expect(storedHash).toMatch(/^[0-9a-f]{64}$/);
-    expect(storedHash).not.toBe(created.value.token);
+    expect(
+      GuestManagementTokenSchema.safeParse(created.value.token).success,
+    ).toBe(true);
+    expect(getInstanceById(created.value.instance.id)).toEqual(
+      created.value.instance,
+    );
 
     const tooLarge = replaceGuestInstance(
       created.value.instance.id,
@@ -93,12 +103,10 @@ describe("instance service", () => {
     });
 
     deleteInstance(created.value.instance.id);
-    expect(
-      getActiveGuestCredentialHash(created.value.instance.id),
-    ).toBeUndefined();
+    expect(getInstanceById(created.value.instance.id)).toBeUndefined();
   });
 
-  test("enforces the global active guest quota", () => {
+  test("enforces the global active guest quota", async () => {
     getDb()
       .insert(instances)
       .values(
@@ -114,7 +122,7 @@ describe("instance service", () => {
       )
       .run();
 
-    expect(createGuestInstance(validRaw)).toEqual({
+    expect(await createGuestInstance(validRaw)).toEqual({
       ok: false,
       error: {
         code: "instance_limit",

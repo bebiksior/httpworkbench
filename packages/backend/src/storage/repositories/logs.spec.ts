@@ -474,6 +474,7 @@ describe("addLog", () => {
     expect(getInstanceAccessMetadata("inst-1")).toEqual({
       id: "inst-1",
       ownerId: "user-1",
+      createdAt: 1,
       public: false,
     });
     expect(hasActiveInstance("inst-1")).toBe(true);

@@ -50,12 +50,15 @@ const RecentLogsQuerySchema = z.object({
   type: z.enum(["http", "dns", "smtp"]).optional(),
 });
 
-const loadManagedGuestInstance = (id: string, request: Request) => {
-  if (!authenticateGuestInstance(id, readGuestManagementToken(request))) {
-    return { ok: false as const, error: status(404, { error: "Not found" }) };
-  }
+const loadManagedGuestInstance = async (id: string, request: Request) => {
   const instance = getInstanceById(id);
-  if (instance?.ownerId !== GUEST_OWNER_ID) {
+  if (
+    instance?.ownerId !== GUEST_OWNER_ID ||
+    !(await authenticateGuestInstance(
+      instance,
+      readGuestManagementToken(request),
+    ))
+  ) {
     return { ok: false as const, error: status(404, { error: "Not found" }) };
   }
   return { ok: true as const, instance };
@@ -108,13 +111,13 @@ export const guestInstancesRoutes = new Elysia({ name: "routes/guest" })
   })
   .post(
     "/api/guest/instances",
-    ({ body, request }) => {
+    async ({ body, request }) => {
       if (
         !guestCreateRateLimiter.check(clientRateLimitKey(request), Date.now())
       ) {
         return status(429, { error: "Guest creation rate limit exceeded" });
       }
-      const result = createGuestInstance(body.raw);
+      const result = await createGuestInstance(body.raw);
       return result.ok
         ? status(201, result.value)
         : status(result.error.status, { error: result.error.message });
@@ -123,16 +126,22 @@ export const guestInstancesRoutes = new Elysia({ name: "routes/guest" })
   )
   .post(
     "/api/guest/instances/list",
-    ({ body }) => {
-      const ids = authenticateGuestInstanceReferences(body.instances);
-      return getInstanceSummariesByIds(ids, GUEST_OWNER_ID);
+    async ({ body }) => {
+      const requestedIds = [...new Set(body.instances.map(({ id }) => id))];
+      const summaries = getInstanceSummariesByIds(requestedIds, GUEST_OWNER_ID);
+      const ids = await authenticateGuestInstanceReferences(
+        body.instances,
+        summaries,
+      );
+      const authorizedIds = new Set(ids);
+      return summaries.filter(({ id }) => authorizedIds.has(id));
     },
     { body: GuestInstanceSummariesRequestSchema },
   )
   .get(
     "/api/guest/instances/:id",
-    ({ params, request }) => {
-      const loaded = loadManagedGuestInstance(params.id, request);
+    async ({ params, request }) => {
+      const loaded = await loadManagedGuestInstance(params.id, request);
       if (!loaded.ok) {
         return loaded.error;
       }
@@ -152,8 +161,8 @@ export const guestInstancesRoutes = new Elysia({ name: "routes/guest" })
   )
   .get(
     "/api/guest/instances/:id/logs/recent",
-    ({ params, query, request }) => {
-      const loaded = loadManagedGuestInstance(params.id, request);
+    async ({ params, query, request }) => {
+      const loaded = await loadManagedGuestInstance(params.id, request);
       if (!loaded.ok) {
         return loaded.error;
       }
@@ -169,8 +178,8 @@ export const guestInstancesRoutes = new Elysia({ name: "routes/guest" })
   )
   .put(
     "/api/guest/instances/:id",
-    ({ params, body, request }) => {
-      const loaded = loadManagedGuestInstance(params.id, request);
+    async ({ params, body, request }) => {
+      const loaded = await loadManagedGuestInstance(params.id, request);
       if (!loaded.ok) {
         return loaded.error;
       }
@@ -183,8 +192,8 @@ export const guestInstancesRoutes = new Elysia({ name: "routes/guest" })
   )
   .delete(
     "/api/guest/instances/:id",
-    ({ params, request }) => {
-      const loaded = loadManagedGuestInstance(params.id, request);
+    async ({ params, request }) => {
+      const loaded = await loadManagedGuestInstance(params.id, request);
       if (!loaded.ok) {
         return loaded.error;
       }
@@ -198,8 +207,8 @@ export const guestInstancesRoutes = new Elysia({ name: "routes/guest" })
   )
   .patch(
     "/api/guest/instances/:id/lock",
-    ({ params, body, request }) => {
-      const loaded = loadManagedGuestInstance(params.id, request);
+    async ({ params, body, request }) => {
+      const loaded = await loadManagedGuestInstance(params.id, request);
       if (!loaded.ok) {
         return loaded.error;
       }
@@ -216,8 +225,8 @@ export const guestInstancesRoutes = new Elysia({ name: "routes/guest" })
   )
   .delete(
     "/api/guest/instances/:id/logs",
-    ({ params, request }) => {
-      const loaded = loadManagedGuestInstance(params.id, request);
+    async ({ params, request }) => {
+      const loaded = await loadManagedGuestInstance(params.id, request);
       if (!loaded.ok) {
         return loaded.error;
       }

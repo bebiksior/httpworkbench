@@ -5,11 +5,11 @@ import path from "node:path";
 import { Elysia } from "elysia";
 import { addUser, addWebhook, closeDb, getDb, initDb } from "../../storage";
 import { logs } from "../../storage/schema";
-import { createGuestInstance } from "../instances/service";
 
 process.env.JWT_SECRET = "instance-routes-test-secret";
 
 const { issueAuthToken } = await import("../auth");
+const { createGuestInstance } = await import("../instances/service");
 const { instancesRoutes } = await import("./instances");
 const app = new Elysia().use(instancesRoutes);
 let dataDir = "";
@@ -203,7 +203,7 @@ describe("authenticated instance routes", () => {
   });
 
   test("does not expose guest details through the public instance route", async () => {
-    const created = createGuestInstance("HTTP/1.1 200 OK\n\nsecret");
+    const created = await createGuestInstance("HTTP/1.1 200 OK\n\nsecret");
     expect(created.ok).toBe(true);
     if (!created.ok) {
       return;

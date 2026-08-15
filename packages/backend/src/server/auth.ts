@@ -4,21 +4,8 @@ import type { ApiKey, ApiKeyScope, User } from "shared";
 import { getActiveApiKeyById, getUserById, toPublicUser } from "../storage";
 import type { ApiKeyAuthContext } from "./apiKeyAuth";
 import { authenticateApiKeyValue, hasApiKeyScope } from "./apiKeyAuth";
+import { jwtSecret } from "./jwtSecret";
 import { createFixedWindowRateLimiter } from "./rateLimit";
-
-const jwtSecret = Bun.env.JWT_SECRET;
-
-if (jwtSecret === undefined || jwtSecret === "") {
-  throw new Error("JWT_SECRET must be set");
-}
-
-if (jwtSecret === "your-jwt-secret-here") {
-  throw new Error(
-    "JWT_SECRET must be changed, you are using the default secret",
-  );
-}
-
-const secret = new TextEncoder().encode(jwtSecret);
 
 const AUTH_TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
@@ -37,7 +24,7 @@ export const issueAuthToken = async (
     .setSubject(userId)
     .setIssuedAt()
     .setExpirationTime(Math.floor(expiresAt / 1000))
-    .sign(secret);
+    .sign(jwtSecret);
 };
 
 const extractBearer = (header: string) => {
@@ -63,7 +50,7 @@ const authenticateSession = async (
   let sub: string | undefined;
   let apiKeyId: string | undefined;
   try {
-    const { payload } = await jose.jwtVerify(token, secret);
+    const { payload } = await jose.jwtVerify(token, jwtSecret);
     sub = typeof payload.sub === "string" ? payload.sub : undefined;
     apiKeyId =
       typeof payload.apiKeyId === "string" ? payload.apiKeyId : undefined;

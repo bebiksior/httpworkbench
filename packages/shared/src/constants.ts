@@ -5,4 +5,5 @@ export const GUEST_INSTANCE_RAW_LIMIT_BYTES = 1024 * 1024;
 export const GUEST_MAX_ACTIVE_INSTANCES = 1_000;
 export const GUEST_CREATE_REQUESTS_PER_MINUTE = 10;
 export const INSTANCE_ID_PATTERN = /^[0-9a-z]{8}$/;
-export const GUEST_MANAGEMENT_TOKEN_PATTERN = /^[0-9a-f]{64}$/;
+export const GUEST_MANAGEMENT_TOKEN_PATTERN =
+  /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/;

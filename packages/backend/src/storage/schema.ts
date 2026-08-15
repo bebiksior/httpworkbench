@@ -92,16 +92,6 @@ export const instanceWebhooks = sqliteTable(
   ],
 );
 
-export const guestInstanceCredentials = sqliteTable(
-  "guestInstanceCredentials",
-  {
-    instanceId: text("instanceId")
-      .primaryKey()
-      .references(() => instances.id, { onDelete: "cascade" }),
-    tokenHash: text("tokenHash").notNull(),
-  },
-);
-
 export const logs = sqliteTable(
   "logs",
   {
@@ -175,7 +165,6 @@ export const userNotices = sqliteTable(
 export const schema = {
   users,
   instances,
-  guestInstanceCredentials,
   webhooks,
   apiKeys,
   instanceWebhooks,

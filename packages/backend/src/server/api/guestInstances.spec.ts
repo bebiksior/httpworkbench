@@ -6,7 +6,10 @@ import { Elysia } from "elysia";
 import { instancePolicies } from "../../config";
 import { closeDb, getDb, initDb } from "../../storage";
 import { logs } from "../../storage/schema";
-import { guestInstancesRoutes } from "./guestInstances";
+
+process.env.JWT_SECRET = "guest-instance-routes-test-secret";
+
+const { guestInstancesRoutes } = await import("./guestInstances");
 
 const app = new Elysia().use(guestInstancesRoutes);
 const originalAllowGuest = instancePolicies.allowGuest;
@@ -61,7 +64,7 @@ describe("guest instance routes", () => {
 
   test("returns a management token and requires it for reads and updates", async () => {
     const created = await createGuest();
-    expect(created.token).toMatch(/^[0-9a-f]{64}$/);
+    expect(created.token.split(".")).toHaveLength(3);
     expect(created.instance.raw).toBe(
       "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\ncreated",
     );
@@ -76,7 +79,7 @@ describe("guest instance routes", () => {
       `/api/guest/instances/${created.instance.id}`,
       "GET",
       undefined,
-      "0".repeat(64),
+      "header.payload.signature",
     );
     expect(wrongToken.status).toBe(404);
 
@@ -170,7 +173,7 @@ describe("guest instance routes", () => {
     const response = await call("/api/guest/instances/list", "POST", {
       instances: [
         { id: second.instance.id, token: second.token },
-        { id: first.instance.id, token: "0".repeat(64) },
+        { id: first.instance.id, token: second.token },
         { id: first.instance.id, token: first.token },
       ],
     });

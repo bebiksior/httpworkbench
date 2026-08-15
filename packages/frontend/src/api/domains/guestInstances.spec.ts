@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { guestInstancesApi } from "./guestInstances";
 
-const token = "a".repeat(64);
+const token = "header.payload.signature";
 const instance = {
   id: "guest-instance",
   ownerId: "guest",

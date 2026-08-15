@@ -107,7 +107,7 @@ export const buildApiServer = (port: number) => {
           const guestProtocol = readGuestWebSocketProtocol(request);
           if (
             guestProtocol === undefined ||
-            !authenticateGuestInstance(params.id, guestProtocol.token)
+            !(await authenticateGuestInstance(instance, guestProtocol.token))
           ) {
             return status(404, { error: "Not found" });
           }

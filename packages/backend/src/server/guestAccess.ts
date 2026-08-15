@@ -1,56 +1,89 @@
-import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
+import { createHmac } from "node:crypto";
+import * as jose from "jose";
 import {
-  GUEST_MANAGEMENT_TOKEN_PATTERN,
+  GuestManagementTokenSchema,
   type GuestInstanceReference,
+  type Instance,
 } from "shared";
-import {
-  getActiveGuestCredentialHash,
-  getActiveGuestCredentialHashes,
-} from "../storage";
+import { jwtSecret } from "./jwtSecret";
 
 const GUEST_TOKEN_HEADER = "x-guest-token";
 const GUEST_WEBSOCKET_PROTOCOL_PREFIX = "guest-token.";
+const GUEST_TOKEN_AUDIENCE = "httpworkbench:guest-instance";
+const GUEST_TOKEN_ISSUER = "httpworkbench";
+const GUEST_TOKEN_KIND = "guest_instance";
+const guestTokenSecret = createHmac("sha256", jwtSecret)
+  .update(GUEST_TOKEN_AUDIENCE)
+  .digest();
 
-const hashGuestManagementToken = (token: string): string =>
-  createHash("sha256").update(token).digest("hex");
+type GuestInstanceIdentity = Pick<Instance, "id" | "createdAt">;
 
-const tokenHashMatches = (token: string, expectedHash: string): boolean => {
-  if (!GUEST_MANAGEMENT_TOKEN_PATTERN.test(token)) {
-    return false;
-  }
-  const actual = Buffer.from(hashGuestManagementToken(token), "hex");
-  const expected = Buffer.from(expectedHash, "hex");
-  return actual.length === expected.length && timingSafeEqual(actual, expected);
-};
+export const issueGuestManagementToken = async (
+  instance: GuestInstanceIdentity,
+  expiresAt: number,
+) =>
+  await new jose.SignJWT({
+    kind: GUEST_TOKEN_KIND,
+    createdAt: instance.createdAt,
+  })
+    .setProtectedHeader({ alg: "HS256", typ: "JWT" })
+    .setIssuer(GUEST_TOKEN_ISSUER)
+    .setAudience(GUEST_TOKEN_AUDIENCE)
+    .setSubject(instance.id)
+    .setIssuedAt()
+    .setExpirationTime(Math.ceil(expiresAt / 1000))
+    .sign(guestTokenSecret);
 
-export const createGuestManagementCredential = () => {
-  const token = randomBytes(32).toString("hex");
-  return { token, tokenHash: hashGuestManagementToken(token) };
-};
-
-export const authenticateGuestInstance = (
-  instanceId: string,
+export const authenticateGuestInstance = async (
+  instance: GuestInstanceIdentity,
   token: string | undefined,
-): boolean => {
-  if (token === undefined) {
+): Promise<boolean> => {
+  if (
+    token === undefined ||
+    !GuestManagementTokenSchema.safeParse(token).success
+  ) {
     return false;
   }
-  const expectedHash = getActiveGuestCredentialHash(instanceId);
-  return expectedHash !== undefined && tokenHashMatches(token, expectedHash);
+  try {
+    const { payload } = await jose.jwtVerify(token, guestTokenSecret, {
+      algorithms: ["HS256"],
+      audience: GUEST_TOKEN_AUDIENCE,
+      issuer: GUEST_TOKEN_ISSUER,
+      subject: instance.id,
+      typ: "JWT",
+      requiredClaims: ["exp", "iat", "kind", "createdAt"],
+    });
+    return (
+      payload.kind === GUEST_TOKEN_KIND &&
+      payload.createdAt === instance.createdAt
+    );
+  } catch {
+    return false;
+  }
 };
 
-export const authenticateGuestInstanceReferences = (
+export const authenticateGuestInstanceReferences = async (
   references: GuestInstanceReference[],
-): string[] => {
+  instances: GuestInstanceIdentity[],
+): Promise<string[]> => {
   const uniqueIds = [...new Set(references.map(({ id }) => id))];
-  const expectedHashes = getActiveGuestCredentialHashes(uniqueIds);
-  const authorizedIds = new Set<string>();
-  for (const { id, token } of references) {
-    const expectedHash = expectedHashes.get(id);
-    if (expectedHash !== undefined && tokenHashMatches(token, expectedHash)) {
-      authorizedIds.add(id);
-    }
-  }
+  const instancesById = new Map(
+    instances.map((instance) => [instance.id, instance]),
+  );
+  const results = await Promise.all(
+    references.map(async ({ id, token }) => {
+      const instance = instancesById.get(id);
+      return {
+        id,
+        authenticated:
+          instance !== undefined &&
+          (await authenticateGuestInstance(instance, token)),
+      };
+    }),
+  );
+  const authorizedIds = new Set(
+    results.flatMap(({ id, authenticated }) => (authenticated ? [id] : [])),
+  );
   return uniqueIds.filter((id) => authorizedIds.has(id));
 };
 
@@ -71,7 +104,8 @@ export const readGuestWebSocketProtocol = (
     return undefined;
   }
   const token = protocol.slice(GUEST_WEBSOCKET_PROTOCOL_PREFIX.length);
-  return GUEST_MANAGEMENT_TOKEN_PATTERN.test(token)
-    ? { protocol, token }
-    : undefined;
+  if (!GuestManagementTokenSchema.safeParse(token).success) {
+    return undefined;
+  }
+  return { protocol, token };
 };

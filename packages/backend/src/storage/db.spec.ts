@@ -84,7 +84,6 @@ describe("storage db migrations", () => {
     expect(tables).toEqual([
       { name: "__drizzle_migrations" },
       { name: "apiKeys" },
-      { name: "guestInstanceCredentials" },
       { name: "instanceModerations" },
       { name: "instanceWebhooks" },
       { name: "instances" },
@@ -358,7 +357,67 @@ describe("storage db migrations", () => {
           "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'guestInstanceCredentials'",
         )
         .all(),
-    ).toEqual([{ name: "guestInstanceCredentials" }]);
+    ).toEqual([]);
+    migrated.close();
+  });
+
+  test("JWT guest migration removes guests whose stored tokens become invalid", () => {
+    const dbPath = resolveSqliteDbPath(dataDir);
+    const sqlite = new Database(dbPath);
+    const migrations = readMigrationFiles({
+      migrationsFolder: path.join(import.meta.dir, "../../drizzle"),
+    });
+    for (const migration of migrations.slice(0, 6)) {
+      for (const statement of migration.sql) {
+        sqlite.exec(statement);
+      }
+    }
+    sqlite.exec(`
+      CREATE TABLE __drizzle_migrations (
+        id SERIAL PRIMARY KEY,
+        hash TEXT NOT NULL,
+        created_at NUMERIC
+      );
+      INSERT INTO instances
+        (id, ownerId, createdAt, expiresAt, label, isPublic, isLocked, raw)
+        VALUES
+          ('jwtguest', 'guest', 1, 9999999999999, NULL, 0, 0, 'HTTP/1.1 200 OK\r\n\r\nguest');
+      INSERT INTO guestInstanceCredentials (instanceId, tokenHash)
+        VALUES ('jwtguest', '${"a".repeat(64)}');
+      INSERT INTO logs (id, instanceId, type, timestamp, address, raw)
+        VALUES ('guest-log', 'jwtguest', 'http', 1, '127.0.0.1', 'GET /');
+      INSERT INTO instanceModerations
+        (instanceId, window5mStartMs, requestsInWindow5m, strikeCommittedForWindow, strikeTimestampsJson, discordMutedUntilMs, window15mStartMs, requestsInWindow15m, lastMinuteBucketStartMs, requestsInCurrentMinute)
+        VALUES ('jwtguest', 0, 0, 0, '[]', NULL, 0, 0, 0, 0);
+    `);
+    for (const migration of migrations.slice(0, 6)) {
+      sqlite
+        .query(
+          "INSERT INTO __drizzle_migrations (hash, created_at) VALUES (?1, ?2)",
+        )
+        .run(migration.hash, migration.folderMillis);
+    }
+    sqlite.close();
+
+    expect(initDb({ dataDir }).kind).toBe("ok");
+    closeDb();
+
+    const migrated = new Database(dbPath);
+    expect(
+      migrated
+        .query(
+          "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'guestInstanceCredentials'",
+        )
+        .all(),
+    ).toEqual([]);
+    expect(
+      migrated.query("SELECT id FROM instances WHERE ownerId = 'guest'").all(),
+    ).toEqual([]);
+    expect(migrated.query("SELECT id FROM logs").all()).toEqual([]);
+    expect(
+      migrated.query("SELECT instanceId FROM instanceModerations").all(),
+    ).toEqual([]);
+    expect(migrated.query("PRAGMA foreign_key_check").all()).toEqual([]);
     migrated.close();
   });
 });

@@ -14,7 +14,7 @@ import {
   getWebhooksByOwner,
   updateInstance,
 } from "../../storage";
-import { createGuestManagementCredential } from "../guestAccess";
+import { issueGuestManagementToken } from "../guestAccess";
 import { generateInstanceID, validateStaticRaw } from "../utils";
 
 type InstanceServiceErrorCode =
@@ -182,9 +182,9 @@ export const replaceInstance = (
     : { ok: true, value: updated };
 };
 
-export const createGuestInstance = (
+export const createGuestInstance = async (
   raw: string,
-): InstanceServiceResult<{ instance: Instance; token: string }> => {
+): Promise<InstanceServiceResult<{ instance: Instance; token: string }>> => {
   const validatedRaw = validateGuestRaw(raw);
   if (!validatedRaw.ok) {
     return validatedRaw;
@@ -196,23 +196,25 @@ export const createGuestInstance = (
   }
 
   const now = Date.now();
-  const credential = createGuestManagementCredential();
-  const instance = addGuestInstance(
-    {
-      id: generateInstanceID(),
-      ownerId: GUEST_OWNER_ID,
-      createdAt: now,
-      expiresAt: now + GUEST_INSTANCE_TTL_MS,
-      webhookIds: [],
-      public: false,
-      locked: false,
-      raw: validatedRaw.value,
-    },
-    credential.tokenHash,
+  const expiresAt = now + GUEST_INSTANCE_TTL_MS;
+  const instanceId = generateInstanceID();
+  const token = await issueGuestManagementToken(
+    { id: instanceId, createdAt: now },
+    expiresAt,
   );
+  const instance = addGuestInstance({
+    id: instanceId,
+    ownerId: GUEST_OWNER_ID,
+    createdAt: now,
+    expiresAt,
+    webhookIds: [],
+    public: false,
+    locked: false,
+    raw: validatedRaw.value,
+  });
   return {
     ok: true,
-    value: { instance, token: credential.token },
+    value: { instance, token },
   };
 };
 

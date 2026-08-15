@@ -67,7 +67,7 @@ describe("static-only instance contracts", () => {
     ).toBe(false);
     expect(
       GuestInstanceSummariesRequestSchema.safeParse({
-        instances: [{ id: "abcd1234", token: "a".repeat(64) }],
+        instances: [{ id: "abcd1234", token: "header.payload.signature" }],
       }).success,
     ).toBe(true);
     expect(

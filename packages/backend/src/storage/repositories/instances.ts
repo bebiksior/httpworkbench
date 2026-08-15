@@ -18,12 +18,7 @@ import {
   toDomainInstanceSummary,
   toInstanceRow,
 } from "../records";
-import {
-  guestInstanceCredentials,
-  instances,
-  instanceWebhooks,
-  logs,
-} from "../schema";
+import { instances, instanceWebhooks, logs } from "../schema";
 
 const activeInstanceCondition = (now: number) =>
   or(isNull(instances.expiresAt), gt(instances.expiresAt, now));
@@ -73,23 +68,12 @@ export function addInstance(instance: Instance): Instance {
   return parsed;
 }
 
-export function addGuestInstance(
-  instance: Instance,
-  tokenHash: string,
-): Instance {
+export function addGuestInstance(instance: Instance): Instance {
   const parsed = InstanceSchema.parse(instance);
   if (parsed.ownerId !== GUEST_OWNER_ID || parsed.webhookIds.length !== 0) {
     throw new Error("Invalid guest instance");
   }
-  getDb().transaction(
-    (tx) => {
-      tx.insert(instances).values(toInstanceRow(parsed)).run();
-      tx.insert(guestInstanceCredentials)
-        .values({ instanceId: parsed.id, tokenHash })
-        .run();
-    },
-    { behavior: "immediate" },
-  );
+  getDb().insert(instances).values(toInstanceRow(parsed)).run();
   return parsed;
 }
 
@@ -162,49 +146,6 @@ export function getInstanceSummariesByIds(
   });
 }
 
-export function getActiveGuestCredentialHash(
-  instanceId: string,
-  now = Date.now(),
-): string | undefined {
-  return getDb()
-    .select({ tokenHash: guestInstanceCredentials.tokenHash })
-    .from(guestInstanceCredentials)
-    .innerJoin(instances, eq(instances.id, guestInstanceCredentials.instanceId))
-    .where(
-      and(
-        eq(guestInstanceCredentials.instanceId, instanceId),
-        eq(instances.ownerId, GUEST_OWNER_ID),
-        activeInstanceCondition(now),
-      ),
-    )
-    .get()?.tokenHash;
-}
-
-export function getActiveGuestCredentialHashes(
-  instanceIds: string[],
-  now = Date.now(),
-): Map<string, string> {
-  if (instanceIds.length === 0) {
-    return new Map();
-  }
-  const rows = getDb()
-    .select({
-      instanceId: guestInstanceCredentials.instanceId,
-      tokenHash: guestInstanceCredentials.tokenHash,
-    })
-    .from(guestInstanceCredentials)
-    .innerJoin(instances, eq(instances.id, guestInstanceCredentials.instanceId))
-    .where(
-      and(
-        inArray(guestInstanceCredentials.instanceId, instanceIds),
-        eq(instances.ownerId, GUEST_OWNER_ID),
-        activeInstanceCondition(now),
-      ),
-    )
-    .all();
-  return new Map(rows.map((row) => [row.instanceId, row.tokenHash]));
-}
-
 export function countActiveInstancesByOwner(ownerId: string): number {
   return (
     getDb()
@@ -228,7 +169,7 @@ export type ServableInstance = Pick<Instance, "id" | "raw">;
 
 export type InstanceAccessMetadata = Pick<
   Instance,
-  "id" | "ownerId" | "public"
+  "id" | "ownerId" | "createdAt" | "public"
 >;
 
 export function getServableInstanceById(
@@ -258,6 +199,7 @@ export function getInstanceAccessMetadata(
     .select({
       id: instances.id,
       ownerId: instances.ownerId,
+      createdAt: instances.createdAt,
       public: instances.isPublic,
     })
     .from(instances)

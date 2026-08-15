@@ -3,12 +3,17 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { closeDb, initDb } from "../storage";
-import {
+
+process.env.JWT_SECRET = "guest-access-test-secret";
+
+const {
   authenticateGuestInstance,
+  issueGuestManagementToken,
   readGuestManagementToken,
   readGuestWebSocketProtocol,
-} from "./guestAccess";
-import { createGuestInstance } from "./instances/service";
+} = await import("./guestAccess");
+const { issueAuthToken } = await import("./auth");
+const { createGuestInstance } = await import("./instances/service");
 
 let dataDir = "";
 
@@ -26,18 +31,46 @@ describe("guest management access", () => {
     rmSync(dataDir, { recursive: true, force: true });
   });
 
-  test("authenticates only the generated token and parses safe transports", () => {
-    const created = createGuestInstance("HTTP/1.1 200 OK\n\nok");
+  test("authenticates only the generated token and parses safe transports", async () => {
+    const created = await createGuestInstance("HTTP/1.1 200 OK\n\nok");
     expect(created.ok).toBe(true);
     if (!created.ok) {
       return;
     }
 
     expect(
-      authenticateGuestInstance(created.value.instance.id, created.value.token),
+      await authenticateGuestInstance(
+        created.value.instance,
+        created.value.token,
+      ),
     ).toBe(true);
     expect(
-      authenticateGuestInstance(created.value.instance.id, "0".repeat(64)),
+      await authenticateGuestInstance(
+        { ...created.value.instance, id: "other-id" },
+        created.value.token,
+      ),
+    ).toBe(false);
+    expect(
+      await authenticateGuestInstance(
+        {
+          ...created.value.instance,
+          createdAt: created.value.instance.createdAt + 1,
+        },
+        created.value.token,
+      ),
+    ).toBe(false);
+
+    const sessionToken = await issueAuthToken(created.value.instance.id);
+    expect(
+      await authenticateGuestInstance(created.value.instance, sessionToken),
+    ).toBe(false);
+
+    const expired = await issueGuestManagementToken(
+      created.value.instance,
+      Date.now() - 2_000,
+    );
+    expect(
+      await authenticateGuestInstance(created.value.instance, expired),
     ).toBe(false);
 
     const request = new Request("http://localhost", {

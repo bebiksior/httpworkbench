@@ -6,9 +6,9 @@ import {
   upsertGuestInstanceRecord,
 } from "./guestInstances.utils";
 
-const firstToken = "a".repeat(64);
-const secondToken = "b".repeat(64);
-const thirdToken = "c".repeat(64);
+const firstToken = "header.first.signature";
+const secondToken = "header.second.signature";
+const thirdToken = "header.third.signature";
 
 describe("parseGuestInstanceRecords", () => {
   test("returns an empty array for invalid JSON", () => {
