@@ -17,6 +17,7 @@ export const formatResponse = (body: string) => {
 
 export const useBuilderStore = defineStore("builder", () => {
   const showPreview = ref(false);
+  const showAssistant = ref(true);
   const previewKey = ref(0);
   const isDirty = ref(false);
 
@@ -39,6 +40,10 @@ export const useBuilderStore = defineStore("builder", () => {
     previewKey.value += 1;
   };
 
+  const toggleAssistant = () => {
+    showAssistant.value = !showAssistant.value;
+  };
+
   const setEditorContent = (value: string, origin: "user" | "agent") => {
     responseEditorStore.setContent(value, origin);
   };
@@ -53,6 +58,7 @@ export const useBuilderStore = defineStore("builder", () => {
 
   const reset = () => {
     showPreview.value = false;
+    showAssistant.value = true;
     previewKey.value = 0;
     isDirty.value = false;
     responseEditorStore.setContent(DEFAULT_TEMPLATE, "hydrate");
@@ -60,10 +66,12 @@ export const useBuilderStore = defineStore("builder", () => {
 
   return {
     showPreview,
+    showAssistant,
     previewKey,
     isDirty,
     editorContent,
     refreshPreview,
+    toggleAssistant,
     setEditorContent,
     hydrateEditor,
     reset,

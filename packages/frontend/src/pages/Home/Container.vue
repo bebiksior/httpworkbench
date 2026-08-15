@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useVirtualizer } from "@tanstack/vue-virtual";
 import Button from "primevue/button";
 import Divider from "primevue/divider";
 import IconField from "primevue/iconfield";
@@ -6,8 +7,8 @@ import InputIcon from "primevue/inputicon";
 import InputText from "primevue/inputtext";
 import Message from "primevue/message";
 import Skeleton from "primevue/skeleton";
-import { useMediaQuery } from "@vueuse/core";
-import { computed } from "vue";
+import { useMediaQuery, useResizeObserver } from "@vueuse/core";
+import { computed, nextTick, ref, watch } from "vue";
 import { storeToRefs } from "pinia";
 import { config } from "@/config";
 import { useAuthStore } from "@/stores/auth";
@@ -36,11 +37,71 @@ const showInstanceLimit = computed(
 
 const authStore = useAuthStore();
 const { isGuest } = storeToRefs(authStore);
-const showDesktopDivider = useMediaQuery("(min-width: 640px)");
+const isDesktopViewport = useMediaQuery("(min-width: 640px)");
+
+const scrollerRef = ref<HTMLElement | null>(null);
+const instancesListRef = ref<HTMLElement | null>(null);
+const listScrollMargin = ref(0);
+const instanceKeys = computed(() =>
+  filteredInstances.value.map((instance) => instance.id),
+);
+
+const instanceVirtualizer = useVirtualizer(
+  computed(() => ({
+    count: instanceKeys.value.length,
+    getScrollElement: () => scrollerRef.value,
+    estimateSize: () => (isDesktopViewport.value ? 100 : 116),
+    overscan: 8,
+    scrollMargin: listScrollMargin.value,
+    getItemKey: (index: number) => instanceKeys.value[index] ?? index,
+  })),
+);
+
+const virtualInstances = computed(() =>
+  instanceVirtualizer.value.getVirtualItems(),
+);
+const virtualInstancesHeight = computed(
+  () => instanceVirtualizer.value.getTotalSize() + 32,
+);
+
+const updateListScrollMargin = () => {
+  const scroller = scrollerRef.value;
+  const list = instancesListRef.value;
+  if (scroller === null || list === null) {
+    return;
+  }
+
+  listScrollMargin.value =
+    list.getBoundingClientRect().top -
+    scroller.getBoundingClientRect().top +
+    scroller.scrollTop;
+};
+
+const measureInstance = (element: unknown) => {
+  if (element instanceof Element) {
+    instanceVirtualizer.value.measureElement(element);
+  }
+};
+
+useResizeObserver(scrollerRef, updateListScrollMargin);
+useResizeObserver(instancesListRef, updateListScrollMargin);
+
+watch(
+  [instancesListRef, instanceKeys, isDesktopViewport],
+  async () => {
+    await nextTick();
+    updateListScrollMargin();
+    instanceVirtualizer.value.measure();
+  },
+  { flush: "post" },
+);
 </script>
 
 <template>
-  <div class="h-full overflow-y-auto bg-surface-50 dark:bg-surface-900">
+  <div
+    ref="scrollerRef"
+    class="h-full overflow-y-auto bg-surface-50 dark:bg-surface-900"
+  >
     <div class="mx-auto max-w-7xl px-3 pt-4 pb-2 sm:px-6 sm:pt-8">
       <div
         class="mb-2 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4"
@@ -75,7 +136,7 @@ const showDesktopDivider = useMediaQuery("(min-width: 640px)");
       </Message>
     </div>
 
-    <Divider v-if="showDesktopDivider" class="mb-6" />
+    <Divider v-if="isDesktopViewport" class="mb-6" />
 
     <div class="mx-auto max-w-7xl px-3 pt-4 sm:px-6 sm:pt-2">
       <div
@@ -170,13 +231,25 @@ const showDesktopDivider = useMediaQuery("(min-width: 640px)");
 
       <div
         v-else-if="filteredInstances.length > 0"
-        class="space-y-3 pb-8 sm:space-y-4"
+        ref="instancesListRef"
+        class="relative w-full"
+        :style="{ height: `${virtualInstancesHeight}px` }"
+        role="list"
+        aria-label="Instances"
       >
-        <InstanceItem
-          v-for="instance in filteredInstances"
-          :key="instance.id"
-          :instance="instance"
-        />
+        <div
+          v-for="virtualInstance in virtualInstances"
+          :key="String(virtualInstance.key)"
+          :ref="measureInstance"
+          :data-index="virtualInstance.index"
+          class="absolute left-0 top-0 w-full pb-3 sm:pb-4"
+          :style="{
+            transform: `translateY(${virtualInstance.start - listScrollMargin}px)`,
+          }"
+          role="listitem"
+        >
+          <InstanceItem :instance="filteredInstances[virtualInstance.index]" />
+        </div>
       </div>
       <EmptyState v-else :has-search-query="hasSearchQuery" />
     </div>

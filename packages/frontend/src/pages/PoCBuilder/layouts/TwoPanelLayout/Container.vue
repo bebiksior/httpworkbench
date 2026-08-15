@@ -4,16 +4,11 @@ import { computed } from "vue";
 import Splitter from "primevue/splitter";
 import SplitterPanel from "primevue/splitterpanel";
 import { PoCEditor } from "@/components/PoCEditor";
-import { Assistant } from "@/components/Assistant";
-import { useAuthStore, useBuilderStore, useThemeStore } from "@/stores";
+import { useBuilderStore, useThemeStore } from "@/stores";
 import { BuilderActions } from "@/pages/PoCBuilder/components/BuilderActions";
+import { BuilderAssistant } from "@/pages/PoCBuilder/components/BuilderAssistant";
 import { BuilderUrl } from "@/pages/PoCBuilder/components/BuilderUrl";
-import { useAiSettings } from "@/utils/ai";
-
-const authStore = useAuthStore();
-const { isGuest } = storeToRefs(authStore);
-
-const { isEnabled: showAssistant } = useAiSettings();
+import { useBuilderPageContext } from "@/pages/PoCBuilder/useBuilderPage";
 
 const themeStore = useThemeStore();
 const splitterPt = computed(() => ({
@@ -24,6 +19,7 @@ const splitterPt = computed(() => ({
 
 const builderStore = useBuilderStore();
 const { editorContent } = storeToRefs(builderStore);
+const { showAssistant } = useBuilderPageContext();
 
 const handleEditorChange = (value: string) => {
   builderStore.setEditorContent(value, "user");
@@ -70,15 +66,7 @@ const handleEditorChange = (value: string) => {
       <div
         class="h-full flex flex-col bg-white dark:bg-surface-900 overflow-hidden rounded-lg"
       >
-        <div class="flex-1 min-h-0 py-2">
-          <div
-            v-if="isGuest"
-            class="h-full flex items-center justify-center text-surface-500 text-sm px-4 text-center"
-          >
-            Assistant is not available in guest mode.
-          </div>
-          <Assistant v-else />
-        </div>
+        <BuilderAssistant />
       </div>
     </SplitterPanel>
   </Splitter>

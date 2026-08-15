@@ -7,6 +7,7 @@ import {
   type InjectionKey,
   type Ref,
 } from "vue";
+import { watchDebounced } from "@vueuse/core";
 import { useRouter } from "vue-router";
 import type { Instance } from "shared";
 import { useNotify } from "@/composables";
@@ -19,6 +20,7 @@ import {
   DEFAULT_TEMPLATE,
   formatResponse,
 } from "@/stores";
+import { useAiSettings } from "@/utils/ai";
 import { isAbsent } from "@/utils/types";
 import { buildExitRoute } from "./exitBuilder";
 
@@ -26,6 +28,8 @@ type BuilderPageContext = {
   instance: ComputedRef<Instance | undefined>;
   isLoading: Ref<boolean>;
   isSaving: Ref<boolean>;
+  isAiEnabled: ComputedRef<boolean>;
+  showAssistant: ComputedRef<boolean>;
   previewUrl: ComputedRef<string | undefined>;
   handleSave: () => Promise<void>;
   handleBack: () => void;
@@ -34,17 +38,23 @@ type BuilderPageContext = {
 const builderPageSymbol: InjectionKey<BuilderPageContext> =
   Symbol("builderPage");
 
+const AUTO_SAVE_DEBOUNCE_MS = 500;
+
 export const useBuilderPage = (instanceIdRef: Ref<string>) => {
   const notify = useNotify();
   const router = useRouter();
   const builderStore = useBuilderStore();
   const responseEditorStore = useResponseEditorStore();
+  const { isEnabled: isAiEnabled } = useAiSettings();
 
   const { data, isLoading, error } = useInstanceDetail(instanceIdRef);
   const { mutateAsync: updateInstanceMutation, isPending: isSaving } =
     useUpdateInstance();
 
   const instance = computed(() => data.value?.instance);
+  const showAssistant = computed(
+    () => isAiEnabled.value && builderStore.showAssistant,
+  );
 
   const previewUrl = computed(() => {
     const inst = instance.value;
@@ -82,26 +92,70 @@ export const useBuilderPage = (instanceIdRef: Ref<string>) => {
     { immediate: true },
   );
 
-  const handleSave = async () => {
+  let activeSave: Promise<boolean> | undefined;
+  let saveQueued = false;
+
+  const saveCurrentSnapshot = async () => {
     const currentInstance = instance.value;
     if (currentInstance === undefined) {
-      return;
+      return false;
     }
+    const content = builderStore.editorContent;
+
     try {
       await updateInstanceMutation({
         id: currentInstance.id,
         input: {
-          raw: formatResponse(builderStore.editorContent),
+          raw: formatResponse(content),
           webhookIds: currentInstance.webhookIds,
         },
       });
-      builderStore.isDirty = false;
+      if (instance.value?.id !== currentInstance.id) {
+        return true;
+      }
+      if (builderStore.editorContent === content) {
+        builderStore.isDirty = false;
+      }
       builderStore.refreshPreview();
-      notify.success("PoC saved");
+      return true;
     } catch (err) {
       notify.error("Save failed", err);
+      return false;
     }
   };
+
+  const handleSave = async () => {
+    if (!builderStore.isDirty) {
+      return;
+    }
+
+    if (activeSave !== undefined) {
+      saveQueued = true;
+      await activeSave;
+      return;
+    }
+
+    do {
+      saveQueued = false;
+      activeSave = saveCurrentSnapshot();
+      const saved = await activeSave;
+      activeSave = undefined;
+
+      if (!saved) {
+        return;
+      }
+    } while (saveQueued && builderStore.isDirty);
+  };
+
+  watchDebounced(
+    () => builderStore.editorContent,
+    () => {
+      if (builderStore.isDirty) {
+        void handleSave();
+      }
+    },
+    { debounce: AUTO_SAVE_DEBOUNCE_MS },
+  );
 
   const handleBack = () => {
     router.push(buildExitRoute(instanceIdRef.value));
@@ -111,6 +165,8 @@ export const useBuilderPage = (instanceIdRef: Ref<string>) => {
     instance,
     isLoading,
     isSaving,
+    isAiEnabled,
+    showAssistant,
     previewUrl,
     handleSave,
     handleBack,

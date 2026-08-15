@@ -29,7 +29,7 @@ const accountLabel = computed(() => {
 });
 
 const menuItems = computed(() => {
-  const sessionItems = authStore.hasSession
+  const sessionItems = authStore.isAuthenticated
     ? [
         {
           label: "Settings",

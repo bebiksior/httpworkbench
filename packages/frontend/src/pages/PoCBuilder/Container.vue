@@ -29,7 +29,7 @@ watch(
 
 const builderPage = useBuilderPage(instanceId);
 provideBuilderPage(builderPage);
-const { instance, isLoading, handleSave } = builderPage;
+const { instance, isLoading, isAiEnabled, handleSave } = builderPage;
 
 const isLargeScreen = ref(false);
 const mediaQuery = window.matchMedia("(min-width: 1024px)");
@@ -41,8 +41,28 @@ const updateScreenSize = () => {
 const keys = useMagicKeys({
   passive: false,
   onEventFired: (e) => {
-    if ((e.metaKey || e.ctrlKey) && e.key === "s" && e.type === "keydown") {
+    if (
+      e.type !== "keydown" ||
+      (!e.metaKey && !e.ctrlKey) ||
+      e.altKey ||
+      e.shiftKey
+    ) {
+      return;
+    }
+
+    const key = e.key.toLowerCase();
+
+    if (key === "s") {
       e.preventDefault();
+      return;
+    }
+
+    if (key === "i" && isAiEnabled.value) {
+      e.preventDefault();
+
+      if (!e.repeat) {
+        builderStore.toggleAssistant();
+      }
     }
   },
 });

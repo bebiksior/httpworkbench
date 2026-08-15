@@ -42,6 +42,7 @@ describe("useBuilderStore", () => {
     const builder = useBuilderStore();
 
     builder.showPreview = true;
+    builder.showAssistant = false;
     builder.setEditorContent("<h1>edited</h1>", "user");
     await nextTick();
 
@@ -50,6 +51,17 @@ describe("useBuilderStore", () => {
 
     expect(builder.isDirty).toBe(false);
     expect(builder.showPreview).toBe(false);
+    expect(builder.showAssistant).toBe(true);
     expect(builder.editorContent).toBe(DEFAULT_TEMPLATE);
+  });
+
+  test("toggles assistant visibility", () => {
+    const builder = useBuilderStore();
+
+    builder.toggleAssistant();
+    expect(builder.showAssistant).toBe(false);
+
+    builder.toggleAssistant();
+    expect(builder.showAssistant).toBe(true);
   });
 });
