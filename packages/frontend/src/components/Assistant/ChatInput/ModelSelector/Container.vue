@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onClickOutside, useEventListener } from "@vueuse/core";
 import { ref, useId, watch } from "vue";
+import { REASONING_EFFORT_LABELS } from "@/agent/types/config";
 import { useSelector } from "./useSelector";
 
 const props = defineProps<{
@@ -11,7 +12,7 @@ const emit = defineEmits<{
   requestFocusInput: [];
 }>();
 
-const { models, modelId, selectedModel } = useSelector();
+const { models, modelId, reasoningEffort, selectedModel } = useSelector();
 const rootRef = ref<HTMLElement>();
 const isOpen = ref(false);
 const popoverId = useId();
@@ -50,6 +51,7 @@ useEventListener(window, "keydown", (event) => {
   if (event.key !== "Escape" || !isOpen.value) return;
 
   event.preventDefault();
+  event.stopPropagation();
   closePopover(true);
 });
 
@@ -70,6 +72,7 @@ watch(
       :disabled="disabled === true"
       :aria-expanded="isOpen"
       :aria-controls="popoverId"
+      aria-haspopup="dialog"
       class="flex min-w-0 items-center gap-2 rounded-md border border-surface-700/70 bg-surface-900/70 px-3 py-1.5 text-sm text-surface-300 transition-colors duration-200"
       :class="[
         disabled === true
@@ -88,6 +91,12 @@ watch(
       <span class="max-w-44 truncate font-mono">
         {{ selectedModel?.name ?? "Select model" }}
       </span>
+      <span
+        v-if="selectedModel !== undefined"
+        class="shrink-0 text-[11px] text-surface-500"
+      >
+        {{ REASONING_EFFORT_LABELS[reasoningEffort] }}
+      </span>
       <i
         class="pi pi-chevron-down text-[10px] text-surface-500 transition-transform duration-200"
         :class="isOpen ? 'rotate-180' : ''"
@@ -105,6 +114,8 @@ watch(
       <div
         v-if="isOpen"
         :id="popoverId"
+        role="dialog"
+        aria-label="Model and reasoning settings"
         class="absolute bottom-full left-0 z-[1202] mb-2 w-72 max-w-[min(28rem,calc(100vw-2rem))] overflow-hidden rounded-xl border border-surface-700/80 bg-surface-950/95 shadow-2xl shadow-black/30 backdrop-blur"
       >
         <div class="border-b border-surface-800 px-3 py-2">
@@ -142,6 +153,35 @@ watch(
               class="pi pi-check text-xs text-surface-400"
             />
           </button>
+        </div>
+        <div
+          v-if="selectedModel !== undefined"
+          class="border-t border-surface-800 px-3 py-2.5"
+        >
+          <p class="mb-2 text-xs font-medium text-surface-500">
+            Reasoning effort
+          </p>
+          <div
+            class="grid grid-cols-3 gap-1"
+            role="group"
+            aria-label="Reasoning effort"
+          >
+            <button
+              v-for="effort in selectedModel.reasoningEfforts"
+              :key="effort"
+              type="button"
+              :aria-pressed="effort === reasoningEffort"
+              class="rounded-md px-2 py-1.5 text-xs transition-colors"
+              :class="
+                effort === reasoningEffort
+                  ? 'bg-surface-800 text-surface-50'
+                  : 'text-surface-400 hover:bg-surface-900 hover:text-surface-100'
+              "
+              @click="reasoningEffort = effort"
+            >
+              {{ REASONING_EFFORT_LABELS[effort] }}
+            </button>
+          </div>
         </div>
       </div>
     </transition>

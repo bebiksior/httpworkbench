@@ -1,4 +1,8 @@
-import type { ModelItem } from "./types/config";
+import {
+  REASONING_EFFORT_SCHEMAS,
+  type ModelItem,
+  type ReasoningEffort,
+} from "./types/config";
 import type { AiProviderId } from "@/utils/ai";
 
 const OPENROUTER_MODELS = [
@@ -15,6 +19,8 @@ const providerModels = (
   provider: AiProviderId,
   providerName: string,
   models: ReadonlyArray<{ modelId: string; name: string }>,
+  reasoningEfforts: readonly ReasoningEffort[],
+  defaultReasoningEffort: ReasoningEffort = "high",
 ): ModelItem[] =>
   models.map(({ modelId, name }) => ({
     id: `${provider}:${modelId}`,
@@ -22,6 +28,8 @@ const providerModels = (
     provider,
     providerName,
     name,
+    reasoningEfforts,
+    defaultReasoningEffort,
   }));
 
 const OPENAI_MODELS = OPENROUTER_MODELS.filter(({ modelId }) =>
@@ -32,15 +40,36 @@ const OPENAI_MODELS = OPENROUTER_MODELS.filter(({ modelId }) =>
 }));
 
 export const availableModels: ModelItem[] = [
-  ...providerModels("openrouter", "OpenRouter", OPENROUTER_MODELS),
-  ...providerModels("openai", "OpenAI API", OPENAI_MODELS),
-  ...providerModels("anthropic", "Anthropic API", [
-    { modelId: "claude-opus-5", name: "Claude Opus 5" },
-  ]),
-  ...providerModels("chatgpt", "ChatGPT", OPENAI_MODELS),
-  ...providerModels("xai", "xAI subscription", [
-    { modelId: "grok-4.6", name: "Grok 4.6" },
-  ]),
+  ...providerModels(
+    "openrouter",
+    "OpenRouter",
+    OPENROUTER_MODELS,
+    REASONING_EFFORT_SCHEMAS.openrouter.options,
+  ),
+  ...providerModels(
+    "openai",
+    "OpenAI API",
+    OPENAI_MODELS,
+    REASONING_EFFORT_SCHEMAS.openai.options,
+  ),
+  ...providerModels(
+    "anthropic",
+    "Anthropic API",
+    [{ modelId: "claude-opus-5", name: "Claude Opus 5" }],
+    REASONING_EFFORT_SCHEMAS.anthropic.options,
+  ),
+  ...providerModels(
+    "chatgpt",
+    "ChatGPT",
+    OPENAI_MODELS,
+    REASONING_EFFORT_SCHEMAS.chatgpt.options,
+  ),
+  ...providerModels(
+    "xai",
+    "xAI subscription",
+    [{ modelId: "grok-4.6", name: "Grok 4.6" }],
+    REASONING_EFFORT_SCHEMAS.xai.options,
+  ),
 ];
 
 export const findModel = (id: string) =>

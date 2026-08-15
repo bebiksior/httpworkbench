@@ -3,7 +3,7 @@ import Button from "primevue/button";
 import Divider from "primevue/divider";
 import Dialog from "primevue/dialog";
 import Message from "primevue/message";
-import { useMediaQuery } from "@vueuse/core";
+import { useEventListener, useMediaQuery } from "@vueuse/core";
 import { computed, defineAsyncComponent, ref } from "vue";
 import { storeToRefs } from "pinia";
 import { useRouter } from "vue-router";
@@ -66,6 +66,46 @@ const handleEdit = (webhook: Webhook) => {
   editingWebhook.value = webhook;
   showEditDialog.value = true;
 };
+
+const isEditableTarget = (target: EventTarget | null) => {
+  if (!(target instanceof Element)) return false;
+
+  return (
+    target.closest(
+      "input, textarea, select, [contenteditable]:not([contenteditable='false']), [role='combobox'], [role='spinbutton'], [role='textbox']",
+    ) !== null
+  );
+};
+
+const hasOpenEscapeLayer = () =>
+  document.querySelector(
+    "[role='dialog'], [role='listbox'], [role='menu'], [role='tree']",
+  ) !== null;
+
+const closeSettings = () => {
+  void router.push("/");
+};
+
+useEventListener(window, "keydown", (event) => {
+  if (
+    event.key !== "Escape" ||
+    event.defaultPrevented ||
+    event.repeat ||
+    event.isComposing ||
+    event.altKey ||
+    event.ctrlKey ||
+    event.metaKey ||
+    event.shiftKey ||
+    isEditableTarget(event.target) ||
+    hasOpenEscapeLayer()
+  ) {
+    return;
+  }
+
+  event.preventDefault();
+  event.stopPropagation();
+  closeSettings();
+});
 </script>
 
 <template>
@@ -114,11 +154,13 @@ const handleEdit = (webhook: Webhook) => {
         </div>
         <Button
           icon="pi pi-arrow-left"
-          aria-label="Back"
+          aria-label="Back to instances"
+          aria-keyshortcuts="Escape"
+          title="Back to instances (Esc)"
           outlined
           rounded
           class="shrink-0"
-          @click="router.push('/')"
+          @click="closeSettings"
         />
       </div>
     </div>

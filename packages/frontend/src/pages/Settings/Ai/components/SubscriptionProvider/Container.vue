@@ -24,9 +24,6 @@ const emit = defineEmits<{
 const showDialog = ref(false);
 const copied = ref(false);
 const isConnected = computed(() => props.credentials !== undefined);
-const accountLabel = computed(
-  () => props.credentials?.email ?? props.credentials?.plan,
-);
 
 watch(
   () => props.credentials,
@@ -61,12 +58,7 @@ const closeDialog = () => {
 <template>
   <ProviderRow :icon="provider.icon" :name="provider.name">
     <template #detail>
-      <template v-if="isConnected">
-        <span v-if="accountLabel !== undefined">
-          <span class="sr-only">Connected as </span>{{ accountLabel }}
-        </span>
-        <span v-else>Connected</span>
-      </template>
+      <span v-if="isConnected">Connected</span>
       <template v-else>{{ provider.description }}</template>
     </template>
 

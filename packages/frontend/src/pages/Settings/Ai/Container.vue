@@ -62,7 +62,7 @@ const {
           >
             API keys
           </h3>
-          <div class="space-y-1">
+          <div>
             <ApiKeyProvider
               v-for="provider in API_KEY_PROVIDERS"
               :key="provider.id"
@@ -81,7 +81,7 @@ const {
           >
             Subscriptions
           </h3>
-          <div class="space-y-1">
+          <div>
             <SubscriptionProvider
               v-for="provider in SUBSCRIPTION_PROVIDERS"
               :key="provider.id"

@@ -32,6 +32,7 @@ export const useAgentsStore = defineStore("agents", () => {
       transport: createLocalAgentTransport({
         sessionId: `poc-assistant-${instanceId}`,
         getModelId: () => assistantModelStore.agentsModel,
+        getReasoningEffort: () => assistantModelStore.agentsReasoningEffort,
         getEditorContent: () => responseEditorStore.content,
         onBeforeSend: (messages) => {
           const lastUserMessage = [...messages]
@@ -82,7 +83,10 @@ export const useAgentsStore = defineStore("agents", () => {
   };
 
   watch(
-    () => assistantModelStore.agentsModel,
+    () => [
+      assistantModelStore.agentsModel,
+      assistantModelStore.agentsReasoningEffort,
+    ],
     () => {
       const id = activeInstanceId.value;
       if (id !== undefined) {

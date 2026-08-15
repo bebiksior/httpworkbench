@@ -1,11 +1,24 @@
-import { createAnthropic } from "@ai-sdk/anthropic";
-import { createOpenAI } from "@ai-sdk/openai";
-import { createXai } from "@ai-sdk/xai";
-import { createOpenRouter } from "@openrouter/ai-sdk-provider";
-import type { LanguageModel } from "ai";
+import {
+  createAnthropic,
+  type AnthropicLanguageModelOptions,
+} from "@ai-sdk/anthropic";
+import {
+  createOpenAI,
+  type OpenAILanguageModelResponsesOptions,
+} from "@ai-sdk/openai";
+import { createXai, type XaiLanguageModelResponsesOptions } from "@ai-sdk/xai";
+import {
+  createOpenRouter,
+  type OpenRouterChatSettings,
+} from "@openrouter/ai-sdk-provider";
+import type { JSONValue, LanguageModel } from "ai";
 import { aiApi, type SubscriptionCredentials } from "@/api/domains/ai";
 import { apiPaths } from "@/api/paths";
-import type { ModelItem } from "@/agent/types/config";
+import {
+  REASONING_EFFORT_SCHEMAS,
+  type ModelItem,
+  type ReasoningEffort,
+} from "@/agent/types/config";
 import {
   readAiApiKey,
   readAiEnabled,
@@ -31,6 +44,17 @@ const requireApiKey = (provider: AiApiKeyProviderId) => {
 const ensureAiEnabled = () => {
   if (!readAiEnabled()) {
     throw new Error("AI features are disabled. Enable them in AI settings.");
+  }
+};
+
+const assertReasoningEffortSupported = (
+  selection: ModelItem,
+  reasoningEffort: ReasoningEffort,
+) => {
+  if (!selection.reasoningEfforts.includes(reasoningEffort)) {
+    throw new Error(
+      `${selection.name} does not support ${reasoningEffort} reasoning effort.`,
+    );
   }
 };
 
@@ -84,19 +108,59 @@ const chatGptFetch = (
   };
 };
 
-export const createAiModel = async (
+export const getAiProviderOptions = (
   selection: ModelItem,
-  sessionId?: string,
-): Promise<LanguageModel> => {
+  reasoningEffort: ReasoningEffort,
+): Record<string, Record<string, JSONValue>> | undefined => {
+  assertReasoningEffortSupported(selection, reasoningEffort);
+
+  switch (selection.provider) {
+    case "openrouter":
+      return undefined;
+    case "openai":
+    case "chatgpt":
+      return {
+        openai: {
+          reasoningEffort,
+        } satisfies OpenAILanguageModelResponsesOptions,
+      };
+    case "anthropic":
+      return {
+        anthropic: {
+          effort: REASONING_EFFORT_SCHEMAS.anthropic.parse(reasoningEffort),
+        } satisfies AnthropicLanguageModelOptions,
+      };
+    case "xai":
+      return {
+        xai: {
+          reasoningEffort: REASONING_EFFORT_SCHEMAS.xai.parse(reasoningEffort),
+        } satisfies XaiLanguageModelResponsesOptions,
+      };
+  }
+};
+
+export const createAiModel = async ({
+  selection,
+  reasoningEffort,
+  sessionId,
+}: {
+  selection: ModelItem;
+  reasoningEffort: ReasoningEffort;
+  sessionId?: string;
+}): Promise<LanguageModel> => {
   ensureAiEnabled();
+  assertReasoningEffortSupported(selection, reasoningEffort);
 
   switch (selection.provider) {
     case "openrouter": {
       const provider = createOpenRouter({
         apiKey: requireApiKey("openrouter"),
-        extraBody: { reasoning: { effort: "max", enabled: true } },
       });
-      return provider(selection.modelId);
+      return provider(selection.modelId, {
+        reasoning: {
+          effort: REASONING_EFFORT_SCHEMAS.openrouter.parse(reasoningEffort),
+        },
+      } satisfies OpenRouterChatSettings);
     }
     case "openai":
       return createOpenAI({ apiKey: requireApiKey("openai") }).responses(

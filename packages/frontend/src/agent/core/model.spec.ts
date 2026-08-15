@@ -15,7 +15,7 @@ const mocks = vi.hoisted(() => ({
     provider: "openai",
     modelId,
   })),
-  openRouterModel: vi.fn((modelId: string) => ({
+  openRouterModel: vi.fn((modelId: string, _settings?: unknown) => ({
     provider: "openrouter",
     modelId,
   })),
@@ -53,7 +53,7 @@ vi.mock("@/utils/ai", () => ({
   saveSubscriptionCredentials: vi.fn(() => true),
 }));
 
-import { createAiModel } from "./model";
+import { createAiModel, getAiProviderOptions } from "./model";
 
 const selection = (provider: AiProviderId, modelId: string): ModelItem => ({
   id: `${provider}:${modelId}`,
@@ -61,6 +61,8 @@ const selection = (provider: AiProviderId, modelId: string): ModelItem => ({
   provider,
   providerName: provider,
   name: modelId,
+  reasoningEfforts: ["low", "high"],
+  defaultReasoningEffort: "high",
 });
 
 describe("createAiModel", () => {
@@ -74,13 +76,25 @@ describe("createAiModel", () => {
   });
 
   test("uses each official API-key provider", async () => {
-    await createAiModel(selection("openrouter", "openai/gpt-5.6-sol"));
-    await createAiModel(selection("openai", "gpt-5.6-sol"));
-    await createAiModel(selection("anthropic", "claude-opus-5"));
+    await createAiModel({
+      selection: selection("openrouter", "openai/gpt-5.6-sol"),
+      reasoningEffort: "high",
+    });
+    await createAiModel({
+      selection: selection("openai", "gpt-5.6-sol"),
+      reasoningEffort: "high",
+    });
+    await createAiModel({
+      selection: selection("anthropic", "claude-opus-5"),
+      reasoningEffort: "high",
+    });
 
-    expect(mocks.createOpenRouter).toHaveBeenCalledWith(
-      expect.objectContaining({ apiKey: "openrouter-key" }),
-    );
+    expect(mocks.createOpenRouter).toHaveBeenCalledWith({
+      apiKey: "openrouter-key",
+    });
+    expect(mocks.openRouterModel).toHaveBeenCalledWith("openai/gpt-5.6-sol", {
+      reasoning: { effort: "high" },
+    });
     expect(mocks.createOpenAI).toHaveBeenCalledWith({ apiKey: "openai-key" });
     expect(mocks.createAnthropic).toHaveBeenCalledWith({
       apiKey: "anthropic-key",
@@ -89,14 +103,21 @@ describe("createAiModel", () => {
   });
 
   test("uses the xAI SDK with the subscription access token", async () => {
-    await createAiModel(selection("xai", "grok-4.6"));
+    await createAiModel({
+      selection: selection("xai", "grok-4.6"),
+      reasoningEffort: "low",
+    });
 
     expect(mocks.createXai).toHaveBeenCalledWith({ apiKey: "xai-access" });
     expect(mocks.xaiResponses).toHaveBeenCalledWith("grok-4.6");
   });
 
   test("adapts the OpenAI SDK fetch for ChatGPT subscription requests", async () => {
-    await createAiModel(selection("chatgpt", "gpt-5.6-sol"), "session-1");
+    await createAiModel({
+      selection: selection("chatgpt", "gpt-5.6-sol"),
+      reasoningEffort: "high",
+      sessionId: "session-1",
+    });
 
     const options = mocks.createOpenAI.mock.calls[0]?.[0];
     expect(options).toMatchObject({
@@ -122,5 +143,29 @@ describe("createAiModel", () => {
     expect(headers.get("x-ai-provider-account-id")).toBe("account-1");
     expect(headers.get("x-ai-session-id")).toBe("session-1");
     expect(forwardedInit?.credentials).toBe("include");
+  });
+
+  test("maps reasoning effort to each provider's SDK options", () => {
+    expect(
+      getAiProviderOptions(selection("openai", "gpt-5.6-sol"), "high"),
+    ).toEqual({ openai: { reasoningEffort: "high" } });
+    expect(
+      getAiProviderOptions(selection("chatgpt", "gpt-5.6-sol"), "high"),
+    ).toEqual({ openai: { reasoningEffort: "high" } });
+    expect(
+      getAiProviderOptions(selection("anthropic", "claude-opus-5"), "low"),
+    ).toEqual({ anthropic: { effort: "low" } });
+    expect(getAiProviderOptions(selection("xai", "grok-4.6"), "high")).toEqual({
+      xai: { reasoningEffort: "high" },
+    });
+  });
+
+  test("rejects a reasoning effort the selected model does not support", async () => {
+    await expect(
+      createAiModel({
+        selection: selection("anthropic", "claude-opus-5"),
+        reasoningEffort: "none",
+      }),
+    ).rejects.toThrow("does not support none reasoning effort");
   });
 });

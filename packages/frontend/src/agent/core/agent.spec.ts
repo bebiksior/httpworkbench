@@ -11,6 +11,7 @@ vi.mock("ai", async () => {
 
 vi.mock("@/agent/core/model", () => ({
   createAiModel: vi.fn(() => Promise.resolve({})),
+  getAiProviderOptions: vi.fn(() => undefined),
 }));
 
 vi.mock("@/agent/core/tools/updateResponseEditor", () => ({
@@ -22,7 +23,7 @@ vi.mock("@/agent/core/tools/createInstance", () => ({
 }));
 
 import { createAgentUIStream } from "ai";
-import { createAiModel } from "@/agent/core/model";
+import { createAiModel, getAiProviderOptions } from "@/agent/core/model";
 import {
   convertAgentMessagesToModelMessages,
   createLocalAgentTransport,
@@ -81,6 +82,7 @@ describe("createLocalAgentTransport", () => {
 
     const transport = createLocalAgentTransport({
       getModelId: () => "openrouter:openai/gpt-5.6-sol",
+      getReasoningEffort: () => "high",
       sessionId: "session-1",
       getEditorContent: () => "<html><body>Hello</body></html>",
     });
@@ -96,12 +98,20 @@ describe("createLocalAgentTransport", () => {
     const call = vi.mocked(createAgentUIStream).mock.calls[0]?.[0];
     expect(call?.uiMessages).toEqual(messages);
     expect(call?.originalMessages).toEqual(messages);
-    expect(createAiModel).toHaveBeenCalledWith(
+    expect(createAiModel).toHaveBeenCalledWith({
+      selection: expect.objectContaining({
+        provider: "openrouter",
+        modelId: "openai/gpt-5.6-sol",
+      }),
+      reasoningEffort: "high",
+      sessionId: "session-1",
+    });
+    expect(getAiProviderOptions).toHaveBeenCalledWith(
       expect.objectContaining({
         provider: "openrouter",
         modelId: "openai/gpt-5.6-sol",
       }),
-      "session-1",
+      "high",
     );
   });
 });

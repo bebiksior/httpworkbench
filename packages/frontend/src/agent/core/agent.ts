@@ -16,8 +16,9 @@ import type { CustomUIMessage, MessageMetadata } from "../types";
 import { writeTool } from "@/agent/core/tools/updateResponseEditor";
 import { createInstanceTool } from "@/agent/core/tools/createInstance";
 import { SYSTEM_PROMPT } from "@/agent/core/prompt";
-import { createAiModel } from "@/agent/core/model";
+import { createAiModel, getAiProviderOptions } from "@/agent/core/model";
 import { findModel } from "@/agent/models";
+import type { ModelItem, ReasoningEffort } from "@/agent/types/config";
 
 const agentTools = {
   write: writeTool,
@@ -62,6 +63,8 @@ const sanitizeAgentMessages = (messages: CustomUIMessage[]) => {
 
 const createAgent = (
   model: LanguageModel,
+  selection: ModelItem,
+  reasoningEffort: ReasoningEffort,
   initialEditorContent: string,
   getEditorContent: () => string,
 ) => {
@@ -69,6 +72,7 @@ const createAgent = (
     model,
     instructions: buildAgentInstructions(initialEditorContent),
     tools: agentTools,
+    providerOptions: getAiProviderOptions(selection, reasoningEffort),
     stopWhen: stepCountIs(10),
     prepareStep: ({ messages, ...settings }) => ({
       ...settings,
@@ -107,18 +111,21 @@ const getMessageMetadata = (part: {
 type TransportOptions = {
   sessionId?: string;
   getModelId: () => string;
+  getReasoningEffort: () => ReasoningEffort;
   getEditorContent: () => string;
   onBeforeSend?: (messages: CustomUIMessage[]) => void;
 };
 
 class LocalAgentTransport implements ChatTransport<CustomUIMessage> {
   private readonly getModelId: () => string;
+  private readonly getReasoningEffort: () => ReasoningEffort;
   private readonly sessionId?: string;
   private readonly getEditorContent: () => string;
   private readonly onBeforeSend?: (messages: CustomUIMessage[]) => void;
 
   constructor(options: TransportOptions) {
     this.getModelId = options.getModelId;
+    this.getReasoningEffort = options.getReasoningEffort;
     this.sessionId = options.sessionId;
     this.getEditorContent = options.getEditorContent;
     this.onBeforeSend = options.onBeforeSend;
@@ -145,10 +152,21 @@ class LocalAgentTransport implements ChatTransport<CustomUIMessage> {
     }
 
     const editorContentAtSendTime = this.getEditorContent();
-    const model = await createAiModel(selection, this.sessionId);
+    const reasoningEffort = this.getReasoningEffort();
+    const model = await createAiModel({
+      selection,
+      reasoningEffort,
+      sessionId: this.sessionId,
+    });
 
     const result = await createAgentUIStream({
-      agent: createAgent(model, editorContentAtSendTime, this.getEditorContent),
+      agent: createAgent(
+        model,
+        selection,
+        reasoningEffort,
+        editorContentAtSendTime,
+        this.getEditorContent,
+      ),
       uiMessages: sanitizeAgentMessages(messages),
       originalMessages: messages as AgentUIMessage[],
       abortSignal,

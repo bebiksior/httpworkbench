@@ -8,7 +8,7 @@ import {
   XAIIcon,
 } from "@/components/BrandIcons";
 import { availableModels } from "@/agent/models";
-import { type ModelItem } from "@/agent/types/config";
+import type { ModelItem, ReasoningEffort } from "@/agent/types/config";
 import { useAssistantModelStore } from "@/stores";
 import { useAiSettings } from "@/utils/ai";
 
@@ -48,6 +48,15 @@ export const useSelector = () => {
     },
   });
 
+  const reasoningEffort = computed<ReasoningEffort>({
+    get() {
+      return assistantModelStore.agentsReasoningEffort;
+    },
+    set(value) {
+      assistantModelStore.agentsReasoningEffort = value;
+    },
+  });
+
   const models = computed<AugmentedModelItem[]>(() =>
     availableModels
       .filter((item) => isProviderConfigured(item.provider))
@@ -73,9 +82,23 @@ export const useSelector = () => {
     { immediate: true },
   );
 
+  watch(
+    selectedModel,
+    (model) => {
+      if (
+        model !== undefined &&
+        !model.reasoningEfforts.includes(reasoningEffort.value)
+      ) {
+        reasoningEffort.value = model.defaultReasoningEffort;
+      }
+    },
+    { immediate: true },
+  );
+
   return {
     modelId,
     models,
+    reasoningEffort,
     selectedModel,
   };
 };
