@@ -11,7 +11,7 @@ const goHome = () => {
 
 <template>
   <div
-    class="flex items-center justify-center min-h-screen bg-surface-50 dark:bg-surface-900"
+    class="flex min-h-dvh items-center justify-center bg-surface-50 dark:bg-surface-900"
   >
     <div class="text-center p-8">
       <h1 class="text-9xl font-bold text-primary mb-4">404</h1>
@@ -21,7 +21,7 @@ const goHome = () => {
       <p class="text-surface-400 mb-8">
         The page you're looking for doesn't exist :-(
       </p>
-      <Button label="Go Home" icon="pi pi-home" @mousedown="goHome" />
+      <Button label="Go Home" icon="pi pi-home" @click="goHome" />
     </div>
   </div>
 </template>

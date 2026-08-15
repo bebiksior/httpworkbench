@@ -91,7 +91,7 @@ const goLogin = async () => {
 <template>
   <UserNoticeDialog />
   <CommandPalette v-if="authStore.hasSession" />
-  <div class="h-screen flex flex-col bg-surface-0 dark:bg-surface-800">
+  <div class="flex h-dvh flex-col bg-surface-0 dark:bg-surface-800">
     <nav class="bg-surface-0 dark:bg-surface-800 shrink-0">
       <div class="mx-auto px-3 sm:px-6">
         <div class="flex justify-between h-16">

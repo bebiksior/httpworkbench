@@ -29,7 +29,7 @@ const handleApiKeyLogin = async () => {
 </script>
 
 <template>
-  <div class="flex items-center justify-center min-h-screen">
+  <div class="flex min-h-dvh items-center justify-center">
     <div class="flex flex-col gap-4 items-center max-w-md">
       <Message
         v-if="authStore.error"
@@ -40,7 +40,7 @@ const handleApiKeyLogin = async () => {
         {{ authStore.error.message }}
       </Message>
       <Button
-        @mousedown="authStore.signInWithGoogle"
+        @click="authStore.signInWithGoogle"
         size="large"
         class="flex items-center gap-3 px-6 py-3"
       >
@@ -107,7 +107,7 @@ const handleApiKeyLogin = async () => {
       </form>
       <Button
         v-if="config.allowGuest !== false"
-        @mousedown="handleGuestLogin"
+        @click="handleGuestLogin"
         size="large"
         severity="secondary"
         outlined

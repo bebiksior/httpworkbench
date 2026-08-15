@@ -2,3 +2,116 @@
 @import "tailwindcss-primeui";
 
 @custom-variant dark (&:where(.darkmode, .darkmode *));
+
+html,
+body {
+  overscroll-behavior-y: none;
+}
+
+:where(
+  button,
+  a[href],
+  input[type="button"],
+  input[type="checkbox"],
+  input[type="radio"],
+  input[type="reset"],
+  input[type="submit"],
+  label[for],
+  select,
+  summary,
+  [role="button"],
+  [role="checkbox"],
+  [role="menuitem"],
+  [role="option"],
+  [role="radio"],
+  [role="switch"],
+  [role="tab"],
+  .p-password-mask-icon,
+  .p-password-unmask-icon
+) {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+:where(
+  button,
+  label[for],
+  [role="button"],
+  [role="checkbox"],
+  [role="menuitem"],
+  [role="option"],
+  [role="radio"],
+  [role="switch"],
+  [role="tab"]
+) {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  :where(
+    button:not(:disabled),
+    a[href],
+    input[type="button"]:not(:disabled),
+    input[type="checkbox"]:not(:disabled),
+    input[type="radio"]:not(:disabled),
+    input[type="reset"]:not(:disabled),
+    input[type="submit"]:not(:disabled),
+    label[for],
+    select:not(:disabled),
+    summary,
+    [role="button"]:not([aria-disabled="true"]),
+    [role="checkbox"]:not([aria-disabled="true"]),
+    [role="menuitem"]:not([aria-disabled="true"]),
+    [role="option"]:not([aria-disabled="true"]),
+    [role="radio"]:not([aria-disabled="true"]),
+    [role="switch"]:not([aria-disabled="true"]),
+    [role="tab"]:not([aria-disabled="true"]),
+    .p-password-mask-icon,
+    .p-password-unmask-icon
+  ) {
+    cursor: pointer;
+  }
+
+  :where(
+    button:disabled,
+    input:disabled,
+    select:disabled,
+    textarea:disabled,
+    [aria-disabled="true"]
+  ) {
+    cursor: not-allowed !important;
+  }
+}
+
+@media (hover: none) and (pointer: coarse) {
+  :where(
+    button:not(:disabled),
+    a[href],
+    input[type="button"]:not(:disabled),
+    input[type="reset"]:not(:disabled),
+    input[type="submit"]:not(:disabled),
+    [role="button"]:not([aria-disabled="true"]),
+    [role="menuitem"]:not([aria-disabled="true"]),
+    [role="option"]:not([aria-disabled="true"])
+  ):active {
+    opacity: 0.72;
+  }
+}
+
+@media (max-width: 639px) {
+  :where(
+    input:not([type]),
+    input[type="email"],
+    input[type="number"],
+    input[type="password"],
+    input[type="search"],
+    input[type="tel"],
+    input[type="text"],
+    input[type="url"],
+    select,
+    textarea
+  ) {
+    font-size: 16px !important;
+  }
+}

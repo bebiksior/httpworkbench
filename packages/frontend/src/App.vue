@@ -9,7 +9,7 @@ useThemeStore();
 <template>
   <Toast position="bottom-center" />
   <ConfirmDialog />
-  <div class="min-h-screen bg-surface-50 dark:bg-surface-900">
+  <div class="min-h-dvh bg-surface-50 dark:bg-surface-900">
     <router-view />
   </div>
 </template>

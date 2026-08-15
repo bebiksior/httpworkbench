@@ -18,11 +18,18 @@ export const useThemeStore = defineStore("theme", () => {
 
   const applyTheme = (theme: ThemeMode) => {
     const root = document.documentElement;
+    const themeColor = document.querySelector<HTMLMetaElement>(
+      'meta[name="theme-color"]',
+    );
     if (theme === "dark") {
       root.classList.add("darkmode");
     } else {
       root.classList.remove("darkmode");
     }
+    themeColor?.setAttribute(
+      "content",
+      theme === "dark" ? "#18181b" : "#fafafa",
+    );
   };
 
   const toggle = () => {
