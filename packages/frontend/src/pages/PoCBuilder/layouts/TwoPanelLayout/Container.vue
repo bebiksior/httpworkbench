@@ -4,15 +4,18 @@ import { computed } from "vue";
 import Button from "primevue/button";
 import Splitter from "primevue/splitter";
 import SplitterPanel from "primevue/splitterpanel";
-import Checkbox from "primevue/checkbox";
 import { PoCEditor } from "@/components/PoCEditor";
 import { Assistant } from "@/components/Assistant";
 import { useAuthStore, useBuilderStore, useThemeStore } from "@/stores";
+import { BuilderActions } from "@/pages/PoCBuilder/components/BuilderActions";
 import { useBuilderPageContext } from "@/pages/PoCBuilder/useBuilderPage";
 import { useNotify } from "@/composables";
+import { useAiSettings } from "@/utils/ai";
 
 const authStore = useAuthStore();
 const { isGuest } = storeToRefs(authStore);
+
+const { isEnabled: showAssistant } = useAiSettings();
 
 const themeStore = useThemeStore();
 const splitterPt = computed(() => ({
@@ -22,9 +25,8 @@ const splitterPt = computed(() => ({
 }));
 
 const builderStore = useBuilderStore();
-const { showPreview, isDirty, editorContent } = storeToRefs(builderStore);
-const { previewUrl, isSaving, handleSave, handleBack } =
-  useBuilderPageContext();
+const { editorContent } = storeToRefs(builderStore);
+const { previewUrl } = useBuilderPageContext();
 const notify = useNotify();
 
 const handleEditorChange = (value: string) => {
@@ -37,51 +39,52 @@ const copyUrl = async () => {
     notify.success("URL copied to clipboard");
   }
 };
-
-const openPreviewInNewTab = () => {
-  if (previewUrl.value !== undefined) {
-    window.open(previewUrl.value, "_blank");
-  }
-};
 </script>
 
 <template>
   <Splitter
+    :key="showAssistant ? 'with-assistant' : 'without-assistant'"
     class="h-full rounded-lg"
     style="border: none; background: none"
     :pt="splitterPt"
   >
     <SplitterPanel
-      :size="65"
+      :size="showAssistant ? 65 : 100"
       :min-size="40"
-      :max-size="80"
+      :max-size="showAssistant ? 80 : 100"
       class="overflow-hidden"
     >
       <div
         class="h-full flex flex-col bg-white dark:bg-surface-900 overflow-hidden rounded-lg"
       >
         <div
-          class="h-10 px-3 flex items-center justify-between shrink-0 border-b border-surface-200 dark:border-surface-800"
+          class="h-10 px-3 flex items-center justify-between shrink-0 border-b border-surface-200 dark:border-surface-800 gap-2"
         >
           <span
             class="text-sm font-medium text-surface-600 dark:text-surface-400"
           >
             Code
           </span>
-          <div class="flex items-center gap-2" v-if="previewUrl">
-            <span
-              class="text-xs text-surface-500 font-mono max-w-[350px] truncate"
-              :title="previewUrl"
-              >{{ previewUrl }}</span
-            >
-            <Button
-              icon="pi pi-copy"
-              text
-              severity="secondary"
-              size="small"
-              class="shrink-0 p-0! w-6! h-6!"
-              @click="copyUrl"
-              v-tooltip.top="'Copy URL'"
+          <div class="flex items-center gap-2 min-w-0">
+            <template v-if="previewUrl">
+              <span
+                class="text-xs text-surface-500 font-mono max-w-[350px] truncate"
+                :title="previewUrl"
+                >{{ previewUrl }}</span
+              >
+              <Button
+                icon="pi pi-copy"
+                text
+                severity="secondary"
+                size="small"
+                class="shrink-0 p-0! w-6! h-6!"
+                @click="copyUrl"
+                v-tooltip.top="'Copy URL'"
+              />
+            </template>
+            <BuilderActions
+              v-if="!showAssistant"
+              preview-toggle-id="preview-toggle-2"
             />
           </div>
         </div>
@@ -94,7 +97,12 @@ const openPreviewInNewTab = () => {
       </div>
     </SplitterPanel>
 
-    <SplitterPanel :size="35" :min-size="20" class="overflow-hidden">
+    <SplitterPanel
+      v-if="showAssistant"
+      :size="35"
+      :min-size="20"
+      class="overflow-hidden"
+    >
       <div
         class="h-full flex flex-col bg-white dark:bg-surface-900 overflow-hidden rounded-lg"
       >
@@ -106,47 +114,7 @@ const openPreviewInNewTab = () => {
           >
             Assistant
           </span>
-          <div class="flex gap-1 items-center">
-            <div class="flex items-center gap-1.5 mr-1">
-              <Checkbox
-                v-model="showPreview"
-                binary
-                input-id="preview-toggle-2"
-              />
-              <label
-                for="preview-toggle-2"
-                class="text-xs text-surface-600 dark:text-surface-400 cursor-pointer"
-              >
-                Preview
-              </label>
-            </div>
-            <Button
-              icon="pi pi-external-link"
-              severity="secondary"
-              text
-              size="small"
-              :disabled="previewUrl === undefined"
-              @click="openPreviewInNewTab"
-              v-tooltip.top="'Open in new tab'"
-            />
-            <Button
-              label="Save"
-              size="small"
-              :loading="isSaving"
-              :disabled="!isDirty"
-              @click="handleSave()"
-              v-tooltip.top="'Save'"
-              style="padding: 0em 0.75em"
-            />
-            <Button
-              icon="pi pi-times"
-              severity="secondary"
-              text
-              size="small"
-              @click="handleBack()"
-              v-tooltip.top="'Close'"
-            />
-          </div>
+          <BuilderActions preview-toggle-id="preview-toggle-2" />
         </div>
 
         <div class="flex-1 min-h-0 py-2">

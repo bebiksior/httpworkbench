@@ -6,7 +6,7 @@ import { computed, ref, watch } from "vue";
 import type { SubscriptionCredentials } from "@/api/domains/ai";
 import type { AiSubscriptionProvider } from "../../providers";
 import type { SubscriptionConnectionState } from "../../useAi";
-import { ProviderCard } from "../ProviderCard";
+import { ProviderRow } from "../ProviderRow";
 
 const props = defineProps<{
   provider: AiSubscriptionProvider;
@@ -59,55 +59,50 @@ const closeDialog = () => {
 </script>
 
 <template>
-  <ProviderCard
-    :icon="provider.icon"
-    :accent-class="provider.accentClass"
-    :name="provider.name"
-    :description="provider.description"
-    :status-label="isConnected ? 'Connected' : 'Not connected'"
-    :status-severity="isConnected ? 'success' : 'secondary'"
-    :link-url="provider.linkUrl"
-    :link-label="provider.linkLabel"
-  >
-    <p
-      v-if="isConnected"
-      class="mt-3 text-xs text-surface-500 dark:text-surface-400"
-    >
-      <span v-if="accountLabel">{{ accountLabel }} · </span>
-      Credentials stored in this browser
-    </p>
+  <ProviderRow :icon="provider.icon" :name="provider.name">
+    <template #detail>
+      <template v-if="isConnected">
+        <span v-if="accountLabel !== undefined">
+          <span class="sr-only">Connected as </span>{{ accountLabel }}
+        </span>
+        <span v-else>Connected</span>
+      </template>
+      <template v-else>{{ provider.description }}</template>
+    </template>
 
-    <div class="mt-3 flex flex-col gap-2 sm:flex-row">
-      <Button
-        v-if="!isConnected"
-        label="Connect"
-        icon="pi pi-link"
-        class="w-full sm:w-auto"
-        :disabled="disabled"
-        @click="startConnection"
-      />
-      <template v-else>
+    <template #actions>
+      <div class="flex w-full shrink-0 gap-2 sm:w-auto">
         <Button
-          label="Reconnect"
-          icon="pi pi-refresh"
-          severity="secondary"
-          outlined
-          class="w-full sm:w-auto"
+          v-if="!isConnected"
+          label="Connect"
+          size="small"
+          class="flex-1 sm:flex-none"
           :disabled="disabled"
           @click="startConnection"
         />
-        <Button
-          label="Disconnect"
-          icon="pi pi-times"
-          severity="danger"
-          outlined
-          class="w-full sm:w-auto"
-          :disabled="disabled"
-          @click="emit('disconnect')"
-        />
-      </template>
-    </div>
-  </ProviderCard>
+        <template v-else>
+          <Button
+            label="Reconnect"
+            size="small"
+            severity="secondary"
+            text
+            class="flex-1 sm:flex-none"
+            :disabled="disabled"
+            @click="startConnection"
+          />
+          <Button
+            label="Disconnect"
+            size="small"
+            severity="danger"
+            text
+            class="flex-1 sm:flex-none"
+            :disabled="disabled"
+            @click="emit('disconnect')"
+          />
+        </template>
+      </div>
+    </template>
+  </ProviderRow>
 
   <Dialog
     v-model:visible="showDialog"

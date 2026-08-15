@@ -6,6 +6,8 @@
     xml:space="preserve"
     overflow="hidden"
     viewBox="0 0 268.152 273.883"
+    aria-hidden="true"
+    focusable="false"
   >
     <defs>
       <linearGradient id="google-a">

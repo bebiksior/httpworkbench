@@ -1,6 +1,12 @@
 import { type Component, computed, watch } from "vue";
-import { AnthropicIcon, GoogleIcon, OpenAIIcon, XAIIcon } from "./icons";
-import UnknownIcon from "./icons/Unknown.vue";
+import {
+  AnthropicIcon,
+  GoogleIcon,
+  OpenAIIcon,
+  OpenRouterIcon,
+  UnknownIcon,
+  XAIIcon,
+} from "@/components/BrandIcons";
 import { availableModels } from "@/agent/models";
 import { type ModelItem } from "@/agent/types/config";
 import { useAssistantModelStore } from "@/stores";
@@ -24,6 +30,7 @@ const getIcon = (model: ModelItem) => {
   if (id.includes("gpt") || id.includes("openai")) return OpenAIIcon;
   if (id.includes("claude") || id.includes("anthropic")) return AnthropicIcon;
   if (id.includes("gemini") || id.includes("google")) return GoogleIcon;
+  if (model.provider === "openrouter") return OpenRouterIcon;
 
   return UnknownIcon;
 };

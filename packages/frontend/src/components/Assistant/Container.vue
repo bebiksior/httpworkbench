@@ -9,9 +9,6 @@ const { isEnabled, hasConfiguredProvider } = useAiSettings();
 const isAvailable = computed(
   () => isEnabled.value && hasConfiguredProvider.value,
 );
-const setupReason = computed(() =>
-  isEnabled.value ? "not-configured" : "disabled",
-);
 </script>
 
 <template>
@@ -19,7 +16,7 @@ const setupReason = computed(() =>
     <div v-if="isAvailable" class="flex-1 min-h-0 relative">
       <ChatContent class="absolute inset-0" />
     </div>
-    <SetupRequired v-else :reason="setupReason" />
+    <SetupRequired v-else />
     <ChatInput v-if="isAvailable" />
   </div>
 </template>

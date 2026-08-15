@@ -82,7 +82,7 @@ watch(
       <component
         :is="selectedModel?.icon ?? undefined"
         v-if="selectedModel?.icon !== undefined"
-        class="h-4 w-4 shrink-0"
+        class="h-4 w-4 shrink-0 text-surface-0"
       />
       <div v-else class="h-3 w-3 shrink-0 rounded-sm bg-surface-500" />
       <span class="max-w-44 truncate font-mono">
@@ -108,11 +108,7 @@ watch(
         class="absolute bottom-full left-0 z-[1202] mb-2 w-72 max-w-[min(28rem,calc(100vw-2rem))] overflow-hidden rounded-xl border border-surface-700/80 bg-surface-950/95 shadow-2xl shadow-black/30 backdrop-blur"
       >
         <div class="border-b border-surface-800 px-3 py-2">
-          <p
-            class="text-[11px] font-medium uppercase tracking-[0.18em] text-surface-500"
-          >
-            Models
-          </p>
+          <p class="text-xs font-medium text-surface-500">Models</p>
         </div>
         <div class="max-h-72 overflow-y-auto p-1.5">
           <button
@@ -130,7 +126,7 @@ watch(
             <component
               :is="model.icon ?? undefined"
               v-if="model.icon !== undefined"
-              class="h-4 w-4 shrink-0"
+              class="h-4 w-4 shrink-0 text-surface-0"
             />
             <div v-else class="h-3 w-3 shrink-0 rounded-sm bg-surface-500" />
             <span class="min-w-0 flex-1">

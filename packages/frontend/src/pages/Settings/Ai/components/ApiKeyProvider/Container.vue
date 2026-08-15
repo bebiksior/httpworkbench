@@ -3,7 +3,7 @@ import Button from "primevue/button";
 import Password from "primevue/password";
 import { computed, ref, watch } from "vue";
 import type { AiApiKeyProvider } from "../../providers";
-import { ProviderCard } from "../ProviderCard";
+import { ProviderRow } from "../ProviderRow";
 
 const props = defineProps<{
   provider: AiApiKeyProvider;
@@ -52,77 +52,85 @@ const handleSave = () => {
 </script>
 
 <template>
-  <ProviderCard
-    :icon="provider.icon"
-    :accent-class="provider.accentClass"
-    :name="provider.name"
-    :description="provider.description"
-    :status-label="isConfigured ? 'Configured' : 'Not set'"
-    :status-severity="isConfigured ? 'success' : 'secondary'"
-    :link-url="provider.linkUrl"
-    :link-label="provider.linkLabel"
-  >
-    <div v-if="isEntering" class="mt-3 flex flex-col gap-2 sm:flex-row">
-      <label :for="inputId" class="sr-only">
-        {{ provider.name }} API key
-      </label>
-      <Password
-        v-model="draft"
-        :input-id="inputId"
-        :feedback="false"
-        :disabled="disabled"
-        :placeholder="provider.placeholder"
-        :input-props="{ autocomplete: 'off', spellcheck: false }"
-        input-class="w-full font-mono"
-        class="min-w-0 flex-1"
-        toggle-mask
-        @keyup.enter="handleSave"
-      />
-      <div class="flex gap-2">
-        <Button
-          label="Save"
-          icon="pi pi-check"
-          class="flex-1 sm:flex-none"
-          :disabled="disabled || !canSave"
-          @click="handleSave"
-        />
-        <Button
-          v-if="isEditing"
-          label="Cancel"
-          severity="secondary"
-          outlined
-          class="flex-1 sm:flex-none"
-          @click="cancelEditing"
-        />
-      </div>
-    </div>
-
-    <div v-else class="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
-      <code
-        class="min-w-0 flex-1 truncate rounded-md border border-surface-200 bg-surface-50 px-3 py-2 font-mono text-sm text-surface-700 dark:border-surface-700 dark:bg-surface-900 dark:text-surface-200"
+  <ProviderRow :icon="provider.icon" :name="provider.name">
+    <template #detail>
+      <span v-if="isConfigured">
+        <span class="sr-only">Saved key </span>
+        <span class="font-mono">{{ maskedSecret }}</span>
+      </span>
+      <a
+        v-else
+        :href="provider.keyUrl"
+        target="_blank"
+        rel="noreferrer"
+        class="inline-flex items-center gap-1 underline decoration-surface-300 underline-offset-2 transition-colors hover:text-surface-900 dark:decoration-surface-600 dark:hover:text-surface-0"
       >
-        {{ maskedSecret }}
-      </code>
-      <div class="flex gap-2">
+        Get a key<span class="sr-only"> from {{ provider.name }}</span>
+        <i class="pi pi-external-link text-[0.625rem]" aria-hidden="true" />
+      </a>
+    </template>
+
+    <template #actions>
+      <div
+        v-if="isEntering"
+        class="flex w-full shrink-0 flex-col gap-2 sm:w-auto sm:flex-row sm:items-center"
+      >
+        <label :for="inputId" class="sr-only">
+          {{ provider.name }} API key
+        </label>
+        <Password
+          v-model="draft"
+          :input-id="inputId"
+          :feedback="false"
+          :disabled="disabled"
+          :placeholder="provider.placeholder"
+          :input-props="{ autocomplete: 'off', spellcheck: false }"
+          input-class="w-full font-mono"
+          class="min-w-0 sm:w-60"
+          size="small"
+          toggle-mask
+          @keyup.enter="handleSave"
+        />
+        <div class="flex gap-2">
+          <Button
+            label="Save"
+            size="small"
+            class="flex-1 sm:flex-none"
+            :disabled="disabled || !canSave"
+            @click="handleSave"
+          />
+          <Button
+            v-if="isEditing"
+            label="Cancel"
+            size="small"
+            severity="secondary"
+            text
+            class="flex-1 sm:flex-none"
+            @click="cancelEditing"
+          />
+        </div>
+      </div>
+
+      <div v-else class="flex w-full shrink-0 gap-2 sm:w-auto">
         <Button
           label="Replace"
-          icon="pi pi-pencil"
+          size="small"
           severity="secondary"
-          outlined
+          text
           class="flex-1 sm:flex-none"
           :disabled="disabled"
           @click="startEditing"
         />
         <Button
           label="Remove"
-          icon="pi pi-trash"
+          size="small"
           severity="danger"
-          outlined
+          text
           class="flex-1 sm:flex-none"
           :disabled="disabled"
           @click="emit('remove')"
         />
       </div>
-    </div>
-  </ProviderCard>
+    </template>
+  </ProviderRow>
 </template>

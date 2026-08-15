@@ -2,10 +2,10 @@
 <template>
   <svg
     xmlns="http://www.w3.org/2000/svg"
-    width="256"
-    height="257"
     preserveAspectRatio="xMidYMid"
     viewBox="0 0 256 257"
+    aria-hidden="true"
+    focusable="false"
   >
     <path
       fill="#D97757"
