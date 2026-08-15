@@ -47,9 +47,7 @@ const handleReasoningSelect = (value: string) => {
 </script>
 
 <template>
-  <div
-    class="flex min-w-0 items-center rounded-lg border border-surface-700/70 bg-surface-900/70 p-0.5"
-  >
+  <div class="flex min-w-0 items-center gap-1">
     <SelectMenu
       :model-value="modelId"
       :options="modelOptions"
@@ -73,12 +71,6 @@ const handleReasoningSelect = (value: string) => {
         </span>
       </template>
     </SelectMenu>
-
-    <span
-      v-if="reasoningOptions.length > 0"
-      aria-hidden="true"
-      class="mx-0.5 h-4 w-px shrink-0 bg-surface-700/70"
-    />
 
     <SelectMenu
       v-if="reasoningOptions.length > 0"
