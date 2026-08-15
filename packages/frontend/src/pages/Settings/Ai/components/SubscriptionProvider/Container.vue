@@ -57,9 +57,8 @@ const closeDialog = () => {
 
 <template>
   <ProviderRow :icon="provider.icon" :name="provider.name">
-    <template #detail>
-      <span v-if="isConnected">Connected</span>
-      <template v-else>{{ provider.description }}</template>
+    <template v-if="!isConnected" #detail>
+      {{ provider.description }}
     </template>
 
     <template #actions>

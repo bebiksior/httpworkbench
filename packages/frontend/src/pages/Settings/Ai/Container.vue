@@ -25,15 +25,14 @@ const {
         AI
       </h2>
       <p class="mt-1 max-w-2xl text-sm text-surface-600 dark:text-surface-300">
-        Connect a provider to power the assistant. Credentials are saved only in
-        this browser.
+        Configure AI features
       </p>
     </div>
 
     <div
       class="rounded-lg border border-surface-200 bg-white dark:border-surface-700 dark:bg-surface-800"
     >
-      <div class="flex items-start justify-between gap-4 px-4 py-4 sm:px-5">
+      <div class="flex items-center justify-between gap-4 px-4 py-4 sm:px-5">
         <div class="min-w-0">
           <label
             for="ai-enabled"
@@ -41,9 +40,6 @@ const {
           >
             Enable AI features
           </label>
-          <p class="mt-0.5 text-xs text-surface-500 dark:text-surface-400">
-            When off, the assistant is hidden and no model requests are made.
-          </p>
         </div>
         <ToggleSwitch
           v-model="aiEnabled"
