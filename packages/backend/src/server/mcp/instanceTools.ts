@@ -4,6 +4,7 @@ import {
   deleteInstance,
   getInstanceSummariesByOwner,
   getRecentLogsForInstance,
+  updateInstance,
 } from "../../storage";
 import { createInstance, replaceInstance } from "../instances/service";
 import { hasApiKeyScope } from "../apiKeyAuth";
@@ -130,6 +131,37 @@ export const registerInstanceTools = (server: McpServer) => {
       return result.ok
         ? jsonToolResult({ instance: serializeInstance(result.value) })
         : toolError(result.error.message);
+    },
+  );
+
+  server.registerTool(
+    "set_instance_public",
+    {
+      title: "Set Instance Visibility",
+      description:
+        "Publish or unpublish an owned HTTP Workbench instance. When published, an unauthenticated user can visit https://httpworkbench.com/instances/:id and view its logs and basic data. Access is read-only. Publishing is useful for sharing callback information with a triager in a vulnerability report.",
+      inputSchema: {
+        instanceId: z.string().min(1),
+        public: z.boolean(),
+      },
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: true,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
+    },
+    async ({ instanceId, public: isPublic }, extra) => {
+      const auth = getAuthContext(extra);
+      requireScope(auth, "instances:write");
+      requireOwnedInstance(instanceId, auth);
+      const updated = updateInstance(instanceId, (instance) => ({
+        ...instance,
+        public: isPublic,
+      }));
+      return updated === undefined
+        ? toolError("Instance not found")
+        : jsonToolResult({ instance: serializeInstance(updated) });
     },
   );
 

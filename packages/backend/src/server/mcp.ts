@@ -22,6 +22,8 @@ An instance is a hosted subdomain under the configured instances domain. It serv
 
 Create and update tools require a complete raw HTTP response: status line, headers, a blank line, and body. They normalize line endings, enforce response size limits, and reject invalid HTTP.
 
+Publishing an instance lets an unauthenticated user visit https://httpworkbench.com/instances/:id and view its logs and basic data. Access is read-only. This is useful when sharing callback information with a triager in a vulnerability report.
+
 Use watch_instance_logs by polling again with resumeCursor after pollAfterMs when the user is actively waiting for new interactions. nextCursor only indicates another historical page is already available.
 `.trim();
 
