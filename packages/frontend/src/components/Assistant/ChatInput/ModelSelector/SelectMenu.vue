@@ -174,10 +174,6 @@ watch(isDisabled, (disabled) => {
       @keydown.up.prevent="openMenu('last')"
     >
       <slot name="trigger" />
-      <i
-        class="pi pi-chevron-down shrink-0 text-[9px] text-surface-500 transition-transform duration-200"
-        :class="isOpen ? 'rotate-180' : ''"
-      />
     </button>
 
     <transition
