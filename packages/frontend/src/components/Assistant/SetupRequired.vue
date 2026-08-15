@@ -3,6 +3,7 @@ import Button from "primevue/button";
 import { useRouter } from "vue-router";
 
 const router = useRouter();
+defineProps<{ reason: "disabled" | "not-configured" }>();
 
 const openSettings = async () => {
   await router.push({ name: "settings" });
@@ -21,11 +22,18 @@ const openSettings = async () => {
         <h3
           class="text-lg font-semibold text-surface-700 dark:text-surface-200"
         >
-          OpenRouter key required
+          {{
+            reason === "disabled"
+              ? "AI features are off"
+              : "Connect an AI provider"
+          }}
         </h3>
         <p class="text-sm text-surface-500 dark:text-surface-400">
-          Add your OpenRouter API key in Settings to enable the assistant and
-          send messages.
+          {{
+            reason === "disabled"
+              ? "Enable AI features in Settings to use the assistant."
+              : "Add an API key or connect a subscription in Settings to use the assistant."
+          }}
         </p>
       </div>
       <Button

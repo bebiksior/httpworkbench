@@ -30,6 +30,7 @@ export const useAgentsStore = defineStore("agents", () => {
     const chat = new Chat<CustomUIMessage>({
       id: `poc-assistant-${instanceId}`,
       transport: createLocalAgentTransport({
+        sessionId: `poc-assistant-${instanceId}`,
         getModelId: () => assistantModelStore.agentsModel,
         getEditorContent: () => responseEditorStore.content,
         onBeforeSend: (messages) => {

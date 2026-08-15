@@ -1,4 +1,3 @@
-import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import {
   createAgentUIStream,
   convertToModelMessages,
@@ -9,14 +8,16 @@ import {
   type ChatTransport,
   type UIMessage,
   type UIMessageChunk,
+  type LanguageModel,
 } from "ai";
-import { readOpenrouterKey } from "@/utils/openrouter";
 import { getErrorMessage } from "@/utils/error";
 import { isAbsent } from "@/utils/types";
 import type { CustomUIMessage, MessageMetadata } from "../types";
 import { writeTool } from "@/agent/core/tools/updateResponseEditor";
 import { createInstanceTool } from "@/agent/core/tools/createInstance";
 import { SYSTEM_PROMPT } from "@/agent/core/prompt";
+import { createAiModel } from "@/agent/core/model";
+import { findModel } from "@/agent/models";
 
 const agentTools = {
   write: writeTool,
@@ -60,12 +61,12 @@ const sanitizeAgentMessages = (messages: CustomUIMessage[]) => {
 };
 
 const createAgent = (
-  modelId: string,
+  model: LanguageModel,
   initialEditorContent: string,
   getEditorContent: () => string,
 ) => {
   return new ToolLoopAgent({
-    model: createModel(modelId),
+    model,
     instructions: buildAgentInstructions(initialEditorContent),
     tools: agentTools,
     stopWhen: stepCountIs(10),
@@ -83,29 +84,6 @@ export const convertAgentMessagesToModelMessages = (
   return convertToModelMessages(sanitizeAgentMessages(messages), {
     tools: agentTools,
   });
-};
-
-const ensureOpenrouterKey = () => {
-  const key = readOpenrouterKey();
-  if (isAbsent(key) || key.trim() === "") {
-    throw new Error(
-      "OpenRouter API key is missing. Add it in Settings before using the assistant.",
-    );
-  }
-  return key;
-};
-
-const createModel = (modelId: string) => {
-  const openrouter = createOpenRouter({
-    apiKey: ensureOpenrouterKey(),
-    extraBody: {
-      reasoning: {
-        effort: "max",
-        enabled: true,
-      },
-    },
-  });
-  return openrouter(modelId);
 };
 
 const getMessageMetadata = (part: {
@@ -127,6 +105,7 @@ const getMessageMetadata = (part: {
 };
 
 type TransportOptions = {
+  sessionId?: string;
   getModelId: () => string;
   getEditorContent: () => string;
   onBeforeSend?: (messages: CustomUIMessage[]) => void;
@@ -134,11 +113,13 @@ type TransportOptions = {
 
 class LocalAgentTransport implements ChatTransport<CustomUIMessage> {
   private readonly getModelId: () => string;
+  private readonly sessionId?: string;
   private readonly getEditorContent: () => string;
   private readonly onBeforeSend?: (messages: CustomUIMessage[]) => void;
 
   constructor(options: TransportOptions) {
     this.getModelId = options.getModelId;
+    this.sessionId = options.sessionId;
     this.getEditorContent = options.getEditorContent;
     this.onBeforeSend = options.onBeforeSend;
   }
@@ -155,18 +136,19 @@ class LocalAgentTransport implements ChatTransport<CustomUIMessage> {
     if (isAbsent(modelId) || modelId.trim() === "") {
       throw new Error("Select a model before sending messages.");
     }
+    const selection = findModel(modelId);
+    if (selection === undefined) {
+      throw new Error("The selected model is no longer available.");
+    }
     if (isAbsent(abortSignal)) {
       throw new Error("Abort signal is required.");
     }
 
     const editorContentAtSendTime = this.getEditorContent();
+    const model = await createAiModel(selection, this.sessionId);
 
     const result = await createAgentUIStream({
-      agent: createAgent(
-        modelId,
-        editorContentAtSendTime,
-        this.getEditorContent,
-      ),
+      agent: createAgent(model, editorContentAtSendTime, this.getEditorContent),
       uiMessages: sanitizeAgentMessages(messages),
       originalMessages: messages as AgentUIMessage[],
       abortSignal,

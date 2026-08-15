@@ -16,8 +16,8 @@ const WebhookList = defineAsyncComponent(() =>
 const WebhookForm = defineAsyncComponent(() =>
   import("./WebhookForm").then((module) => module.WebhookForm),
 );
-const OpenrouterKey = defineAsyncComponent(() =>
-  import("./OpenrouterKey").then((module) => module.OpenrouterKey),
+const Ai = defineAsyncComponent(() =>
+  import("./Ai").then((module) => module.Ai),
 );
 const UpdateCheck = defineAsyncComponent(() =>
   import("./UpdateCheck").then((module) => module.UpdateCheck),
@@ -37,14 +37,14 @@ const showEditDialog = ref(false);
 const editingWebhook = ref<Webhook | undefined>(undefined);
 const showDesktopDivider = useMediaQuery("(min-width: 640px)");
 const sections = [
-  { id: "openrouter", label: "OpenRouter", icon: "pi pi-sparkles" },
+  { id: "ai", label: "AI", icon: "pi pi-sparkles" },
   { id: "api-keys", label: "API Keys", icon: "pi pi-key" },
   { id: "mcp", label: "MCP", icon: "pi pi-bolt" },
   { id: "webhooks", label: "Webhooks", icon: "pi pi-send" },
   { id: "version", label: "Version", icon: "pi pi-refresh" },
 ] as const;
 type SettingsSectionId = (typeof sections)[number]["id"];
-const activeSection = ref<SettingsSectionId>("mcp");
+const activeSection = ref<SettingsSectionId>("ai");
 const {
   data: webhooks,
   isLoading,
@@ -108,7 +108,7 @@ const handleEdit = (webhook: Webhook) => {
           <p
             class="max-w-3xl text-sm text-surface-600 dark:text-surface-300 sm:text-base"
           >
-            Manage OpenRouter, API keys, MCP clients, webhooks, and version
+            Manage AI providers, API keys, MCP clients, webhooks, and version
             checks.
           </p>
         </div>
@@ -155,8 +155,8 @@ const handleEdit = (webhook: Webhook) => {
           <UpdateCheck />
         </section>
 
-        <section v-else-if="activeSection === 'openrouter'">
-          <OpenrouterKey />
+        <section v-else-if="activeSection === 'ai'">
+          <Ai />
         </section>
 
         <section v-else-if="activeSection === 'api-keys'">

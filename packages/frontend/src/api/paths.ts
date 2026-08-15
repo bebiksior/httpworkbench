@@ -1,6 +1,10 @@
 import { path } from "urlguard";
 
 export const apiPaths = {
+  aiChatGpt: "/api/ai/chatgpt",
+  aiOAuthDevice: "/api/ai/oauth/device",
+  aiOAuthPoll: "/api/ai/oauth/poll",
+  aiOAuthRefresh: "/api/ai/oauth/refresh",
   apiKey: (id: string) => path("/api/api-keys/:id", { id }),
   apiKeys: "/api/api-keys",
   guestInstance: (id: string) => path("/api/guest/instances/:id", { id }),

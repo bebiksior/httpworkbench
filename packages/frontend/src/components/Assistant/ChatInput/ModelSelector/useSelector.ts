@@ -1,15 +1,21 @@
-import { type Component, computed } from "vue";
+import { type Component, computed, watch } from "vue";
 import { AnthropicIcon, GoogleIcon, OpenAIIcon, XAIIcon } from "./icons";
 import UnknownIcon from "./icons/Unknown.vue";
 import { availableModels } from "@/agent/models";
 import { type ModelItem } from "@/agent/types/config";
 import { useAssistantModelStore } from "@/stores";
+import { useAiSettings } from "@/utils/ai";
 
 type AugmentedModelItem = ModelItem & { icon: Component };
 
 const getIcon = (model: ModelItem) => {
-  const id = model.id.toLowerCase();
+  const id = model.modelId.toLowerCase();
 
+  if (model.provider === "anthropic") return AnthropicIcon;
+  if (model.provider === "openai" || model.provider === "chatgpt") {
+    return OpenAIIcon;
+  }
+  if (model.provider === "xai") return XAIIcon;
   if (id.startsWith("anthropic/")) return AnthropicIcon;
   if (id.startsWith("openai/")) return OpenAIIcon;
   if (id.startsWith("google/")) return GoogleIcon;
@@ -24,6 +30,7 @@ const getIcon = (model: ModelItem) => {
 
 export const useSelector = () => {
   const assistantModelStore = useAssistantModelStore();
+  const { isProviderConfigured } = useAiSettings();
 
   const modelId = computed<string>({
     get() {
@@ -35,17 +42,29 @@ export const useSelector = () => {
   });
 
   const models = computed<AugmentedModelItem[]>(() =>
-    availableModels.map((item) => ({
-      ...item,
-      icon: getIcon(item),
-    })),
+    availableModels
+      .filter((item) => isProviderConfigured(item.provider))
+      .map((item) => ({
+        ...item,
+        icon: getIcon(item),
+      })),
   );
 
   const selectedModel = computed<AugmentedModelItem | undefined>(() => {
-    const item = availableModels.find((i) => i.id === modelId.value);
+    const item = models.value.find((i) => i.id === modelId.value);
     if (!item) return undefined;
-    return { ...item, icon: getIcon(item) };
+    return item;
   });
+
+  watch(
+    models,
+    (configuredModels) => {
+      if (!configuredModels.some((model) => model.id === modelId.value)) {
+        modelId.value = configuredModels[0]?.id ?? "";
+      }
+    },
+    { immediate: true },
+  );
 
   return {
     modelId,

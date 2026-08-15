@@ -11,7 +11,7 @@ const parseOrigin = (value: string | undefined | null) => {
   }
 };
 
-export const isAllowedWebSocketOrigin = (
+export const isAllowedBrowserOrigin = (
   request: Request,
   frontendUrl = Bun.env.FRONTEND_URL,
 ) => {

@@ -133,8 +133,13 @@ watch(
               class="h-4 w-4 shrink-0"
             />
             <div v-else class="h-3 w-3 shrink-0 rounded-sm bg-surface-500" />
-            <span class="min-w-0 flex-1 truncate font-mono text-sm">
-              {{ model.name }}
+            <span class="min-w-0 flex-1">
+              <span class="block truncate font-mono text-sm">
+                {{ model.name }}
+              </span>
+              <span class="block truncate text-[11px] text-surface-500">
+                {{ model.providerName }}
+              </span>
             </span>
             <i
               v-if="model.id === modelId"

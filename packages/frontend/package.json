@@ -12,7 +12,10 @@
     "verify:production-build": "! grep -R -q 'Component that was made reactive' dist/assets/*.js"
   },
   "dependencies": {
+    "@ai-sdk/anthropic": "^4.0.39",
+    "@ai-sdk/openai": "^4.0.42",
     "@ai-sdk/vue": "^4.0.66",
+    "@ai-sdk/xai": "^4.0.39",
     "@codemirror/autocomplete": "^6.20.1",
     "@codemirror/lang-html": "^6.4.11",
     "@codemirror/lang-javascript": "^6.2.4",

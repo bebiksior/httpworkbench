@@ -13,6 +13,7 @@ import {
 } from "../storage";
 import { dnsConfig, instancePolicies, smtpConfig } from "../config";
 import {
+  aiRoutes,
   apiKeysRoutes,
   guestInstancesRoutes,
   instancesRoutes,
@@ -42,7 +43,7 @@ import {
 import { createDnsServer } from "./dns";
 import { createSmtpServer } from "./smtp";
 import { createBoundedProtocolRateLimiter } from "./protocolRateLimit";
-import { isAllowedWebSocketOrigin } from "./webSocketOrigin";
+import { isAllowedBrowserOrigin } from "./webSocketOrigin";
 import { version } from "../version";
 
 const guestStreamRateLimiter = createBoundedProtocolRateLimiter({
@@ -84,6 +85,7 @@ export const buildApiServer = (port: number) => {
     .get("/api/health", () => ({ status: "ok" }), { detail: { hide: true } })
     .get("/api/version", () => ({ version }), { detail: { hide: true } })
     .use(oauthRoutes)
+    .use(aiRoutes)
     .use(userRoutes)
     .use(instancesRoutes)
     .use(guestInstancesRoutes)
@@ -91,7 +93,7 @@ export const buildApiServer = (port: number) => {
     .use(apiKeysRoutes)
     .ws("/api/instances/:id/stream", {
       async beforeHandle({ params, request, set, cookie }) {
-        if (!isAllowedWebSocketOrigin(request)) {
+        if (!isAllowedBrowserOrigin(request)) {
           return status(403, { error: "Invalid origin" });
         }
         const instance = getInstanceAccessMetadata(params.id);

@@ -43,6 +43,7 @@ type RequestOptions = {
   method?: "GET" | "POST" | "PATCH" | "PUT" | "DELETE";
   body?: unknown;
   headers?: HeadersInit;
+  signal?: AbortSignal;
 };
 
 const request = async <T>(url: string, options: RequestOptions = {}) => {
@@ -56,14 +57,18 @@ const request = async <T>(url: string, options: RequestOptions = {}) => {
     headers,
     credentials: "include",
     body: hasBody ? JSON.stringify(options.body) : undefined,
+    signal: options.signal,
   });
   return handleResponse<T>(response);
 };
 
 export const apiClient = {
   get: <T>(url: string, headers?: HeadersInit) => request<T>(url, { headers }),
-  post: <T>(url: string, body?: unknown, headers?: HeadersInit) =>
-    request<T>(url, { method: "POST", body, headers }),
+  post: <T>(
+    url: string,
+    body?: unknown,
+    options?: Pick<RequestOptions, "headers" | "signal">,
+  ) => request<T>(url, { method: "POST", body, ...options }),
   patch: <T>(url: string, body: unknown, headers?: HeadersInit) =>
     request<T>(url, { method: "PATCH", body, headers }),
   put: <T>(url: string, body: unknown, headers?: HeadersInit) =>

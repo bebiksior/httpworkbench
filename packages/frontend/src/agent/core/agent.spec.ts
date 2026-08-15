@@ -9,12 +9,8 @@ vi.mock("ai", async () => {
   };
 });
 
-vi.mock("@openrouter/ai-sdk-provider", () => ({
-  createOpenRouter: vi.fn(),
-}));
-
-vi.mock("@/utils/openrouter", () => ({
-  readOpenrouterKey: vi.fn(() => "test-openrouter-key"),
+vi.mock("@/agent/core/model", () => ({
+  createAiModel: vi.fn(() => Promise.resolve({})),
 }));
 
 vi.mock("@/agent/core/tools/updateResponseEditor", () => ({
@@ -26,7 +22,7 @@ vi.mock("@/agent/core/tools/createInstance", () => ({
 }));
 
 import { createAgentUIStream } from "ai";
-import { createOpenRouter } from "@openrouter/ai-sdk-provider";
+import { createAiModel } from "@/agent/core/model";
 import {
   convertAgentMessagesToModelMessages,
   createLocalAgentTransport,
@@ -72,8 +68,6 @@ describe("convertAgentMessagesToModelMessages", () => {
 
 describe("createLocalAgentTransport", () => {
   test("passes editor content via agent instructions instead of appending a user message", async () => {
-    vi.mocked(createOpenRouter).mockReturnValue(vi.fn(() => ({})) as never);
-
     const stream = new ReadableStream();
     vi.mocked(createAgentUIStream).mockResolvedValue(stream as never);
 
@@ -86,7 +80,8 @@ describe("createLocalAgentTransport", () => {
     ];
 
     const transport = createLocalAgentTransport({
-      getModelId: () => "openai/gpt-4.1",
+      getModelId: () => "openrouter:openai/gpt-5.6-sol",
+      sessionId: "session-1",
       getEditorContent: () => "<html><body>Hello</body></html>",
     });
 
@@ -101,5 +96,12 @@ describe("createLocalAgentTransport", () => {
     const call = vi.mocked(createAgentUIStream).mock.calls[0]?.[0];
     expect(call?.uiMessages).toEqual(messages);
     expect(call?.originalMessages).toEqual(messages);
+    expect(createAiModel).toHaveBeenCalledWith(
+      expect.objectContaining({
+        provider: "openrouter",
+        modelId: "openai/gpt-5.6-sol",
+      }),
+      "session-1",
+    );
   });
 });
