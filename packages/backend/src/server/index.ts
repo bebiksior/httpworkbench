@@ -26,7 +26,7 @@ import {
   readSessionCookie,
   resolveOptionalAccess,
 } from "./auth";
-import { handleMcpRequest } from "./mcp";
+import { closeMcpHandler, handleMcpRequest } from "./mcp";
 import { openApiPlugin } from "./openapi";
 import { canReadInstance } from "./instances/access";
 import {
@@ -214,6 +214,7 @@ export const initServer = async () => {
   };
 
   const drainBackgroundWork = async () => {
+    await closeMcpHandler();
     await flushPendingWebhookNotifications();
   };
 

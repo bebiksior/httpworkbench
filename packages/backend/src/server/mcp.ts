@@ -1,5 +1,4 @@
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
+import { createMcpHandler, McpServer } from "@modelcontextprotocol/server";
 import { authenticateApiKeyRequest } from "./apiKeyAuth";
 import { registerInstanceTools } from "./mcp/instanceTools";
 import { registerLogTools } from "./mcp/logTools";
@@ -70,6 +69,10 @@ const createMcpServer = () => {
   return server;
 };
 
+const mcpHandler = createMcpHandler(createMcpServer);
+
+export const closeMcpHandler = () => mcpHandler.close();
+
 export const handleMcpRequest = async (request: Request): Promise<Response> => {
   const headerError = validateMcpHeaders(request);
   if (headerError !== undefined) {
@@ -90,27 +93,16 @@ export const handleMcpRequest = async (request: Request): Promise<Response> => {
     return new Response("Rate limit exceeded", { status: 429 });
   }
 
-  const server = createMcpServer();
-  const transport = new WebStandardStreamableHTTPServerTransport({
-    sessionIdGenerator: undefined,
-    enableJsonResponse: true,
+  return mcpHandler.fetch(request, {
+    authInfo: {
+      token: auth.apiKey.id,
+      clientId: auth.apiKey.id,
+      scopes: auth.apiKey.scopes,
+      expiresAt:
+        auth.apiKey.expiresAt === undefined
+          ? undefined
+          : Math.floor(auth.apiKey.expiresAt / 1000),
+      extra: { httpworkbenchAuth: auth },
+    },
   });
-  try {
-    await server.connect(transport);
-    return await transport.handleRequest(request, {
-      authInfo: {
-        token: auth.apiKey.id,
-        clientId: auth.apiKey.id,
-        scopes: auth.apiKey.scopes,
-        expiresAt:
-          auth.apiKey.expiresAt === undefined
-            ? undefined
-            : Math.floor(auth.apiKey.expiresAt / 1000),
-        extra: { httpworkbenchAuth: auth },
-      },
-    });
-  } finally {
-    await transport.close();
-    await server.close();
-  }
 };

@@ -1,4 +1,4 @@
-import type { AuthInfo } from "@modelcontextprotocol/sdk/server/auth/types.js";
+import type { ServerContext } from "@modelcontextprotocol/server";
 import type { ApiKeyScope, Instance, InstanceSummary } from "shared";
 import type { ApiKeyAuthContext } from "../apiKeyAuth";
 import { hasApiKeyScope } from "../apiKeyAuth";
@@ -14,10 +14,8 @@ export const toolError = (message: string) => ({
   isError: true,
 });
 
-export const getAuthContext = (extra: {
-  authInfo?: AuthInfo;
-}): ApiKeyAuthContext => {
-  const context = extra.authInfo?.extra?.httpworkbenchAuth;
+export const getAuthContext = (extra: Pick<ServerContext, "http">) => {
+  const context = extra.http?.authInfo?.extra?.httpworkbenchAuth;
   if (context === undefined) {
     throw new Error("Unauthorized");
   }

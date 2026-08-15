@@ -1,11 +1,18 @@
-import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import {
+  afterAll,
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  test,
+} from "bun:test";
+import {
+  Client,
+  StreamableHTTPClientTransport,
+} from "@modelcontextprotocol/client";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import type { ApiKeyAuthContext } from "../apiKeyAuth";
 import {
   addInstance,
   addUser,
@@ -16,46 +23,48 @@ import {
 
 process.env.JWT_SECRET = "mcp-instance-tools-test-secret";
 process.env.INSTANCES_DOMAIN = "instances.example.com";
+process.env.DOMAIN = "test.local";
 
-const { registerInstanceTools } = await import("./instanceTools");
+const [{ createApiKeyForUser }, { closeMcpHandler, handleMcpRequest }] =
+  await Promise.all([import("../apiKeyAuth"), import("../mcp")]);
 
-const auth: ApiKeyAuthContext = {
-  apiKey: {
-    id: "api-key-1",
-    userId: "owner-1",
-    name: "MCP test",
-    prefix: "hwb_test",
-    scopes: ["instances:write"],
-    createdAt: 1,
-  },
-  user: { id: "owner-1", googleId: "google-1", createdAt: 1 },
-};
-
-const connectClient = async () => {
-  const server = new McpServer({ name: "test", version: "1.0.0" });
-  registerInstanceTools(server);
-  const client = new Client({ name: "test", version: "1.0.0" });
-  const [clientTransport, serverTransport] =
-    InMemoryTransport.createLinkedPair();
-  const send = clientTransport.send.bind(clientTransport);
-  clientTransport.send = (message, options) =>
-    send(message, {
-      ...options,
-      authInfo: {
-        token: auth.apiKey.id,
-        clientId: auth.apiKey.id,
-        scopes: auth.apiKey.scopes,
-        extra: { httpworkbenchAuth: auth },
+const connectClient = async (apiKey: string) => {
+  const requests: Array<{
+    method: string | null;
+    name: string | null;
+    protocolVersion: string | null;
+  }> = [];
+  const transport = new StreamableHTTPClientTransport(
+    new URL("http://test.local/mcp"),
+    {
+      requestInit: {
+        headers: { Authorization: `Bearer ${apiKey}` },
       },
-    });
-
-  await server.connect(serverTransport);
-  await client.connect(clientTransport);
-  return { client, server };
+      fetch: async (url, init) => {
+        const headers = new Headers(init?.headers);
+        headers.set("host", "test.local");
+        requests.push({
+          method: headers.get("mcp-method"),
+          name: headers.get("mcp-name"),
+          protocolVersion: headers.get("mcp-protocol-version"),
+        });
+        return handleMcpRequest(
+          new Request(url.toString(), { ...init, headers }),
+        );
+      },
+    },
+  );
+  const client = new Client(
+    { name: "test", version: "1.0.0" },
+    { versionNegotiation: { mode: { pin: "2026-07-28" } } },
+  );
+  await client.connect(transport);
+  return { client, requests };
 };
 
 describe("MCP instance tools", () => {
   let dataDir = "";
+  let apiKey = "";
 
   beforeEach(() => {
     dataDir = mkdtempSync(path.join(tmpdir(), "httpworkbench-mcp-tools-"));
@@ -73,6 +82,11 @@ describe("MCP instance tools", () => {
       locked: false,
       raw: "HTTP/1.1 200 OK\r\n\r\nok",
     });
+    apiKey = createApiKeyForUser({
+      userId: "owner-1",
+      name: "MCP test",
+      scopes: ["instances:write"],
+    }).secret;
   });
 
   afterEach(() => {
@@ -80,9 +94,16 @@ describe("MCP instance tools", () => {
     rmSync(dataDir, { recursive: true, force: true });
   });
 
-  test("publishes and unpublishes an owned instance", async () => {
-    const { client, server } = await connectClient();
+  afterAll(async () => {
+    await closeMcpHandler();
+  });
+
+  test("serves MCP 2026-07-28 and updates instance visibility", async () => {
+    const { client, requests } = await connectClient(apiKey);
     try {
+      expect(client.getProtocolEra()).toBe("modern");
+      expect(client.getNegotiatedProtocolVersion()).toBe("2026-07-28");
+
       const tools = await client.listTools();
       const visibilityTool = tools.tools.find(
         ({ name }) => name === "set_instance_public",
@@ -98,6 +119,11 @@ describe("MCP instance tools", () => {
       });
       expect(published.isError).not.toBe(true);
       expect(getInstanceById("instance-1")?.public).toBe(true);
+      expect(requests).toContainEqual({
+        method: "tools/call",
+        name: "set_instance_public",
+        protocolVersion: "2026-07-28",
+      });
 
       const unpublished = await client.callTool({
         name: "set_instance_public",
@@ -107,7 +133,6 @@ describe("MCP instance tools", () => {
       expect(getInstanceById("instance-1")?.public).toBe(false);
     } finally {
       await client.close();
-      await server.close();
     }
   });
 });

@@ -1,4 +1,4 @@
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { McpServer } from "@modelcontextprotocol/server";
 import * as z from "zod/v4";
 import {
   deleteInstance,
@@ -50,14 +50,14 @@ export const registerInstanceTools = (server: McpServer) => {
       title: "Create Instance",
       description:
         "Create a new HTTP Workbench instance that serves the provided raw HTTP response from a public instance URL. The raw input must be a complete valid HTTP response with status line, headers, blank line, and body.",
-      inputSchema: {
+      inputSchema: z.object({
         raw: z
           .string()
           .describe(
             "Complete raw HTTP response to serve, including status line, headers, blank line, and body.",
           ),
         label: z.string().max(100).optional(),
-      },
+      }),
       annotations: {
         readOnlyHint: false,
         destructiveHint: false,
@@ -85,7 +85,7 @@ export const registerInstanceTools = (server: McpServer) => {
       title: "Get Instance",
       description:
         "Get one owned HTTP Workbench instance, including its full configuration and a small recent log preview when the API key also has logs:read.",
-      inputSchema: { instanceId: z.string().min(1) },
+      inputSchema: z.object({ instanceId: z.string().min(1) }),
       annotations: {
         readOnlyHint: true,
         idempotentHint: true,
@@ -109,10 +109,10 @@ export const registerInstanceTools = (server: McpServer) => {
       title: "Update Instance",
       description:
         "Replace the raw HTTP response served by an owned instance. Existing logs remain unchanged.",
-      inputSchema: {
+      inputSchema: z.object({
         instanceId: z.string().min(1),
         raw: z.string(),
-      },
+      }),
       annotations: {
         readOnlyHint: false,
         destructiveHint: true,
@@ -140,10 +140,10 @@ export const registerInstanceTools = (server: McpServer) => {
       title: "Set Instance Visibility",
       description:
         "Publish or unpublish an owned HTTP Workbench instance. When published, an unauthenticated user can visit https://httpworkbench.com/instances/:id and view its logs and basic data. Access is read-only. Publishing is useful for sharing callback information with a triager in a vulnerability report.",
-      inputSchema: {
+      inputSchema: z.object({
         instanceId: z.string().min(1),
         public: z.boolean(),
-      },
+      }),
       annotations: {
         readOnlyHint: false,
         destructiveHint: true,
@@ -170,7 +170,7 @@ export const registerInstanceTools = (server: McpServer) => {
     {
       title: "Delete Instance",
       description: "Delete an owned, unlocked HTTP Workbench instance.",
-      inputSchema: { instanceId: z.string().min(1) },
+      inputSchema: z.object({ instanceId: z.string().min(1) }),
       annotations: {
         readOnlyHint: false,
         destructiveHint: true,

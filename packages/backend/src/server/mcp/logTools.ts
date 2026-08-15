@@ -1,4 +1,4 @@
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { McpServer } from "@modelcontextprotocol/server";
 import * as z from "zod/v4";
 import { clearLogsForInstance, getLogsForInstancePage } from "../../storage";
 import type { ApiKeyAuthContext } from "../apiKeyAuth";
@@ -53,13 +53,13 @@ const readLogsPage = (input: {
   };
 };
 
-const logsInputSchema = {
+const logsInputSchema = z.object({
   instanceId: z.string().min(1),
   limit: z.number().int().min(1).max(MAX_LOG_LIMIT).optional(),
   cursor: z.string().optional(),
   type: z.enum(["http", "dns", "smtp"]).optional(),
   sinceTimestamp: z.number().optional(),
-};
+});
 
 const mcpLogWatchTimeoutMs = 20_000;
 const mcpLogWatchLimiter = createConcurrentWatchLimiter({
@@ -73,7 +73,7 @@ export const registerLogTools = (server: McpServer) => {
     {
       title: "Clear Instance Logs",
       description: "Clear all recorded interaction logs for an owned instance.",
-      inputSchema: { instanceId: z.string().min(1) },
+      inputSchema: z.object({ instanceId: z.string().min(1) }),
       annotations: {
         readOnlyHint: false,
         destructiveHint: true,
@@ -134,16 +134,16 @@ export const registerLogTools = (server: McpServer) => {
       const waiter = waitForInstanceLog(
         input.instanceId,
         mcpLogWatchTimeoutMs,
-        extra.signal,
+        extra.mcpReq.signal,
       );
       try {
-        if (extra.signal.aborted) {
+        if (extra.mcpReq.signal.aborted) {
           return toolError("Log watch cancelled");
         }
         let page = readLogsPage({ ...input, auth });
         if (page.logs.length === 0) {
           await waiter.promise;
-          if (extra.signal.aborted) {
+          if (extra.mcpReq.signal.aborted) {
             return toolError("Log watch cancelled");
           }
           page = readLogsPage({ ...input, auth });
