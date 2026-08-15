@@ -37,7 +37,7 @@ const makeLog = (id: string): Log => ({
 });
 
 describe("buildInstanceDetailPlaceholder", () => {
-  test("does not construct incomplete detail data from list summaries", () => {
+  test("constructs placeholder detail data from a matching list summary", () => {
     const queryClient = new QueryClient();
     const target: InstanceSummary = {
       id: "target",
@@ -54,9 +54,18 @@ describe("buildInstanceDetailPlaceholder", () => {
     );
     queryClient.setQueryData([...queryKeys.instances.all, "user"], [target]);
 
-    expect(
-      buildInstanceDetailPlaceholder(queryClient, "target"),
-    ).toBeUndefined();
+    expect(buildInstanceDetailPlaceholder(queryClient, "target")).toEqual({
+      instance: {
+        id: "target",
+        ownerId: "owner",
+        createdAt: 1,
+        public: false,
+        locked: false,
+        raw: "",
+        webhookIds: [],
+      },
+      logs: [],
+    });
   });
 
   test("ignores child log data when searching detail caches", () => {
@@ -93,7 +102,7 @@ describe("buildInstanceDetailPlaceholder", () => {
         queryClient,
         "target",
         makeDetail("other"),
-      ),
-    ).toBeUndefined();
+      )?.instance.id,
+    ).toBe("target");
   });
 });

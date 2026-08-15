@@ -12,6 +12,8 @@ import {
   useCloneInstance,
   useDeleteInstance,
 } from "@/queries/domains/useInstances";
+import { usePrefetchInstanceDetail } from "@/queries/domains/useInstanceDetail";
+import { loadInstanceDetailPage } from "@/pages/InstanceDetail/load";
 import { isPresent } from "@/utils/types";
 
 const props = defineProps<{
@@ -25,6 +27,7 @@ const notify = useNotify();
 const confirm = useConfirm();
 const deleteMutation = useDeleteInstance();
 const cloneMutation = useCloneInstance();
+const prefetchInstanceDetail = usePrefetchInstanceDetail();
 
 const instanceHost = computed(() => config.getInstanceHost(instance.value.id));
 
@@ -49,6 +52,13 @@ const formattedDate = computed(() => {
 const handleCopyClick = async () => {
   await navigator.clipboard.writeText(instanceHost.value);
   notify.copied();
+};
+
+const handlePrefetch = () => {
+  void Promise.all([
+    loadInstanceDetailPage(),
+    prefetchInstanceDetail(instance.value.id),
+  ]);
 };
 
 const handleDeleteClick = () => {
@@ -103,7 +113,7 @@ const handleCloneClick = () => {
 <template>
   <article
     :class="[
-      'relative bg-white dark:bg-surface-800 border rounded-lg p-3 sm:p-5 transition-colors',
+      'relative select-none bg-white dark:bg-surface-800 border rounded-lg p-3 sm:p-5 transition-colors',
       instance.locked
         ? 'border-surface-300 dark:border-surface-700/50 opacity-60'
         : 'border-surface-200 dark:border-surface-700 hover:border-primary',
@@ -113,6 +123,9 @@ const handleCloneClick = () => {
       :to="`/instances/${instance.id}`"
       class="absolute inset-0 rounded-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
       :aria-label="`Open ${displayName}`"
+      @pointerenter="handlePrefetch"
+      @pointerdown="handlePrefetch"
+      @focus="handlePrefetch"
     />
     <div
       class="pointer-events-none relative flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-6"
@@ -161,7 +174,7 @@ const handleCloneClick = () => {
           :value="instanceHost"
           readonly
           :aria-label="`Host for ${displayName}`"
-          class="min-w-0 flex-1 font-mono text-xs sm:w-80 sm:text-sm"
+          class="min-w-0 flex-1 select-text font-mono text-xs sm:w-80 sm:text-sm"
         />
         <Button
           icon="pi pi-copy"

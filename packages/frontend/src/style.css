@@ -35,14 +35,44 @@ body {
 
 :where(
   button,
+  input[type="button"],
+  input[type="checkbox"],
+  input[type="radio"],
+  input[type="reset"],
+  input[type="submit"],
   label[for],
+  label:has(
+    :where(
+      input[type="checkbox"],
+      input[type="radio"],
+      [role="checkbox"],
+      [role="radio"],
+      [role="switch"]
+    )
+  ),
+  select,
+  summary,
   [role="button"],
   [role="checkbox"],
+  [role="combobox"]:not(input, textarea),
   [role="menuitem"],
+  [role="menuitemcheckbox"],
+  [role="menuitemradio"],
   [role="option"],
   [role="radio"],
+  [role="separator"][aria-orientation],
+  [role="slider"],
   [role="switch"],
-  [role="tab"]
+  [role="tab"],
+  .p-button,
+  .p-dialog-header,
+  .p-multiselect,
+  .p-password-mask-icon,
+  .p-password-unmask-icon,
+  .p-splitter-gutter,
+  .p-tag,
+  .p-tooltip,
+  .pi
 ) {
   -webkit-user-select: none;
   user-select: none;

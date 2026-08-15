@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory } from "vue-router";
+import { loadInstanceDetailPage } from "@/pages/InstanceDetail/load";
 import { useAuthStore } from "@/stores/auth";
 
 const AuthenticatedLayout = () =>
@@ -6,8 +7,6 @@ const AuthenticatedLayout = () =>
     (module) => module.AuthenticatedLayout,
   );
 const Home = () => import("@/pages/Home").then((module) => module.Home);
-const InstanceDetail = () =>
-  import("@/pages/InstanceDetail").then((module) => module.InstanceDetail);
 const Login = () => import("@/pages/Login").then((module) => module.Login);
 const NotFound = () =>
   import("@/pages/NotFound").then((module) => module.NotFound);
@@ -44,7 +43,7 @@ const router = createRouter({
         {
           path: "instances/:id",
           name: "instanceDetail",
-          component: InstanceDetail,
+          component: loadInstanceDetailPage,
         },
         {
           path: "instances/:id/builder",

@@ -1,8 +1,9 @@
 import type { InstanceSummary } from "shared";
-import { computed, ref } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
 import { useNotify } from "@/composables";
 import { config } from "@/config";
+import { loadInstanceDetailPage } from "@/pages/InstanceDetail/load";
 import {
   useCreateInstance,
   useInstances,
@@ -27,6 +28,28 @@ export const useHomeLogic = () => {
   });
 
   const createMutation = useCreateInstance();
+  let idleCallbackId: number | undefined;
+  let preloadTimeoutId: number | undefined;
+
+  onMounted(() => {
+    if (typeof window.requestIdleCallback === "function") {
+      idleCallbackId = window.requestIdleCallback(
+        () => void loadInstanceDetailPage(),
+        { timeout: 2_000 },
+      );
+      return;
+    }
+    preloadTimeoutId = setTimeout(() => void loadInstanceDetailPage(), 0);
+  });
+
+  onBeforeUnmount(() => {
+    if (idleCallbackId !== undefined) {
+      window.cancelIdleCallback(idleCallbackId);
+    }
+    if (preloadTimeoutId !== undefined) {
+      clearTimeout(preloadTimeoutId);
+    }
+  });
 
   const normalizedQuery = computed(() =>
     searchQuery.value.trim().toLowerCase(),

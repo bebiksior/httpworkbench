@@ -1,4 +1,4 @@
-import { useInstanceDetailPreferencesStore } from "@/stores";
+import { useInstanceDetailPreferencesStore } from "@/stores/instanceDetailPreferences";
 import { storeToRefs } from "pinia";
 import { onBeforeUnmount, ref } from "vue";
 

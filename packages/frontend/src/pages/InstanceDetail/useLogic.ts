@@ -18,7 +18,7 @@ export const useInstanceDetailLogic = (
   const authStore = useAuthStore();
   const guestInstancesStore = useGuestInstancesStore();
   const resolvedInstanceId = computed(() => toValue(instanceId));
-  const { data, isPending, isFetched, error, refetch } =
+  const { data, isPending, isPlaceholderData, isFetched, error, refetch } =
     useInstanceDetail(instanceId);
   const getGuestToken = () =>
     authStore.isGuest
@@ -60,6 +60,9 @@ export const useInstanceDetailLogic = (
 
   return {
     instance: computed(() => data.value?.instance),
+    isLoadingInstance: computed(
+      () => isPending.value || isPlaceholderData.value,
+    ),
     logs: logStream.logs,
     hasOlderLogs: logStream.hasOlderLogs,
     isLoadingOlder: logStream.isLoadingOlder,

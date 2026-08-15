@@ -1,4 +1,4 @@
-import { useInstanceDetailPreferencesStore } from "@/stores";
+import { useInstanceDetailPreferencesStore } from "@/stores/instanceDetailPreferences";
 import type { Log, LogType } from "shared";
 import { refDebounced } from "@vueuse/core";
 import { storeToRefs } from "pinia";

@@ -6,13 +6,14 @@ import { useRoute } from "vue-router";
 import { useInstanceDetailLogic } from "./useLogic";
 import { useLogsPanelControls } from "./useLogsPanelControls";
 import { useSidePanel } from "./useSidePanel";
-import { InstanceData } from "./components/InstanceData";
+import { InstanceData, InstanceDataLoading } from "./components/InstanceData";
 import { InstanceLog } from "./components/InstanceLog";
 
 const route = useRoute();
 const instanceId = computed(() => route.params.id as string);
 const {
   instance,
+  isLoadingInstance,
   logs,
   showNotFound,
   hasOlderLogs,
@@ -118,10 +119,12 @@ const exitLogOnEscape = (event: KeyboardEvent) => {
         class="instance-detail-side-panel-content flex h-full min-h-0 flex-col"
       >
         <InstanceData
-          v-if="instance"
+          v-if="instance && !isLoadingInstance"
           :instance="instance"
           @hide-panel="setSidePanelHidden(true)"
         />
+
+        <InstanceDataLoading v-else-if="!showNotFound" :instance="instance" />
 
         <div
           v-else-if="showNotFound"
@@ -196,12 +199,13 @@ const exitLogOnEscape = (event: KeyboardEvent) => {
                 </Button>
               </div>
               <span
+                v-if="!isLoadingInstance"
                 class="shrink-0 text-sm text-surface-600 dark:text-surface-400"
               >
                 {{ eventsLabel }}
               </span>
               <Button
-                v-if="hasOlderLogs"
+                v-if="hasOlderLogs && !isLoadingInstance"
                 label="Load older"
                 icon="pi pi-history"
                 severity="secondary"
@@ -267,7 +271,7 @@ const exitLogOnEscape = (event: KeyboardEvent) => {
           @keydown="exitLogOnEscape"
         >
           <div
-            v-if="logs.length === 0"
+            v-if="!isLoadingInstance && logs.length === 0"
             class="flex h-full flex-col items-center justify-center text-center text-surface-700 dark:text-surface-400"
           >
             <i class="pi pi-inbox text-4xl mb-2 block"></i>
@@ -275,14 +279,18 @@ const exitLogOnEscape = (event: KeyboardEvent) => {
           </div>
 
           <div
-            v-else-if="filteredLogs.length === 0"
+            v-else-if="!isLoadingInstance && filteredLogs.length === 0"
             class="flex h-full flex-col items-center justify-center text-center text-surface-700 dark:text-surface-400"
           >
             <i class="pi pi-search text-4xl mb-2 block"></i>
             No logs match the current search and filters.
           </div>
 
-          <div v-else ref="scrollerRef" class="h-full overflow-y-auto">
+          <div
+            v-else-if="filteredLogs.length > 0"
+            ref="scrollerRef"
+            class="h-full overflow-y-auto"
+          >
             <div class="relative w-full" :style="{ height: `${totalSize}px` }">
               <div
                 v-for="virtualRow in virtualRows"
