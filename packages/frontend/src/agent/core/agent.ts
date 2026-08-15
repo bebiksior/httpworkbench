@@ -100,7 +100,7 @@ const createModel = (modelId: string) => {
     apiKey: ensureOpenrouterKey(),
     extraBody: {
       reasoning: {
-        effort: "high",
+        effort: "max",
         enabled: true,
       },
     },
