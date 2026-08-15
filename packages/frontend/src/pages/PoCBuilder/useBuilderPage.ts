@@ -19,7 +19,8 @@ import {
   DEFAULT_TEMPLATE,
   formatResponse,
 } from "@/stores";
-import { isAbsent, isPresent } from "@/utils/types";
+import { isAbsent } from "@/utils/types";
+import { buildExitRoute } from "./exitBuilder";
 
 type BuilderPageContext = {
   instance: ComputedRef<Instance | undefined>;
@@ -54,20 +55,6 @@ export const useBuilderPage = (instanceIdRef: Ref<string>) => {
   });
 
   responseEditorStore.setContent(DEFAULT_TEMPLATE, "hydrate");
-
-  watch(
-    () => responseEditorStore.lastUpdateOrigin,
-    (origin) => {
-      if (origin === "hydrate") {
-        builderStore.isDirty = false;
-        return;
-      }
-      if (origin === "agent" || origin === "user") {
-        builderStore.isDirty = true;
-      }
-    },
-    { immediate: true },
-  );
 
   watch(
     error,
@@ -116,17 +103,8 @@ export const useBuilderPage = (instanceIdRef: Ref<string>) => {
     }
   };
 
-  const performNavigation = () => {
-    const targetId = instanceIdRef.value;
-    if (isPresent(targetId) && targetId !== "") {
-      router.push({ name: "instanceDetail", params: { id: targetId } });
-    } else {
-      router.push("/");
-    }
-  };
-
   const handleBack = () => {
-    performNavigation();
+    router.push(buildExitRoute(instanceIdRef.value));
   };
 
   const context: BuilderPageContext = {

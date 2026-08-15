@@ -1,65 +1,53 @@
 <script setup lang="ts">
 import { storeToRefs } from "pinia";
 import Button from "primevue/button";
-import Checkbox from "primevue/checkbox";
 import { useBuilderPageContext } from "@/pages/PoCBuilder/useBuilderPage";
 import { useBuilderStore } from "@/stores";
 
-defineProps<{
-  previewToggleId?: string;
-}>();
+withDefaults(
+  defineProps<{
+    showPreviewToggle?: boolean;
+  }>(),
+  { showPreviewToggle: false },
+);
 
 const builderStore = useBuilderStore();
 const { showPreview, isDirty } = storeToRefs(builderStore);
-const { previewUrl, isSaving, handleSave, handleBack } =
-  useBuilderPageContext();
-
-const openPreviewInNewTab = () => {
-  if (previewUrl.value !== undefined) {
-    window.open(previewUrl.value, "_blank");
-  }
-};
+const { isSaving, handleSave, handleBack } = useBuilderPageContext();
 </script>
 
 <template>
-  <div class="flex gap-1 items-center">
-    <div
-      v-if="previewToggleId !== undefined"
-      class="flex items-center gap-1.5 mr-1"
-    >
-      <Checkbox v-model="showPreview" binary :input-id="previewToggleId" />
-      <label
-        :for="previewToggleId"
-        class="text-xs text-surface-600 dark:text-surface-400 cursor-pointer"
-      >
-        Preview
-      </label>
-    </div>
+  <div class="flex shrink-0 items-center gap-1">
     <Button
-      icon="pi pi-external-link"
+      v-if="showPreviewToggle"
+      icon="pi pi-eye"
       severity="secondary"
       text
       size="small"
-      aria-label="Open in new tab"
-      :disabled="previewUrl === undefined"
-      @click="openPreviewInNewTab"
-      v-tooltip.top="'Open in new tab'"
+      class="p-0! w-8! h-8!"
+      :class="
+        showPreview ? 'bg-surface-100! dark:bg-surface-800! text-primary!' : ''
+      "
+      :aria-pressed="showPreview"
+      :aria-label="showPreview ? 'Hide preview' : 'Show preview'"
+      @click="showPreview = !showPreview"
+      v-tooltip.top="showPreview ? 'Hide preview' : 'Show preview'"
     />
     <Button
       label="Save"
       size="small"
+      class="h-8! px-3!"
       :loading="isSaving"
       :disabled="!isDirty"
       @click="handleSave()"
-      v-tooltip.top="'Save'"
-      style="padding: 0em 0.75em"
     />
     <Button
       icon="pi pi-times"
       severity="secondary"
       text
       size="small"
-      aria-label="Close"
+      class="p-0! w-8! h-8!"
+      aria-label="Close builder"
       @click="handleBack()"
       v-tooltip.top="'Close'"
     />

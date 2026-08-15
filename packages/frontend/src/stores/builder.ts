@@ -1,5 +1,5 @@
 import { defineStore, storeToRefs } from "pinia";
-import { ref } from "vue";
+import { ref, watch } from "vue";
 import {
   extractHttpBody,
   formatStaticHttpResponse,
@@ -22,6 +22,18 @@ export const useBuilderStore = defineStore("builder", () => {
 
   const responseEditorStore = useResponseEditorStore();
   const { content: editorContent } = storeToRefs(responseEditorStore);
+
+  watch(
+    () =>
+      [
+        responseEditorStore.content,
+        responseEditorStore.lastUpdateOrigin,
+      ] as const,
+    ([, origin]) => {
+      isDirty.value = origin !== "hydrate";
+    },
+    { flush: "sync" },
+  );
 
   const refreshPreview = () => {
     previewKey.value += 1;

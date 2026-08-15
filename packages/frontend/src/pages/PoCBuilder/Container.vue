@@ -7,6 +7,7 @@ import { useConfirm } from "primevue/useconfirm";
 import { storeToRefs } from "pinia";
 import { useBuilderStore, useAgentsStore } from "@/stores";
 import { ThreePanelLayout, TwoPanelLayout, MobileLayout } from "./layouts";
+import { createLeaveGuard } from "./exitBuilder";
 import { provideBuilderPage, useBuilderPage } from "./useBuilderPage";
 
 const route = useRoute();
@@ -65,9 +66,12 @@ onUnmounted(() => {
   builderStore.reset();
 });
 
-onBeforeRouteLeave((to, _from, next) => {
-  if (builderStore.isDirty) {
-    next(false);
+const leaveGuard = createLeaveGuard({
+  isDirty: () => builderStore.isDirty,
+  markClean: () => {
+    builderStore.isDirty = false;
+  },
+  confirmLeave: (accept) => {
     confirm.require({
       message: "You have unsaved changes. Are you sure you want to leave?",
       header: "Unsaved Changes",
@@ -81,14 +85,16 @@ onBeforeRouteLeave((to, _from, next) => {
         label: "Leave",
         severity: "danger",
       },
-      accept: () => {
-        builderStore.isDirty = false;
-        router.push(to.fullPath);
-      },
+      accept,
     });
-  } else {
-    next();
-  }
+  },
+  navigate: (target) => {
+    router.push(target);
+  },
+});
+
+onBeforeRouteLeave((to, _from, next) => {
+  leaveGuard(to, next);
 });
 </script>
 
