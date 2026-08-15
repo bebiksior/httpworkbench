@@ -31,7 +31,7 @@ const {
     </div>
 
     <div
-      class="divide-y divide-surface-200 rounded-lg border border-surface-200 bg-white dark:divide-surface-700 dark:border-surface-700 dark:bg-surface-800"
+      class="rounded-lg border border-surface-200 bg-white dark:border-surface-700 dark:bg-surface-800"
     >
       <div class="flex items-start justify-between gap-4 px-4 py-4 sm:px-5">
         <div class="min-w-0">
@@ -53,7 +53,7 @@ const {
       </div>
 
       <div
-        class="divide-y divide-surface-200 transition-opacity dark:divide-surface-700"
+        class="pb-3 transition-opacity"
         :class="aiEnabled ? '' : 'opacity-60'"
       >
         <section>
@@ -62,7 +62,7 @@ const {
           >
             API keys
           </h3>
-          <div class="divide-y divide-surface-200 dark:divide-surface-700">
+          <div class="space-y-1">
             <ApiKeyProvider
               v-for="provider in API_KEY_PROVIDERS"
               :key="provider.id"
@@ -75,13 +75,13 @@ const {
           </div>
         </section>
 
-        <section>
+        <section class="mt-2">
           <h3
             class="px-4 pb-1 pt-4 text-xs font-medium text-surface-500 dark:text-surface-400 sm:px-5"
           >
             Subscriptions
           </h3>
-          <div class="divide-y divide-surface-200 dark:divide-surface-700">
+          <div class="space-y-1">
             <SubscriptionProvider
               v-for="provider in SUBSCRIPTION_PROVIDERS"
               :key="provider.id"

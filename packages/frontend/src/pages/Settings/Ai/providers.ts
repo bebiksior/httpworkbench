@@ -16,7 +16,6 @@ type AiProviderBase<Id extends AiProviderId> = {
 
 export type AiApiKeyProvider = AiProviderBase<AiApiKeyProviderId> & {
   placeholder: string;
-  keyUrl: string;
 };
 
 export type AiSubscriptionProvider =
@@ -30,21 +29,18 @@ export const API_KEY_PROVIDERS: AiApiKeyProvider[] = [
     name: "OpenRouter",
     icon: OpenRouterIcon,
     placeholder: "sk-or-...",
-    keyUrl: "https://openrouter.ai/settings/keys",
   },
   {
     id: "openai",
     name: "OpenAI",
     icon: OpenAIIcon,
     placeholder: "sk-...",
-    keyUrl: "https://platform.openai.com/api-keys",
   },
   {
     id: "anthropic",
     name: "Anthropic",
     icon: AnthropicIcon,
     placeholder: "sk-ant-...",
-    keyUrl: "https://console.anthropic.com/settings/keys",
   },
 ];
 

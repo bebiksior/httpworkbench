@@ -53,21 +53,11 @@ const handleSave = () => {
 
 <template>
   <ProviderRow :icon="provider.icon" :name="provider.name">
-    <template #detail>
-      <span v-if="isConfigured">
+    <template v-if="isConfigured" #detail>
+      <span>
         <span class="sr-only">Saved key </span>
         <span class="font-mono">{{ maskedSecret }}</span>
       </span>
-      <a
-        v-else
-        :href="provider.keyUrl"
-        target="_blank"
-        rel="noreferrer"
-        class="inline-flex items-center gap-1 underline decoration-surface-300 underline-offset-2 transition-colors hover:text-surface-900 dark:decoration-surface-600 dark:hover:text-surface-0"
-      >
-        Get a key<span class="sr-only"> from {{ provider.name }}</span>
-        <i class="pi pi-external-link text-[0.625rem]" aria-hidden="true" />
-      </a>
     </template>
 
     <template #actions>
