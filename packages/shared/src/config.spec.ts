@@ -16,7 +16,7 @@ describe("buildPublicConfig", () => {
       allowGuest: false,
       defaultTtlMs: 14 * 24 * 60 * 60 * 1000,
       maxTtlMs: 30 * 24 * 60 * 60 * 1000,
-      maxInstancesPerOwner: 100,
+      maxInstancesPerOwner: 300,
       rawLimitBytes: 10 * 1024 * 1024,
       dnsEnabled: true,
       smtpEnabled: true,

@@ -45,7 +45,7 @@ describe("frontend config", () => {
     expect(config.allowGuest).toBe(false);
     expect(config.defaultTtlMs).toBeDefined();
     expect(config.maxTtlMs).toBeDefined();
-    expect(config.maxInstancesPerOwner).toBe(100);
+    expect(config.maxInstancesPerOwner).toBe(300);
     expect(config.rawLimitBytes).toBe(10 * 1024 * 1024);
     expect(config.dnsEnabled).toBe(true);
     expect(config.smtpEnabled).toBe(true);

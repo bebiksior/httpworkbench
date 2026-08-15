@@ -4,7 +4,7 @@ import type { Config } from "./schemas";
 const weekInMs = 7 * 24 * 60 * 60 * 1000;
 const defaultInstanceTtlMs = 2 * weekInMs;
 const maxInstanceTtlMs = 30 * 24 * 60 * 60 * 1000;
-const hostedInstanceLimit = 100;
+const hostedInstanceLimit = 300;
 const defaultInstancesSubdomain = "instances";
 
 export type PublicConfigEnv = {
