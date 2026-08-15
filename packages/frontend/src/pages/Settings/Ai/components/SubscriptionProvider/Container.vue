@@ -136,6 +136,7 @@ const closeDialog = () => {
         :href="connection.authorization.verificationUri"
         target="_blank"
         rel="noreferrer"
+        draggable="false"
         label="Open sign-in page"
         icon="pi pi-external-link"
         class="w-full"

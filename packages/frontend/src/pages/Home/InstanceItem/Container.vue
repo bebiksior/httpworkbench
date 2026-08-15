@@ -121,6 +121,7 @@ const handleCloneClick = () => {
   >
     <RouterLink
       :to="`/instances/${instance.id}`"
+      draggable="false"
       class="absolute inset-0 rounded-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
       :aria-label="`Open ${displayName}`"
       @pointerenter="handlePrefetch"

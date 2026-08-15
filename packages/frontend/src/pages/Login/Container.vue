@@ -119,6 +119,7 @@ const handleApiKeyLogin = async () => {
         href="https://github.com/bebiksior/httpworkbench"
         target="_blank"
         rel="noopener noreferrer"
+        draggable="false"
         class="flex items-center gap-2 text-surface-400 hover:text-surface-700 dark:hover:text-surface-200 transition-colors mt-4"
       >
         <i class="pi pi-github text-xl" />

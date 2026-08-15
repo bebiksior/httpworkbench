@@ -157,7 +157,12 @@ const goLogin = async () => {
               aria-haspopup="true"
               @click="toggleMenu"
             />
-            <Menu ref="menu" :model="menuItems" popup>
+            <Menu
+              ref="menu"
+              :model="menuItems"
+              :pt="{ itemLink: { draggable: false } }"
+              popup
+            >
               <template #start>
                 <div
                   v-if="accountLabel !== undefined"

@@ -8,6 +8,11 @@ body {
   overscroll-behavior-y: none;
 }
 
+:where([draggable="false"]) {
+  -webkit-touch-callout: none;
+  -webkit-user-drag: none;
+}
+
 :where(
   button,
   a[href],

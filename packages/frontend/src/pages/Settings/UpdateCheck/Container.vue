@@ -53,6 +53,7 @@ const { state, checkForUpdates } = useUpdateCheck();
           as="a"
           :href="state.release.html_url"
           target="_blank"
+          draggable="false"
           class="w-full sm:w-auto"
         />
         <Button
