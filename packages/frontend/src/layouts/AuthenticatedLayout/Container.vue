@@ -6,6 +6,7 @@ import { useRouter } from "vue-router";
 import { useAuthStore } from "../../stores/auth";
 import { useThemeStore } from "../../stores/theme";
 import { CommandPalette } from "@/components/CommandPalette";
+import { ShortcutsDialog } from "@/components/ShortcutsDialog";
 import { UserNoticeDialog } from "@/components/UserNoticeDialog";
 import { config } from "@/config";
 
@@ -13,6 +14,7 @@ const authStore = useAuthStore();
 const themeStore = useThemeStore();
 const router = useRouter();
 const menu = ref();
+const shortcutsVisible = ref(false);
 
 const goSettings = async () => {
   await router.push({ name: "settings" });
@@ -40,6 +42,13 @@ const menuItems = computed(() => {
     : [];
 
   const linkItems = [
+    {
+      label: "Keyboard shortcuts",
+      icon: "pi pi-question-circle",
+      command: () => {
+        shortcutsVisible.value = true;
+      },
+    },
     {
       label: "API Docs",
       icon: "pi pi-book",
@@ -91,6 +100,10 @@ const goLogin = async () => {
 <template>
   <UserNoticeDialog />
   <CommandPalette v-if="authStore.hasSession" />
+  <ShortcutsDialog
+    v-model:visible="shortcutsVisible"
+    :can-search-instances="authStore.hasSession"
+  />
   <div class="flex h-dvh flex-col bg-surface-0 dark:bg-surface-800">
     <nav class="bg-surface-0 dark:bg-surface-800 shrink-0">
       <div class="mx-auto px-3 sm:px-6">
