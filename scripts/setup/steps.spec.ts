@@ -1,4 +1,9 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
+
+vi.mock("./commands", () => ({
+  getDockerComposeBaseCommand: () => "docker compose",
+}));
+
 import {
   buildPort53CheckResult,
   buildCloudflareDomainActivationInstructions,

@@ -8,8 +8,7 @@ import {
 
 const defaultDnsPort = 53;
 const defaultSmtpPort = 25;
-const env: Record<string, string | undefined> =
-  typeof Bun !== "undefined" ? Bun.env : process.env;
+const env: Record<string, string | undefined> = Bun.env;
 const appConfig = buildPublicConfig(env);
 
 export const instancePolicies = {
