@@ -264,6 +264,14 @@ export function deleteInstance(id: string): void {
   getDb().delete(instances).where(eq(instances.id, id)).run();
 }
 
+export function deleteUnlockedInstancesByOwner(ownerId: string): number {
+  return getDb()
+    .delete(instances)
+    .where(and(eq(instances.ownerId, ownerId), eq(instances.isLocked, false)))
+    .returning({ id: instances.id })
+    .all().length;
+}
+
 export function removeExpiredInstances(now: number): string[] {
   const expiredCondition = and(
     isNotNull(instances.expiresAt),

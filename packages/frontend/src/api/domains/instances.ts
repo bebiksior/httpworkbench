@@ -72,6 +72,13 @@ export const instancesApi = {
     await apiClient.delete<void>(apiPaths.instance(id));
   },
 
+  deleteAllUnlocked: async (): Promise<number> => {
+    const data = await apiClient.delete<{ deleted: number }>(
+      apiPaths.instances,
+    );
+    return data.deleted;
+  },
+
   clearLogs: async (id: string): Promise<void> => {
     await apiClient.delete<void>(apiPaths.instanceLogs(id));
   },

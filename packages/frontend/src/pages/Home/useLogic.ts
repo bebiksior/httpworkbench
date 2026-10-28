@@ -1,4 +1,5 @@
 import type { InstanceSummary } from "shared";
+import { useConfirm } from "primevue/useconfirm";
 import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
 import { useNotify } from "@/composables";
@@ -6,6 +7,7 @@ import { config } from "@/config";
 import { loadInstanceDetailPage } from "@/pages/InstanceDetail/load";
 import {
   useCreateInstance,
+  useDeleteAllInstances,
   useInstances,
 } from "@/queries/domains/useInstances";
 import { isAbsent } from "@/utils/types";
@@ -13,9 +15,15 @@ import { DEFAULT_HTTP_RESPONSE } from "@/utils/httpResponse";
 
 const INSTANCE_LIST_REFETCH_INTERVAL_MS = 5_000;
 
+const pluralizeInstances = (count: number, adjective?: string) =>
+  [count, adjective, count === 1 ? "instance" : "instances"]
+    .filter((part) => part !== undefined)
+    .join(" ");
+
 export const useHomeLogic = () => {
   const router = useRouter();
   const notify = useNotify();
+  const confirm = useConfirm();
   const searchQuery = ref("");
 
   const {
@@ -28,6 +36,7 @@ export const useHomeLogic = () => {
   });
 
   const createMutation = useCreateInstance();
+  const deleteAllMutation = useDeleteAllInstances();
   let idleCallbackId: number | undefined;
   let preloadTimeoutId: number | undefined;
 
@@ -107,6 +116,50 @@ export const useHomeLogic = () => {
     );
   };
 
+  const unlockedInstanceIds = computed(() =>
+    (instances.value ?? [])
+      .filter((instance) => !instance.locked)
+      .map((instance) => instance.id),
+  );
+  const lockedInstanceCount = computed(
+    () => (instances.value?.length ?? 0) - unlockedInstanceIds.value.length,
+  );
+
+  const handleDeleteAll = () => {
+    const ids = unlockedInstanceIds.value;
+    if (ids.length === 0) {
+      return;
+    }
+    const lockedNote =
+      lockedInstanceCount.value > 0
+        ? ` ${pluralizeInstances(lockedInstanceCount.value, "locked")} will be kept.`
+        : "";
+    confirm.require({
+      message: `Delete ${pluralizeInstances(ids.length)}? This cannot be undone.${lockedNote}`,
+      header: "Delete All Instances",
+      icon: "pi pi-exclamation-triangle",
+      rejectProps: {
+        label: "Cancel",
+        severity: "secondary",
+        outlined: true,
+      },
+      acceptProps: {
+        label: `Delete ${ids.length}`,
+        severity: "danger",
+      },
+      accept: () => {
+        deleteAllMutation.mutate([...ids], {
+          onSuccess: (deleted) => {
+            notify.success(`Deleted ${pluralizeInstances(deleted)}`);
+          },
+          onError: (err: Error) => {
+            notify.error("Failed to delete instances", err);
+          },
+        });
+      },
+    });
+  };
+
   return {
     searchQuery,
     instances,
@@ -115,6 +168,9 @@ export const useHomeLogic = () => {
     error,
     handleCreateInstance,
     isCreating: computed(() => createMutation.isPending.value),
+    canDeleteAll: computed(() => unlockedInstanceIds.value.length > 0),
+    handleDeleteAll,
+    isDeletingAll: computed(() => deleteAllMutation.isPending.value),
     handleRetry: async () => {
       await refetch();
     },

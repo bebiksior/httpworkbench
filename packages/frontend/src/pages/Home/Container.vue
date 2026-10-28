@@ -23,6 +23,9 @@ const {
   isLoading,
   handleCreateInstance,
   isCreating,
+  canDeleteAll,
+  handleDeleteAll,
+  isDeletingAll,
   error,
   handleRetry,
 } = useHomeLogic();
@@ -150,13 +153,25 @@ watch(
             class="w-full"
           />
         </IconField>
-        <Button
-          label="Create Instance"
-          icon="pi pi-plus"
-          :loading="isCreating"
-          class="w-full sm:w-auto"
-          @click="handleCreateInstance"
-        />
+        <div class="flex gap-2">
+          <Button
+            label="Delete All"
+            icon="pi pi-trash"
+            severity="danger"
+            outlined
+            :loading="isDeletingAll"
+            :disabled="!canDeleteAll"
+            class="flex-1 sm:flex-none"
+            @click="handleDeleteAll"
+          />
+          <Button
+            label="Create Instance"
+            icon="pi pi-plus"
+            :loading="isCreating"
+            class="flex-1 sm:flex-none"
+            @click="handleCreateInstance"
+          />
+        </div>
       </div>
 
       <Message

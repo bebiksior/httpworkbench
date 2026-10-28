@@ -242,6 +242,30 @@ export const useDeleteInstance = () => {
   });
 };
 
+export const useDeleteAllInstances = () => {
+  const queryClient = useQueryClient();
+  const authStore = useAuthStore();
+  const guestInstancesStore = useGuestInstancesStore();
+  const { isGuest } = storeToRefs(authStore);
+
+  return useMutation({
+    mutationFn: async (unlockedIds: string[]) => {
+      if (!isGuest.value) {
+        return instancesApi.deleteAllUnlocked();
+      }
+      for (const id of unlockedIds) {
+        await guestInstancesApi.delete(
+          id,
+          requireGuestToken(guestInstancesStore.getToken, id),
+        );
+        guestInstancesStore.forgetInstance(id);
+      }
+      return unlockedIds.length;
+    },
+    onSettled: () => invalidateInstanceQueries(queryClient),
+  });
+};
+
 export const useClearLogs = () => {
   const queryClient = useQueryClient();
   const authStore = useAuthStore();

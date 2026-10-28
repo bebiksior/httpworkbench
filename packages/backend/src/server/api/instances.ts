@@ -13,6 +13,7 @@ import {
 import {
   clearLogsForInstance,
   deleteInstance,
+  deleteUnlockedInstancesByOwner,
   getInstanceById,
   getInstanceSummariesByOwner,
   getRecentLogsForInstancePage,
@@ -93,6 +94,19 @@ export const instancesRoutes = new Elysia({ name: "routes/instances" })
         summary: "Create an instance",
         description:
           "Create an instance that serves the given raw HTTP response from a public URL.",
+      },
+    },
+  )
+  .delete(
+    "/api/instances",
+    ({ user }) => ({ deleted: deleteUnlockedInstancesByOwner(user.id) }),
+    {
+      scope: "instances:delete",
+      detail: {
+        tags: ["Instances"],
+        summary: "Delete all unlocked instances",
+        description:
+          "Delete every unlocked instance owned by the key's user. Locked instances are kept.",
       },
     },
   )

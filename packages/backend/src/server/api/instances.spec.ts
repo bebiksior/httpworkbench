@@ -3,7 +3,14 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { Elysia } from "elysia";
-import { addUser, addWebhook, closeDb, getDb, initDb } from "../../storage";
+import {
+  addUser,
+  addWebhook,
+  closeDb,
+  getDb,
+  getInstanceById,
+  initDb,
+} from "../../storage";
 import { logs } from "../../storage/schema";
 
 process.env.JWT_SECRET = "instance-routes-test-secret";
@@ -200,6 +207,31 @@ describe("authenticated instance routes", () => {
       "log-5",
     ]);
     expect(olderPage.olderLogsCursor).toBeUndefined();
+  });
+
+  test("deletes all unlocked instances owned by the user", async () => {
+    const create = async (ownerId: string) => {
+      const response = await call("/api/instances", "POST", ownerId, {
+        raw: "HTTP/1.1 200 OK\n\nok",
+      });
+      return ((await response.json()) as { id: string }).id;
+    };
+    const unlockedIds = [await create("owner-1"), await create("owner-1")];
+    const lockedId = await create("owner-1");
+    const otherOwnerId = await create("owner-2");
+    await call(`/api/instances/${lockedId}/lock`, "PATCH", "owner-1", {
+      locked: true,
+    });
+
+    const response = await call("/api/instances", "DELETE", "owner-1", {});
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ deleted: 2 });
+    for (const id of unlockedIds) {
+      expect(getInstanceById(id)).toBeUndefined();
+    }
+    expect(getInstanceById(lockedId)?.locked).toBe(true);
+    expect(getInstanceById(otherOwnerId)).toBeDefined();
   });
 
   test("does not expose guest details through the public instance route", async () => {
