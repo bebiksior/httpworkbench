@@ -29,6 +29,7 @@ const {
 
 const validRaw = "HTTP/1.1 200 OK\nContent-Type: text/plain\n\nhello";
 const originalInstanceLimit = instancePolicies.maxInstancesPerOwner;
+const originalDefaultTtlMs = instancePolicies.defaultTtlMs;
 let dataDir = "";
 
 const addOwnedWebhook = (id: string, ownerId: string) =>
@@ -52,9 +53,24 @@ describe("instance service", () => {
 
   afterEach(() => {
     instancePolicies.maxInstancesPerOwner = originalInstanceLimit;
+    instancePolicies.defaultTtlMs = originalDefaultTtlMs;
     closeDb();
     rmSync(dataDir, { recursive: true, force: true });
   });
+
+  test.each([undefined, 14 * 24 * 60 * 60 * 1000])(
+    "uses the configured expiry when no TTL is supplied (%s)",
+    (ttlMs) => {
+      instancePolicies.defaultTtlMs = ttlMs;
+      const result = createInstance({ ownerId: "owner-1", raw: validRaw });
+      if (!result.ok) {
+        throw new Error(result.error.message);
+      }
+      expect(result.value.expiresAt).toBe(
+        ttlMs === undefined ? undefined : result.value.createdAt + ttlMs,
+      );
+    },
+  );
 
   test("normalizes raw responses and persists owned webhooks", () => {
     addOwnedWebhook("webhook-1", "owner-1");

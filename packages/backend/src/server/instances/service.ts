@@ -98,6 +98,7 @@ type CreateInstanceInput = {
   raw: string;
   webhookIds?: string[];
   label?: string;
+  ttlMs?: number;
 };
 
 export const createInstance = (
@@ -122,10 +123,8 @@ export const createInstance = (
   }
 
   const now = Date.now();
-  const expiresAt =
-    instancePolicies.defaultTtlMs === undefined
-      ? undefined
-      : now + instancePolicies.defaultTtlMs;
+  const ttlMs = input.ttlMs ?? instancePolicies.defaultTtlMs;
+  const expiresAt = ttlMs === undefined ? undefined : now + ttlMs;
 
   return {
     ok: true,

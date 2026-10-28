@@ -18,6 +18,7 @@ import {
   addUser,
   closeDb,
   getInstanceById,
+  getInstanceSummariesByOwner,
   initDb,
 } from "../../storage";
 
@@ -97,6 +98,67 @@ describe("MCP instance tools", () => {
   afterAll(async () => {
     await closeMcpHandler();
   });
+
+  test.each([
+    { ttlDays: undefined, expectedDays: 3 },
+    { ttlDays: 3, expectedDays: 3 },
+    { ttlDays: 14, expectedDays: 14 },
+  ])(
+    "persists and returns expiry for ttlDays=$ttlDays",
+    async ({ ttlDays, expectedDays }) => {
+      const { client } = await connectClient(apiKey);
+      try {
+        const result = await client.callTool({
+          name: "create_instance",
+          arguments: {
+            raw: "HTTP/1.1 200 OK\r\n\r\nok",
+            ...(ttlDays === undefined ? {} : { ttlDays }),
+          },
+        });
+        expect(result.isError).not.toBe(true);
+        const created = getInstanceSummariesByOwner("owner-1").find(
+          ({ id }) => id !== "instance-1",
+        );
+        if (created === undefined) {
+          throw new Error("Instance was not persisted");
+        }
+        expect(created.expiresAt).toBe(
+          created.createdAt + expectedDays * 24 * 60 * 60 * 1000,
+        );
+        expect(result.structuredContent).toMatchObject({
+          instance: { id: created.id, expiresAt: created.expiresAt },
+        });
+
+        await client.callTool({
+          name: "update_instance",
+          arguments: {
+            instanceId: created.id,
+            raw: "HTTP/1.1 204 No Content\r\n\r\n",
+          },
+        });
+        expect(getInstanceById(created.id)?.expiresAt).toBe(created.expiresAt);
+      } finally {
+        await client.close();
+      }
+    },
+  );
+
+  test.each([0, 7, 15, "14", null])(
+    "rejects unsupported ttlDays=%j",
+    async (ttlDays) => {
+      const { client } = await connectClient(apiKey);
+      try {
+        const result = await client.callTool({
+          name: "create_instance",
+          arguments: { raw: "HTTP/1.1 200 OK\r\n\r\nok", ttlDays },
+        });
+        expect(result.isError).toBe(true);
+        expect(getInstanceSummariesByOwner("owner-1")).toHaveLength(1);
+      } finally {
+        await client.close();
+      }
+    },
+  );
 
   test("serves MCP 2026-07-28 and updates instance visibility", async () => {
     const { client, requests } = await connectClient(apiKey);

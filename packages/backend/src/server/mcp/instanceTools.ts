@@ -49,7 +49,7 @@ export const registerInstanceTools = (server: McpServer) => {
     {
       title: "Create Instance",
       description:
-        "Create a new HTTP Workbench instance that serves the provided raw HTTP response from a public instance URL. The raw input must be a complete valid HTTP response with status line, headers, blank line, and body.",
+        "Create a new HTTP Workbench instance that serves the provided raw HTTP response from a public instance URL. The raw input must be a complete valid HTTP response with status line, headers, blank line, and body. Instances expire after 3 days by default. Set ttlDays to 14 to opt into a 2-week lifetime.",
       inputSchema: z.object({
         raw: z
           .string()
@@ -57,6 +57,12 @@ export const registerInstanceTools = (server: McpServer) => {
             "Complete raw HTTP response to serve, including status line, headers, blank line, and body.",
           ),
         label: z.string().max(100).optional(),
+        ttlDays: z
+          .union([z.literal(3), z.literal(14)])
+          .default(3)
+          .describe(
+            "Lifetime in days from creation. Defaults to 3; choose 14 only when a 2-week lifetime is needed.",
+          ),
       }),
       annotations: {
         readOnlyHint: false,
@@ -65,13 +71,14 @@ export const registerInstanceTools = (server: McpServer) => {
         openWorldHint: true,
       },
     },
-    async ({ raw, label }, extra) => {
+    async ({ raw, label, ttlDays }, extra) => {
       const auth = getAuthContext(extra);
       requireScope(auth, "instances:write");
       const result = createInstance({
         ownerId: auth.user.id,
         raw,
         label,
+        ttlMs: ttlDays * 24 * 60 * 60 * 1000,
       });
       return result.ok
         ? jsonToolResult({ instance: serializeInstance(result.value) })
