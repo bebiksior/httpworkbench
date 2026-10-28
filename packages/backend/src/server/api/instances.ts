@@ -397,7 +397,8 @@ export const instancesRoutes = new Elysia({ name: "routes/instances" })
       detail: {
         tags: ["Instances"],
         summary: "Lock or unlock an instance",
-        description: "Locked instances cannot be deleted.",
+        description:
+          "Locked instances cannot be deleted, individually or in bulk. Locking does not prevent expiry and does not block other changes.",
       },
     },
   )

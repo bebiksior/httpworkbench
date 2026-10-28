@@ -166,10 +166,42 @@ export const registerInstanceTools = (server: McpServer) => {
   );
 
   server.registerTool(
+    "set_instance_locked",
+    {
+      title: "Lock Instance",
+      description:
+        "Lock or unlock an owned HTTP Workbench instance. A locked instance cannot be deleted by delete_instance or by bulk deletion. Lock an instance when it is referenced somewhere that depends on it staying available, such as a vulnerability report or a triager conversation, so the user does not delete it by mistake while cleaning up. Locking does not stop the instance from expiring at its expiresAt time, and it does not block updating its response, changing visibility, or clearing logs.",
+      inputSchema: z.object({
+        instanceId: z.string().min(1),
+        locked: z.boolean(),
+      }),
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+    },
+    async ({ instanceId, locked }, extra) => {
+      const auth = getAuthContext(extra);
+      requireScope(auth, "instances:write");
+      requireOwnedInstance(instanceId, auth);
+      const updated = updateInstance(instanceId, (instance) => ({
+        ...instance,
+        locked,
+      }));
+      return updated === undefined
+        ? toolError("Instance not found")
+        : jsonToolResult({ instance: serializeInstance(updated) });
+    },
+  );
+
+  server.registerTool(
     "delete_instance",
     {
       title: "Delete Instance",
-      description: "Delete an owned, unlocked HTTP Workbench instance.",
+      description:
+        "Delete an owned HTTP Workbench instance and its logs. Fails if the instance is locked; unlock it with set_instance_locked first.",
       inputSchema: z.object({ instanceId: z.string().min(1) }),
       annotations: {
         readOnlyHint: false,
@@ -183,7 +215,9 @@ export const registerInstanceTools = (server: McpServer) => {
       requireScope(auth, "instances:delete");
       const instance = requireOwnedInstance(instanceId, auth);
       if (instance.locked) {
-        return toolError("Instance is locked");
+        return toolError(
+          "Instance is locked. Unlock it with set_instance_locked before deleting.",
+        );
       }
       deleteInstance(instanceId);
       return jsonToolResult({ deleted: true });

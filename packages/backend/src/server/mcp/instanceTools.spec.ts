@@ -135,4 +135,52 @@ describe("MCP instance tools", () => {
       await client.close();
     }
   });
+
+  test("locks an instance so delete_instance fails until unlocked", async () => {
+    const lockKey = createApiKeyForUser({
+      userId: "owner-1",
+      name: "MCP lock test",
+      scopes: ["instances:write", "instances:delete"],
+    }).secret;
+    const { client } = await connectClient(lockKey);
+    try {
+      const tools = await client.listTools();
+      const lockTool = tools.tools.find(
+        ({ name }) => name === "set_instance_locked",
+      );
+      expect(lockTool?.description).toContain(
+        "does not stop the instance from expiring",
+      );
+
+      const locked = await client.callTool({
+        name: "set_instance_locked",
+        arguments: { instanceId: "instance-1", locked: true },
+      });
+      expect(locked.isError).not.toBe(true);
+      expect(locked.structuredContent).toMatchObject({
+        instance: { id: "instance-1", locked: true },
+      });
+      expect(getInstanceById("instance-1")?.locked).toBe(true);
+
+      const blocked = await client.callTool({
+        name: "delete_instance",
+        arguments: { instanceId: "instance-1" },
+      });
+      expect(blocked.isError).toBe(true);
+      expect(getInstanceById("instance-1")).toBeDefined();
+
+      await client.callTool({
+        name: "set_instance_locked",
+        arguments: { instanceId: "instance-1", locked: false },
+      });
+      const deleted = await client.callTool({
+        name: "delete_instance",
+        arguments: { instanceId: "instance-1" },
+      });
+      expect(deleted.isError).not.toBe(true);
+      expect(getInstanceById("instance-1")).toBeUndefined();
+    } finally {
+      await client.close();
+    }
+  });
 });
