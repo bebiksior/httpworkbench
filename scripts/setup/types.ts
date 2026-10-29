@@ -15,6 +15,7 @@ export type SetupConfig = {
   instancesDomain: string;
   instancesAcmeChallengeDomain: string;
   jwtSecret: string;
+  authMode: "password" | "google";
   googleClientId: string;
   googleClientSecret: string;
   cloudflareApiToken: string;

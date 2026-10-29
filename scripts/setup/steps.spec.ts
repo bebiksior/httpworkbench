@@ -30,6 +30,7 @@ const config: SetupConfig = {
   instancesAcmeChallengeDomain:
     "_acme-challenge.instances-wildcard.example.com",
   jwtSecret: "secret",
+  authMode: "google",
   googleClientId: "google-client-id",
   googleClientSecret: "google-client-secret",
   cloudflareApiToken: "cloudflare-token",

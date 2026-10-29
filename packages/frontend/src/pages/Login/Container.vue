@@ -8,6 +8,8 @@ import { config } from "@/config";
 
 const authStore = useAuthStore();
 const apiKey = ref("");
+const username = ref("");
+const password = ref("");
 const showApiKeyForm = ref(false);
 
 const handleGuestLogin = () => {
@@ -26,6 +28,16 @@ const handleApiKeyLogin = async () => {
     window.location.href = "/";
   }
 };
+
+const handlePasswordLogin = async () => {
+  const signedIn = await authStore.signInWithPassword(
+    username.value,
+    password.value,
+  );
+  if (signedIn) {
+    window.location.href = "/";
+  }
+};
 </script>
 
 <template>
@@ -40,6 +52,7 @@ const handleApiKeyLogin = async () => {
         {{ authStore.error.message }}
       </Message>
       <Button
+        v-if="config.authMode === 'google'"
         @click="authStore.signInWithGoogle"
         size="large"
         class="flex items-center gap-3 px-6 py-3"
@@ -70,6 +83,35 @@ const handleApiKeyLogin = async () => {
         </svg>
         <span>Sign in with Google</span>
       </Button>
+      <form
+        v-if="config.authMode === 'password'"
+        class="flex flex-col gap-2 w-full"
+        @submit.prevent="handlePasswordLogin"
+      >
+        <InputText
+          v-model="username"
+          autocomplete="username"
+          placeholder="Username"
+          class="w-full"
+        />
+        <InputText
+          v-model="password"
+          type="password"
+          autocomplete="current-password"
+          placeholder="Password"
+          class="w-full"
+        />
+        <Button
+          type="submit"
+          size="large"
+          label="Sign in"
+          :disabled="
+            username.trim() === '' || password === '' || authStore.isLoading
+          "
+          :loading="authStore.isLoading"
+          class="w-full"
+        />
+      </form>
       <Button
         v-if="!showApiKeyForm"
         type="button"

@@ -1,4 +1,5 @@
 import { INSTANCE_RAW_LIMIT_BYTES } from "./constants";
+import { AuthModeSchema } from "./schemas";
 import type { Config } from "./schemas";
 
 const weekInMs = 7 * 24 * 60 * 60 * 1000;
@@ -8,6 +9,7 @@ const hostedInstanceLimit = 300;
 const defaultInstancesSubdomain = "instances";
 
 export type PublicConfigEnv = {
+  AUTH_MODE?: string;
   IS_HOSTED?: string;
   ALLOW_GUEST?: string;
   DNS_ENABLED?: string;
@@ -67,6 +69,7 @@ export const buildPublicConfig = (env: PublicConfigEnv): Config => {
   const isHosted = parseBooleanEnv(env.IS_HOSTED) ?? false;
 
   return {
+    authMode: AuthModeSchema.parse(resolveEnvString(env.AUTH_MODE) ?? "google"),
     isHosted,
     allowGuest: parseBooleanEnv(env.ALLOW_GUEST) ?? false,
     defaultTtlMs: isHosted ? defaultInstanceTtlMs : undefined,

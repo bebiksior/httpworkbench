@@ -78,6 +78,18 @@ export const getDockerComposeBaseCommand = (): string => {
   return "docker compose";
 };
 
+export const runInteractiveCommand = async (
+  command: string,
+  cwd: string,
+): Promise<boolean> => {
+  const process = Bun.spawn({
+    cmd: ["/bin/sh", "-lc", command],
+    cwd,
+    stdio: ["inherit", "inherit", "inherit"],
+  });
+  return (await process.exited) === 0;
+};
+
 export const tailLines = (value: string, count = 12): string => {
   const lines = value
     .split("\n")

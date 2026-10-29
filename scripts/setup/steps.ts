@@ -8,9 +8,14 @@ import {
   isValidIpv4,
   normalizeDomain,
 } from "./config";
-import { commandExists, runCommand, tailLines } from "./commands";
+import {
+  commandExists,
+  runCommand,
+  runInteractiveCommand,
+  tailLines,
+} from "./commands";
 import { buildEnvFileContent } from "./env";
-import { getComposeCommand, rootDir } from "./flow";
+import { getAdminAccountCommand, getComposeCommand, rootDir } from "./flow";
 import {
   detectPublicServerIp,
   formatRecords,
@@ -453,34 +458,51 @@ export const collectConfig = async (
     })
   ).trim();
 
-  note(
-    buildGoogleOauthClientSetupInstructions({
-      frontendUrl: `https://${domain}`,
-    }),
-    "Google OAuth Client",
-  );
-
-  const googleClientId = (
-    await promptText({
-      message: "Google OAuth client ID",
-      placeholder:
-        existingConfig.googleClientId === undefined
-          ? "your-google-client-id"
-          : "Press enter to keep the saved value",
-      defaultValue: existingConfig.googleClientId,
-      validate: (value) => {
-        if (value.trim() === "") {
-          return "Google OAuth client ID is required.";
-        }
-        return undefined;
+  const authMode = await promptSelect<SetupConfig["authMode"]>({
+    message: "How should users sign in?",
+    initialValue: existingConfig.authMode ?? "password",
+    options: [
+      {
+        value: "password",
+        label: "Username and password",
+        hint: "Accounts are created from the server",
       },
-    })
-  ).trim();
-
-  const googleClientSecret = await promptSecretWithKeep({
-    message: "Google OAuth client secret",
-    existingValue: existingConfig.googleClientSecret,
+      { value: "google", label: "Google OAuth" },
+    ],
   });
+
+  let googleClientId = "";
+  let googleClientSecret = "";
+  if (authMode === "google") {
+    note(
+      buildGoogleOauthClientSetupInstructions({
+        frontendUrl: `https://${domain}`,
+      }),
+      "Google OAuth Client",
+    );
+
+    googleClientId = (
+      await promptText({
+        message: "Google OAuth client ID",
+        placeholder:
+          existingConfig.googleClientId === undefined
+            ? "your-google-client-id"
+            : "Press enter to keep the saved value",
+        defaultValue: existingConfig.googleClientId,
+        validate: (value) => {
+          if (value.trim() === "") {
+            return "Google OAuth client ID is required.";
+          }
+          return undefined;
+        },
+      })
+    ).trim();
+
+    googleClientSecret = await promptSecretWithKeep({
+      message: "Google OAuth client secret",
+      existingValue: existingConfig.googleClientSecret,
+    });
+  }
 
   note(buildCloudflareTokenInstructions({ domain }), "Cloudflare Token");
 
@@ -521,6 +543,7 @@ export const collectConfig = async (
     instancesDomain,
     instancesAcmeChallengeDomain,
     jwtSecret,
+    authMode,
     googleClientId,
     googleClientSecret,
     cloudflareApiToken,
@@ -534,8 +557,12 @@ export const collectConfig = async (
       `Domain: ${config.domain}`,
       `Server IP: ${config.serverIp}`,
       `Frontend URL: ${config.frontendUrl}`,
-      `Google Client ID: ${config.googleClientId}`,
-      `Google Client Secret: ${config.googleClientSecret === "" ? "missing" : "saved"}`,
+      ...(config.authMode === "google"
+        ? [
+            `Google Client ID: ${config.googleClientId}`,
+            `Google Client Secret: ${config.googleClientSecret === "" ? "missing" : "saved"}`,
+          ]
+        : ["Sign-in: username and password"]),
       `Cloudflare Token: ${config.cloudflareApiToken === "" ? "missing" : "saved"}`,
       `Interaction zone: ${config.instancesDomain}`,
       `Wildcard ACME alias: ${config.instancesAcmeChallengeDomain}`,
@@ -623,7 +650,19 @@ export const runDnsRecordsVerification = async (
   });
 };
 
-export const startStack = async (_config: SetupConfig): Promise<void> => {
+const createAdminAccount = async (): Promise<void> => {
+  const command = getAdminAccountCommand();
+  const create = await promptConfirm({
+    message: "Create the admin account now?",
+    initialValue: true,
+  });
+  if (create && (await runInteractiveCommand(command, rootDir))) {
+    return;
+  }
+  log.warn(`Create an account later with: ${command}`);
+};
+
+export const startStack = async (config: SetupConfig): Promise<void> => {
   const composeCommand = getComposeCommand();
 
   note(buildStartServicesNote(), "Start Services");
@@ -661,6 +700,9 @@ export const startStack = async (_config: SetupConfig): Promise<void> => {
     if (result.success) {
       progress.stop("Containers started");
       log.success("Docker Compose finished successfully.");
+      if (config.authMode === "password") {
+        await createAdminAccount();
+      }
       return;
     }
 
@@ -687,6 +729,10 @@ export const startStack = async (_config: SetupConfig): Promise<void> => {
 export const showOauthInstructions = async (
   config: SetupConfig,
 ): Promise<void> => {
+  if (config.authMode !== "google") {
+    return;
+  }
+
   note(buildOauthInstructions(config), "Google OAuth");
 
   const confirmed = await promptConfirm({

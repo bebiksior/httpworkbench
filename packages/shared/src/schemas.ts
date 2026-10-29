@@ -2,7 +2,7 @@ import { z } from "zod";
 
 export const UserRecordSchema = z.object({
   id: z.string(),
-  googleId: z.string(),
+  googleId: z.string().nullable(),
   createdAt: z.number(),
 });
 
@@ -10,7 +10,7 @@ export type UserRecord = z.infer<typeof UserRecordSchema>;
 
 export const UserSchema = z.object({
   id: z.string(),
-  googleId: z.string(),
+  googleId: z.string().nullable(),
   createdAt: z.number(),
 });
 
@@ -117,7 +117,12 @@ export const UserNoticeSchema = z.object({
 export type UserNotice = z.infer<typeof UserNoticeSchema>;
 export type UserNoticeKind = UserNotice["kind"];
 
+export const AuthModeSchema = z.enum(["google", "password"]);
+
+export type AuthMode = z.infer<typeof AuthModeSchema>;
+
 export const ConfigSchema = z.object({
+  authMode: AuthModeSchema,
   isHosted: z.boolean(),
   allowGuest: z.boolean(),
   defaultTtlMs: z.number().optional(),

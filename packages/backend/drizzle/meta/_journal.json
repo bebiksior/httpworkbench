@@ -50,6 +50,13 @@
       "when": 1786815009282,
       "tag": "0006_groovy_the_liberteens",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1793283243924,
+      "tag": "0007_local_password_auth",
+      "breakpoints": true
     }
   ]
 }

@@ -61,6 +61,7 @@ mock.module("../storage", () => ({
     return publicApiKey;
   },
   getUserById: (id: string): UserRecord | undefined => state.users.get(id),
+  getLocalCredentialsByUserId: () => undefined,
   markApiKeyUsed: (id: string, lastUsedAt: number): void => {
     for (const [prefix, apiKey] of state.apiKeys) {
       if (apiKey.id === id) {
@@ -230,7 +231,9 @@ describe("auth macro enforcement (e2e)", () => {
       userId: "user-1",
       name: "dashboard",
     });
-    const sessionToken = await auth.issueAuthToken("user-1", key.apiKey);
+    const sessionToken = await auth.issueAuthToken("user-1", {
+      apiKey: key.apiKey,
+    });
 
     const active = await app.handle(authedRequest("/session", sessionToken));
     expect(active.status).toBe(200);
@@ -248,7 +251,7 @@ describe("auth macro enforcement (e2e)", () => {
       name: "short-lived",
       expiresAt,
     });
-    const token = await auth.issueAuthToken("user-1", key.apiKey);
+    const token = await auth.issueAuthToken("user-1", { apiKey: key.apiKey });
     const payload = jose.decodeJwt(token);
 
     expect(payload.apiKeyId).toBe(key.apiKey.id);
@@ -264,7 +267,7 @@ describe("auth macro enforcement (e2e)", () => {
       userId: "user-1",
       name: "rate-limited",
     });
-    const token = await auth.issueAuthToken("user-1", key.apiKey);
+    const token = await auth.issueAuthToken("user-1", { apiKey: key.apiKey });
 
     for (let index = 0; index < 300; index += 1) {
       expect((await app.handle(authedRequest("/session", token))).status).toBe(

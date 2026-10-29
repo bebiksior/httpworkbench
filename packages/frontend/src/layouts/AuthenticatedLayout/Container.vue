@@ -22,7 +22,7 @@ const goSettings = async () => {
 
 const accountLabel = computed(() => {
   if (authStore.user) {
-    return authStore.user.googleId;
+    return authStore.user.googleId ?? "Local account";
   }
   if (authStore.isGuest) {
     return "Guest session";

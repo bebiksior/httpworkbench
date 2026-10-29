@@ -68,6 +68,9 @@ export default defineConfig(({ mode }) => {
       },
     },
     define: {
+      "import.meta.env.VITE_AUTH_MODE": JSON.stringify(
+        readBuildEnv("AUTH_MODE", "google"),
+      ),
       "import.meta.env.VITE_IS_HOSTED": JSON.stringify(
         readBuildEnv("IS_HOSTED", "false"),
       ),

@@ -12,10 +12,25 @@ export const users = sqliteTable(
   "users",
   {
     id: text("id").primaryKey(),
-    googleId: text("googleId").notNull(),
+    googleId: text("googleId"),
     createdAt: integer("createdAt", { mode: "number" }).notNull(),
   },
   (table) => [uniqueIndex("users_googleId_unique").on(table.googleId)],
+);
+
+export const localCredentials = sqliteTable(
+  "localCredentials",
+  {
+    userId: text("userId")
+      .primaryKey()
+      .references(() => users.id, { onDelete: "cascade" }),
+    username: text("username").notNull(),
+    passwordHash: text("passwordHash").notNull(),
+    revision: integer("revision").notNull(),
+  },
+  (table) => [
+    uniqueIndex("localCredentials_username_unique").on(table.username),
+  ],
 );
 
 export const instances = sqliteTable(
@@ -164,6 +179,7 @@ export const userNotices = sqliteTable(
 
 export const schema = {
   users,
+  localCredentials,
   instances,
   webhooks,
   apiKeys,

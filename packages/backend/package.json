@@ -15,7 +15,8 @@
   "scripts": {
     "dev": "bun --env-file=../../.env src/index.ts",
     "typecheck": "tsgo --noEmit",
-    "drizzle:generate": "drizzle-kit generate --config drizzle.config.ts"
+    "drizzle:generate": "drizzle-kit generate --config drizzle.config.ts",
+    "user:password": "bun --env-file=../../.env scripts/user-password.ts"
   },
   "dependencies": {
     "@elysiajs/openapi": "^1.4.15",

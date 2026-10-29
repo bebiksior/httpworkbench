@@ -11,6 +11,8 @@ const defaultSmtpPort = 25;
 const env: Record<string, string | undefined> = Bun.env;
 const appConfig = buildPublicConfig(env);
 
+export const authMode = appConfig.authMode;
+
 export const instancePolicies = {
   isHosted: appConfig.isHosted,
   allowGuest: appConfig.allowGuest,

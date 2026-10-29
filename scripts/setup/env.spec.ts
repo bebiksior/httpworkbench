@@ -23,6 +23,7 @@ describe("setup env helpers", () => {
         instancesAcmeChallengeDomain: "",
         serverIp: undefined,
         jwtSecret: undefined,
+        authMode: "password",
         googleClientId: undefined,
         googleClientSecret: undefined,
         cloudflareApiToken: undefined,
@@ -69,6 +70,7 @@ describe("setup env helpers", () => {
       instancesAcmeChallengeDomain:
         "_acme-challenge.instances-wildcard.example.com",
       jwtSecret: "secret",
+      authMode: "google",
       googleClientId: "google-client-id",
       googleClientSecret: "google-client-secret",
       cloudflareApiToken: "cloudflare-token",
@@ -83,5 +85,38 @@ describe("setup env helpers", () => {
     expect(content).not.toContain("AUTO_HTTPS=");
     expect(content).not.toContain("TLS_MAIN_DIRECTIVE=");
     expect(content).not.toContain("TLS_WILDCARD_DIRECTIVE=");
+  });
+
+  test("omits Google credentials in password mode", () => {
+    const content = buildEnvFileContent({
+      domain: "example.com",
+      frontendUrl: "https://example.com",
+      serverIp: "203.0.113.10",
+      instancesDomain: "instances.example.com",
+      instancesAcmeChallengeDomain:
+        "_acme-challenge.instances-wildcard.example.com",
+      jwtSecret: "secret",
+      authMode: "password",
+      googleClientId: "",
+      googleClientSecret: "",
+      cloudflareApiToken: "cloudflare-token",
+      dnsEnabled: true,
+      dnsPort: 53,
+      dnsNameservers: ["ns1.example.com", "ns2.example.com"],
+    });
+
+    expect(content).toContain("AUTH_MODE=password");
+    expect(content).not.toContain("GOOGLE_CLIENT");
+  });
+
+  test("keeps Google sign-in for env files written before AUTH_MODE", () => {
+    const tempDir = mkdtempSync(path.join(os.tmpdir(), "httpworkbench-setup-"));
+
+    try {
+      writeFileSync(getEnvFilePath(tempDir), "GOOGLE_CLIENT_ID=client-id\n");
+      expect(loadExistingConfig(tempDir).authMode).toBe("google");
+    } finally {
+      rmSync(tempDir, { recursive: true, force: true });
+    }
   });
 });

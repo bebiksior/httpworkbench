@@ -14,3 +14,14 @@ export const UserNoticesListResponseSchema = z.object({
 export type UserNoticesListResponse = z.infer<
   typeof UserNoticesListResponseSchema
 >;
+
+export const UsernameSchema = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .regex(/^[a-z0-9][a-z0-9._-]{0,63}$/, "Invalid username");
+
+export const PasswordSignInSchema = z.object({
+  username: UsernameSchema,
+  password: z.string().min(1).max(1024),
+});

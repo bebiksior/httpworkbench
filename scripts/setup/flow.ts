@@ -45,8 +45,9 @@ export const shouldRestartAtCollectConfig = (
       isMissingConfigValue(config.instancesAcmeChallengeDomain) ||
       isMissingConfigValue(config.serverIp) ||
       config.dnsEnabled !== true ||
-      isMissingConfigValue(config.googleClientId) ||
-      isMissingConfigValue(config.googleClientSecret) ||
+      (config.authMode === "google" &&
+        (isMissingConfigValue(config.googleClientId) ||
+          isMissingConfigValue(config.googleClientSecret))) ||
       isMissingConfigValue(config.cloudflareApiToken))
   );
 };
@@ -76,9 +77,16 @@ export const getComposeCommand = (): string => {
   return `${getDockerComposeBaseCommand()} -f docker-compose.yml -f docker-compose.dns.yml up -d --build`;
 };
 
+export const getAdminAccountCommand = (): string => {
+  return `${getDockerComposeBaseCommand()} -f docker-compose.yml -f docker-compose.dns.yml exec backend bun run user:password admin`;
+};
+
 export const buildFinalChecklist = (config: SetupConfig): string[] => {
   return [
     `- Open ${config.frontendUrl}`,
+    ...(config.authMode === "password"
+      ? [`- Create or reset an account with: ${getAdminAccountCommand()}`]
+      : []),
     `- Create an instance and note its interaction host: <instance>.${config.instancesDomain}`,
     `- Test DNS logging with: dig <instance>.${config.instancesDomain} A`,
     `- Test HTTP logging with: curl https://<instance>.${config.instancesDomain}`,
@@ -97,8 +105,10 @@ export const ensureConfig = (
     config.instancesDomain,
     config.instancesAcmeChallengeDomain,
     config.jwtSecret,
-    config.googleClientId,
-    config.googleClientSecret,
+    config.authMode,
+    ...(config.authMode === "google"
+      ? [config.googleClientId, config.googleClientSecret]
+      : []),
     config.cloudflareApiToken,
   ];
 

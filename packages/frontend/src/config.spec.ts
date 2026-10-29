@@ -50,4 +50,10 @@ describe("frontend config", () => {
     expect(config.dnsEnabled).toBe(true);
     expect(config.smtpEnabled).toBe(true);
   });
+
+  test("uses the configured authentication mode in password deployments", () => {
+    const config = buildConfig({ VITE_AUTH_MODE: "password" }, "test-version");
+    expect(config.authMode).toBe("password");
+    expect(config.allowGuest).toBe(false);
+  });
 });

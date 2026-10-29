@@ -9,6 +9,7 @@ COPY packages/shared/package.json packages/shared/
 RUN bun install --frozen-lockfile
 
 FROM base AS build
+ARG AUTH_MODE=google
 ARG DOMAIN=localhost
 ARG INSTANCES_DOMAIN=
 ARG IS_HOSTED=false
@@ -16,6 +17,7 @@ ARG ALLOW_GUEST=false
 ARG DNS_ENABLED=false
 ARG SMTP_ENABLED=false
 ENV DOMAIN=${DOMAIN}
+ENV AUTH_MODE=${AUTH_MODE}
 ENV INSTANCES_DOMAIN=${INSTANCES_DOMAIN}
 ENV IS_HOSTED=${IS_HOSTED}
 ENV ALLOW_GUEST=${ALLOW_GUEST}

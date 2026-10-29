@@ -23,6 +23,7 @@ const baseConfig: SetupConfig = {
   instancesAcmeChallengeDomain:
     "_acme-challenge.instances-wildcard.example.com",
   jwtSecret: "secret",
+  authMode: "google",
   googleClientId: "google-client-id",
   googleClientSecret: "google-client-secret",
   cloudflareApiToken: "cloudflare-token",
@@ -114,5 +115,18 @@ describe("setup flow helpers", () => {
       ),
     ).toThrow("Missing saved configuration before start-stack");
     expect(ensureConfig(baseConfig, "done")).toEqual(baseConfig);
+  });
+
+  test("only requires Google credentials in Google mode", () => {
+    const passwordConfig: SetupConfig = {
+      ...baseConfig,
+      authMode: "password",
+      googleClientId: "",
+      googleClientSecret: "",
+    };
+    expect(ensureConfig(passwordConfig, "start-stack")).toEqual(passwordConfig);
+    expect(() =>
+      ensureConfig({ ...passwordConfig, authMode: "google" }, "start-stack"),
+    ).toThrow("Missing saved configuration before start-stack");
   });
 });

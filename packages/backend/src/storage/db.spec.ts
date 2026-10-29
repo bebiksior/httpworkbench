@@ -87,6 +87,7 @@ describe("storage db migrations", () => {
       { name: "instanceModerations" },
       { name: "instanceWebhooks" },
       { name: "instances" },
+      { name: "localCredentials" },
       { name: "logs" },
       { name: "sqlite_sequence" },
       { name: "userNotices" },
@@ -120,6 +121,42 @@ describe("storage db migrations", () => {
         webhooksLength: 1,
         apiKeysLength: 0,
       },
+    });
+  });
+
+  test("users table rebuild keeps existing accounts and their instances", () => {
+    const sqlite = new Database(resolveSqliteDbPath(dataDir));
+    const migrations = readMigrationFiles({
+      migrationsFolder: path.join(import.meta.dir, "../../drizzle"),
+    }).slice(0, 7);
+    for (const migration of migrations) {
+      for (const statement of migration.sql) {
+        sqlite.exec(statement);
+      }
+    }
+    sqlite.exec(`
+      CREATE TABLE __drizzle_migrations (
+        id SERIAL PRIMARY KEY,
+        hash TEXT NOT NULL,
+        created_at NUMERIC
+      );
+      INSERT INTO users VALUES ('user-1', 'google-1', 1);
+      INSERT INTO instances (id, ownerId, createdAt, isPublic, isLocked, raw)
+        VALUES ('inst-1', 'user-1', 1, 0, 0, 'ok');
+    `);
+    for (const migration of migrations) {
+      sqlite
+        .query(
+          "INSERT INTO __drizzle_migrations (hash, created_at) VALUES (?1, ?2)",
+        )
+        .run(migration.hash, migration.folderMillis);
+    }
+    sqlite.close();
+
+    const result = initDb({ dataDir });
+    expect(result.kind === "ok" && result.stats).toMatchObject({
+      usersLength: 1,
+      instancesLength: 1,
     });
   });
 
@@ -157,6 +194,7 @@ describe("storage db migrations", () => {
         sqlite.exec(statement);
       }
     }
+    sqlite.run("PRAGMA foreign_keys = OFF");
     sqlite.exec(`
       CREATE TABLE __drizzle_migrations (
         id SERIAL PRIMARY KEY,

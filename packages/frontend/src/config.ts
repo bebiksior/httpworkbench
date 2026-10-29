@@ -7,6 +7,7 @@ const appVersion =
 
 export const buildConfig = (
   env: {
+    VITE_AUTH_MODE?: string;
     VITE_IS_HOSTED?: string;
     VITE_ALLOW_GUEST?: string;
     VITE_DNS_ENABLED?: string;
@@ -18,6 +19,7 @@ export const buildConfig = (
 ) => {
   const domain = resolveDomain(env.VITE_DOMAIN) ?? "localhost";
   const appConfig = buildPublicConfig({
+    AUTH_MODE: env.VITE_AUTH_MODE,
     IS_HOSTED: env.VITE_IS_HOSTED,
     ALLOW_GUEST: env.VITE_ALLOW_GUEST,
     DNS_ENABLED: env.VITE_DNS_ENABLED,
@@ -39,6 +41,7 @@ export const buildConfig = (
 
 export const config = buildConfig(
   {
+    VITE_AUTH_MODE: import.meta.env.VITE_AUTH_MODE,
     VITE_IS_HOSTED: import.meta.env.VITE_IS_HOSTED,
     VITE_ALLOW_GUEST: import.meta.env.VITE_ALLOW_GUEST,
     VITE_DNS_ENABLED: import.meta.env.VITE_DNS_ENABLED,

@@ -13,10 +13,11 @@ services:
       - API_PORT=8081
       - INSTANCES_PORT=8082
       - DATA_DIR=/app/data
+      - AUTH_MODE=${AUTH_MODE:-google}
       - DOMAIN=${DOMAIN:-localhost}
       - JWT_SECRET=${JWT_SECRET}
-      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
-      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET:-}
       - FRONTEND_URL=${FRONTEND_URL}
       - IS_HOSTED=${IS_HOSTED:-false}
       - ALLOW_GUEST=${ALLOW_GUEST:-false}
@@ -36,6 +37,7 @@ services:
       context: .
       dockerfile: packages/frontend/Dockerfile
       args:
+        - AUTH_MODE=${AUTH_MODE:-google}
         - DOMAIN=${DOMAIN:-localhost}
         - INSTANCES_DOMAIN=${INSTANCES_DOMAIN:-}
         - IS_HOSTED=${IS_HOSTED:-false}

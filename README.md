@@ -25,7 +25,7 @@ One thing stays the same: it will be as easy as before to create new instances. 
 
 ## Roadmap to v1
 
-- [ ] Username/password authentication for self-hosted deployments
+- [x] Username/password authentication for self-hosted deployments
 - [x] DNS support
 - [x] better documentation
 - [ ] better self host setup process
@@ -90,7 +90,7 @@ curl "https://httpworkbench.com/api/instances/<id>/logs?limit=50" \
 
 - Docker and Docker Compose
 - Domain with Cloudflare DNS
-- Google OAuth credentials ([setup guide](https://developers.google.com/identity/protocols/oauth2))
+- Google OAuth credentials, only for Google sign-in ([setup guide](https://developers.google.com/identity/protocols/oauth2))
 - Cloudflare API token with DNS permissions
 - Optional for DNS query logging: ability to delegate a DNS subdomain and expose public UDP/TCP port 53
 
@@ -118,7 +118,7 @@ bun run setup
 The wizard will:
 
 - Domain configuration
-- Google OAuth setup
+- Password or Google OAuth sign-in
 - Cloudflare API token setup
 - Write `.env` for you
 - Show the exact DNS records to create
@@ -134,7 +134,7 @@ The base setup will have you create:
 - `A ns2.yourdomain.com` → Your server IP
 - `NS instances.yourdomain.com` → `ns1.yourdomain.com`
 - `NS instances.yourdomain.com` → `ns2.yourdomain.com`
-- Google OAuth redirect URI: `https://yourdomain.com/api/auth/google/callback`
+- Google OAuth redirect URI, only for Google sign-in: `https://yourdomain.com/api/auth/google/callback`
 
 Cloudflare proxy settings:
 
@@ -153,6 +153,14 @@ in `Caddyfile`; compare them with Cloudflare's current
 deployment.
 
 The wizard can start the stack for you, or you can run the compose command yourself at the end. The first startup may take a few minutes to build images and provision SSL certificates.
+
+### Password authentication
+
+With `AUTH_MODE=password` (the wizard default) Google credentials aren't needed. Create or reset an account with:
+
+```bash
+docker compose exec backend bun run user:password admin
+```
 
 ### Interaction Hostnames
 
@@ -251,7 +259,7 @@ docker compose up -d --build
 
 ## Your Data
 
-HTTP Workbench stores just the basics in a local SQLite database: your Google ID for login (not the email), when you created your account, your PoC pages, webhooks, API keys, and the HTTP/DNS interaction logs (including IPs, headers, DNS questions, and request details). This is all needed for the app to work properly.
+HTTP Workbench stores just the basics in a local SQLite database: your Google ID (not the email) or username and password hash for login, when you created your account, your PoC pages, webhooks, API keys, and the HTTP/DNS interaction logs (including IPs, headers, DNS questions, and request details). This is all needed for the app to work properly.
 
 Full transparency: I never tried to access any data of users on ssrf.cvssadvisor.com, the old version didn't even have a proper database, it was all stored in the memory :D. However, it technically is possible that I can access this data. I'm happy to hear some suggestions to make this more secure for you guys, to be 100% sure that I can't access your data you can self-host this tool - that's why it's open-source.
 

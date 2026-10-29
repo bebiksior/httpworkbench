@@ -1,7 +1,13 @@
 import { Elysia, status } from "elysia";
 import * as jose from "jose";
 import type { ApiKey, ApiKeyScope, User } from "shared";
-import { getActiveApiKeyById, getUserById, toPublicUser } from "../storage";
+import {
+  getActiveApiKeyById,
+  getLocalCredentialsByUserId,
+  getUserById,
+  toPublicUser,
+} from "../storage";
+import { authMode } from "../config";
 import type { ApiKeyAuthContext } from "./apiKeyAuth";
 import { authenticateApiKeyValue, hasApiKeyScope } from "./apiKeyAuth";
 import { jwtSecret } from "./jwtSecret";
@@ -11,15 +17,20 @@ const AUTH_TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
 export const issueAuthToken = async (
   userId: string,
-  apiKey?: Pick<ApiKey, "id" | "expiresAt">,
+  {
+    apiKey,
+    passwordRevision,
+  }: {
+    apiKey?: Pick<ApiKey, "id" | "expiresAt">;
+    passwordRevision?: number;
+  } = {},
 ) => {
   const now = Date.now();
   const expiresAt = Math.min(
     now + AUTH_TOKEN_TTL_MS,
     apiKey?.expiresAt ?? Number.POSITIVE_INFINITY,
   );
-  const claims = apiKey === undefined ? {} : { apiKeyId: apiKey.id };
-  return await new jose.SignJWT(claims)
+  return await new jose.SignJWT({ apiKeyId: apiKey?.id, passwordRevision })
     .setProtectedHeader({ alg: "HS256" })
     .setSubject(userId)
     .setIssuedAt()
@@ -49,11 +60,13 @@ const authenticateSession = async (
 
   let sub: string | undefined;
   let apiKeyId: string | undefined;
+  let passwordRevision: unknown;
   try {
     const { payload } = await jose.jwtVerify(token, jwtSecret);
     sub = typeof payload.sub === "string" ? payload.sub : undefined;
     apiKeyId =
       typeof payload.apiKeyId === "string" ? payload.apiKeyId : undefined;
+    passwordRevision = payload.passwordRevision;
   } catch {
     return undefined;
   }
@@ -67,6 +80,15 @@ const authenticateSession = async (
     return undefined;
   }
   if (apiKeyId === undefined) {
+    if (authMode === "password") {
+      const credentials = getLocalCredentialsByUserId(sub);
+      if (
+        credentials === undefined ||
+        credentials.revision !== passwordRevision
+      ) {
+        return undefined;
+      }
+    }
     return { user: toPublicUser(userRecord) };
   }
   const apiKey = getActiveApiKeyById(apiKeyId, Date.now());

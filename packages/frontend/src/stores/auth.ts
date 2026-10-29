@@ -110,14 +110,16 @@ export const useAuthStore = defineStore("auth", () => {
     window.location.href = "/api/auth/google";
   };
 
-  const signInWithApiKey = async (apiKey: string) => {
+  const signIn = async (
+    path: string,
+    credentials: unknown,
+    invalidCredentialsMessage: string,
+  ) => {
     clearError();
     isLoading.value = true;
 
     try {
-      const data = await apiClient.post<unknown>("/api/auth/api-key", {
-        apiKey,
-      });
+      const data = await apiClient.post<unknown>(path, credentials);
       const parsedUser = parseResponse(UserSchema, data, "user");
 
       clearGuestSession();
@@ -129,7 +131,7 @@ export const useAuthStore = defineStore("auth", () => {
       error.value = {
         message:
           err instanceof UnauthorizedError
-            ? "Invalid API key"
+            ? invalidCredentialsMessage
             : getErrorMessage(err),
         code:
           err instanceof UnauthorizedError
@@ -140,12 +142,22 @@ export const useAuthStore = defineStore("auth", () => {
                 ? "UNKNOWN"
                 : "NETWORK_ERROR",
       };
-      console.error("API key sign-in error:", err);
+      console.error("Sign-in error:", err);
       return false;
     } finally {
       isLoading.value = false;
     }
   };
+
+  const signInWithApiKey = (apiKey: string) =>
+    signIn("/api/auth/api-key", { apiKey }, "Invalid API key");
+
+  const signInWithPassword = (username: string, password: string) =>
+    signIn(
+      "/api/auth/password",
+      { username, password },
+      "Invalid username or password",
+    );
 
   const signInAsGuest = () => {
     clearError();
@@ -185,6 +197,7 @@ export const useAuthStore = defineStore("auth", () => {
     error: computed(() => error.value),
     signInWithGoogle,
     signInWithApiKey,
+    signInWithPassword,
     signInAsGuest,
     logout,
     fetchUser,

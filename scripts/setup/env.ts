@@ -78,6 +78,10 @@ export const loadExistingConfig = (rootDir: string): Partial<SetupConfig> => {
       (domain === "" ? "" : formatNameservers(buildDefaultNameservers(domain))),
   );
 
+  const authMode =
+    env.AUTH_MODE ??
+    (env.GOOGLE_CLIENT_ID === undefined ? "password" : "google");
+
   return {
     domain,
     frontendUrl:
@@ -90,6 +94,7 @@ export const loadExistingConfig = (rootDir: string): Partial<SetupConfig> => {
     instancesAcmeChallengeDomain,
     serverIp: env.PUBLIC_IP?.trim(),
     jwtSecret: env.JWT_SECRET?.trim(),
+    authMode: authMode === "google" ? "google" : "password",
     googleClientId: env.GOOGLE_CLIENT_ID?.trim(),
     googleClientSecret: env.GOOGLE_CLIENT_SECRET?.trim(),
     cloudflareApiToken: env.CLOUDFLARE_API_TOKEN?.trim(),
@@ -111,8 +116,13 @@ export const buildEnvFileContent = (config: SetupConfig): string => {
     "",
     `PUBLIC_IP=${config.serverIp}`,
     `JWT_SECRET=${config.jwtSecret}`,
-    `GOOGLE_CLIENT_ID=${config.googleClientId}`,
-    `GOOGLE_CLIENT_SECRET=${config.googleClientSecret}`,
+    `AUTH_MODE=${config.authMode}`,
+    ...(config.authMode === "google"
+      ? [
+          `GOOGLE_CLIENT_ID=${config.googleClientId}`,
+          `GOOGLE_CLIENT_SECRET=${config.googleClientSecret}`,
+        ]
+      : []),
     "",
     `CLOUDFLARE_API_TOKEN=${config.cloudflareApiToken}`,
     "",

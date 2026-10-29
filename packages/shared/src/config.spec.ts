@@ -12,6 +12,7 @@ describe("buildPublicConfig", () => {
         DOMAIN: "example.com",
       }),
     ).toEqual({
+      authMode: "google",
       isHosted: true,
       allowGuest: false,
       defaultTtlMs: 14 * 24 * 60 * 60 * 1000,
@@ -30,6 +31,7 @@ describe("buildPublicConfig", () => {
         DNS_ENABLED: "false",
       }),
     ).toEqual({
+      authMode: "google",
       isHosted: false,
       allowGuest: false,
       defaultTtlMs: undefined,
@@ -40,6 +42,13 @@ describe("buildPublicConfig", () => {
       smtpEnabled: false,
       instancesDomain: "instances.localhost",
     });
+  });
+
+  test("selects password login and rejects invalid authentication modes", () => {
+    expect(buildPublicConfig({ AUTH_MODE: "password" }).authMode).toBe(
+      "password",
+    );
+    expect(() => buildPublicConfig({ AUTH_MODE: "disabled" })).toThrow();
   });
 });
 
