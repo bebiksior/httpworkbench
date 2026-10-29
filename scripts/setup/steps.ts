@@ -584,7 +584,7 @@ export const collectConfig = async (
     cancelled("Setup paused before writing .env.");
   }
 
-  writeFileSync(envPath, buildEnvFileContent(config));
+  writeFileSync(envPath, buildEnvFileContent(config), { mode: 0o600 });
   log.success(`Saved configuration to ${envPath}`);
 
   return config;

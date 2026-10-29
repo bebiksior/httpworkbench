@@ -66,6 +66,38 @@ describe("password sign-in", () => {
     expect(await wrong.json()).toEqual(await unknown.json());
   });
 
+  test("rejects cross-site form login while allowing same-origin JSON login", async () => {
+    for (const headers of [
+      { origin: "https://untrusted.example", "sec-fetch-site": "same-origin" },
+      { origin: "https://workbench.example", "sec-fetch-site": "cross-site" },
+    ]) {
+      const response = await call("/api/auth/password", {
+        method: "POST",
+        headers: {
+          "content-type": "application/x-www-form-urlencoded",
+          "x-internal-real-ip": "5.5.5.5",
+          ...headers,
+        },
+        body: new URLSearchParams({ username: "admin", password }).toString(),
+      });
+      expect(response.status).toBe(403);
+      expect(response.headers.get("set-cookie")).toBeNull();
+    }
+
+    const response = await call("/api/auth/password", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-internal-real-ip": "5.5.5.5",
+        origin: "https://workbench.example",
+        "sec-fetch-site": "same-origin",
+      },
+      body: JSON.stringify({ username: "admin", password }),
+    });
+    expect(response.status).toBe(200);
+    expect(response.headers.get("set-cookie")).toContain("HttpOnly");
+  });
+
   test("revokes existing sessions when the password is reset", async () => {
     const session = sessionCookie(
       await signIn({ username: "admin", password }, "3.3.3.3"),

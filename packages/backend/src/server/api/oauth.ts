@@ -25,6 +25,7 @@ const frontendUrl = Bun.env.FRONTEND_URL;
 if (frontendUrl === undefined || frontendUrl === "") {
   throw new Error("FRONTEND_URL must be set");
 }
+const frontendOrigin = new URL(frontendUrl).origin;
 
 const createGoogle = () => {
   if (
@@ -104,6 +105,13 @@ export const oauthRoutes = new Elysia({ name: "routes/oauth" })
     "/api/auth/password",
     async ({ body, cookie, request, status }) => {
       if (authMode !== "password") return status(404, { error: "Not found" });
+      const origin = request.headers.get("origin");
+      if (
+        (origin !== null && origin !== frontendOrigin) ||
+        request.headers.get("sec-fetch-site") === "cross-site"
+      ) {
+        return status(403, { error: "Invalid origin" });
+      }
       const address = request.headers.get("x-internal-real-ip") ?? "unknown";
       if (!passwordSignInRateLimiter.check(address, Date.now())) {
         return status(429, { error: "Too many sign-in attempts" });
