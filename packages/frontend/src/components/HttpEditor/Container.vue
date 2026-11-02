@@ -26,6 +26,7 @@ const props = defineProps<{
   height?: string;
   isDirty?: boolean;
   syntax?: EditorSyntax;
+  ariaLabel?: string;
 }>();
 
 const emit = defineEmits<{
@@ -33,8 +34,16 @@ const emit = defineEmits<{
   (e: "save"): void;
 }>();
 
-const { modelValue, readonly, autoHeight, maxHeight, height, isDirty, syntax } =
-  toRefs(props);
+const {
+  modelValue,
+  readonly,
+  autoHeight,
+  maxHeight,
+  height,
+  isDirty,
+  syntax,
+  ariaLabel,
+} = toRefs(props);
 const editorView = ref<EditorView>();
 const preservedSelection = ref<EditorSelection>();
 
@@ -50,6 +59,11 @@ const extensions = computed(() => {
     EditorView.lineWrapping,
     disableGrammarlyExtension,
   ];
+  if (ariaLabel.value !== undefined) {
+    exts.push(
+      EditorView.contentAttributes.of({ "aria-label": ariaLabel.value }),
+    );
+  }
   if (!readonly.value) {
     exts.push(...httpEditorExtensions);
     exts.push(

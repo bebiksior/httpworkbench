@@ -141,12 +141,19 @@ export const useInstanceEditor = (
         : DEFAULT_RESPONSE;
   };
 
+  const tabFocusRequest = ref(0);
+
   const selectResponseByLabel = (label: string) => {
-    const draft = routeDrafts.value.find(
-      (candidate) => routeLabel(candidate) === label,
-    );
+    const draft =
+      routeDrafts.value.find((candidate) => routeLabel(candidate) === label) ??
+      routeDrafts.value.find(
+        (candidate) =>
+          candidate.saved !== undefined &&
+          routeLabel(candidate.saved) === label,
+      );
     if (draft !== undefined) {
       selectedResponse.value = draft.key;
+      tabFocusRequest.value += 1;
     }
   };
 
@@ -189,7 +196,6 @@ export const useInstanceEditor = (
     if (firstInvalid !== undefined) {
       selectedResponse.value = firstInvalid.key;
       pathFocusRequest.value += 1;
-      notify.error(`Fix the path: ${routeErrors.value[firstInvalid.key]}`);
       return;
     }
     const instanceId = instance.value.id;
@@ -267,6 +273,7 @@ export const useInstanceEditor = (
     canSave,
     dirtyResponses,
     pathFocusRequest,
+    tabFocusRequest,
     isUpdating,
     fileInputRef,
     selectedWebhookIds,

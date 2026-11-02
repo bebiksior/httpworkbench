@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { useVirtualizer } from "@tanstack/vue-virtual";
+import { routeLabel } from "shared";
+import { useAuthStore } from "@/stores/auth";
 import Button from "primevue/button";
 import { computed, ref } from "vue";
 import { useRoute } from "vue-router";
@@ -36,6 +38,13 @@ const {
 
 const scrollerRef = ref<HTMLElement | null>(null);
 const requestedResponse = ref<{ label: string }>();
+
+const authStore = useAuthStore();
+const routeLabels = computed(
+  () => new Set((instance.value?.routes ?? []).map(routeLabel)),
+);
+const canShowResponse = (label: string) =>
+  !authStore.isGuest && routeLabels.value.has(label);
 
 const showResponse = (label: string) => {
   requestedResponse.value = { label };
@@ -120,6 +129,7 @@ const exitLogOnEscape = (event: KeyboardEvent) => {
         'instance-detail-side-panel-transitioning': isSidePanelTransitioning,
       }"
       :aria-hidden="isSidePanelHidden"
+      :inert="isSidePanelHidden"
     >
       <div
         class="instance-detail-side-panel-content flex h-full min-h-0 flex-col"
@@ -309,6 +319,7 @@ const exitLogOnEscape = (event: KeyboardEvent) => {
               >
                 <InstanceLog
                   :log="filteredLogs[virtualRow.index]"
+                  :can-show-response="canShowResponse"
                   @select-response="showResponse"
                 />
               </div>

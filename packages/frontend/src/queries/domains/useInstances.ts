@@ -165,18 +165,17 @@ export const useCloneInstance = () => {
                   )
                 : instancesApi.getById(source.id))
             ).instance;
-      const input: CreateInstanceInput = {
-        raw: instance.raw,
-        webhookIds: isGuest.value ? undefined : instance.webhookIds,
-      };
-
       if (isGuest.value) {
-        const created = await guestInstancesApi.create(input);
+        const created = await guestInstancesApi.create({ raw: instance.raw });
         guestInstancesStore.trackInstance(created.instance.id, created.token);
         return created.instance;
       }
 
-      const created = await instancesApi.create(input);
+      const created = await instancesApi.create({
+        raw: instance.raw,
+        webhookIds: instance.webhookIds,
+        routes: instance.routes,
+      });
 
       const clonedLabel =
         instance.label === undefined

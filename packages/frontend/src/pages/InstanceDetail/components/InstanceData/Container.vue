@@ -44,6 +44,7 @@ const {
   canAddRoute,
   dirtyResponses,
   pathFocusRequest,
+  tabFocusRequest,
   selectResponse,
   selectResponseByLabel,
   discardChanges,
@@ -137,6 +138,21 @@ const showVisibility = computed(() => {
 });
 
 const isWebhooksDialogVisible = ref(false);
+
+const editorLabel = ref("Default response");
+watch(
+  selectedResponse,
+  () => {
+    editorLabel.value =
+      activeRoute.value === undefined
+        ? "Default response"
+        : `Response for ${activeRoute.value.path}`;
+  },
+  { immediate: true },
+);
+
+const addPathButtonRef = ref<{ $el?: HTMLElement } | null>(null);
+const focusAddPathButton = () => addPathButtonRef.value?.$el?.focus();
 
 watch(requestedResponse, (request) => {
   if (request !== undefined) {
@@ -340,18 +356,16 @@ useEventListener(window, "beforeunload", (event: BeforeUnloadEvent) => {
           />
           <Button
             v-if="!isGuest"
+            ref="addPathButtonRef"
             icon="pi pi-plus"
             label="Path"
             severity="secondary"
             text
             size="small"
-            :disabled="!canAddRoute"
+            :aria-disabled="!canAddRoute"
+            :class="{ 'opacity-50': !canAddRoute }"
             aria-label="Add path response"
-            v-tooltip.top="
-              canAddRoute
-                ? 'Serve a different response for a path'
-                : 'Path limit reached'
-            "
+            v-tooltip.top="canAddRoute ? undefined : 'Path limit reached'"
             @click="addRoute"
           />
           <Button
@@ -375,6 +389,8 @@ useEventListener(window, "beforeunload", (event: BeforeUnloadEvent) => {
         :selected="selectedResponse"
         :editable="canManageInstance"
         :focus-path-request="pathFocusRequest"
+        :focus-tab-request="tabFocusRequest"
+        @emptied="focusAddPathButton"
         @select="selectResponse"
         @remove="removeRoute"
         @set-path="setRoutePath"
@@ -389,10 +405,11 @@ useEventListener(window, "beforeunload", (event: BeforeUnloadEvent) => {
             ? `response-tab-${selectedResponse}`
             : undefined
         "
-        class="h-72 min-h-0 overflow-hidden rounded-md lg:h-auto lg:flex-1"
+        class="h-72 min-h-0 overflow-hidden rounded-md lg:h-auto lg:min-h-64 lg:flex-1"
       >
         <HttpEditor
           :key="selectedResponse"
+          :aria-label="editorLabel"
           :model-value="editorContent"
           :is-dirty="canSave"
           :readonly="!canManageInstance"

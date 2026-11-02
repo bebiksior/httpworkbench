@@ -12,11 +12,13 @@ const props = defineProps<{
   selected: string;
   editable: boolean;
   focusPathRequest: number;
+  focusTabRequest: number;
 }>();
 
 const emit = defineEmits<{
   select: [key: string];
   remove: [key: string];
+  emptied: [];
   setPath: [key: string, path: string];
   setMethod: [key: string, method: RouteMethod | undefined];
 }>();
@@ -40,18 +42,35 @@ const pathInputRef = ref<HTMLInputElement | null>(null);
 
 const focusPath = () =>
   nextTick(() => {
+    document
+      .getElementById(tabId(props.selected))
+      ?.scrollIntoView({ block: "nearest" });
     pathInputRef.value?.focus();
     pathInputRef.value?.select();
   });
 
 const focusTab = (key: string) =>
-  nextTick(() => document.getElementById(tabId(key))?.focus());
+  nextTick(() => {
+    const tab = document.getElementById(tabId(key));
+    tab?.focus();
+    tab?.scrollIntoView({ block: "nearest" });
+  });
 
 watch(() => props.focusPathRequest, focusPath);
+watch(
+  () => props.focusTabRequest,
+  () => focusTab(props.selected),
+);
 
 const handleRemove = (key: string) => {
   emit("remove", key);
-  nextTick(() => focusTab(props.selected));
+  nextTick(() => {
+    if (props.drafts.length === 0) {
+      emit("emptied");
+      return;
+    }
+    focusTab(props.selected);
+  });
 };
 
 const moveSelection = (event: KeyboardEvent) => {
@@ -71,7 +90,7 @@ const moveSelection = (event: KeyboardEvent) => {
 };
 
 const tabClass = (key: string) => [
-  "inline-flex h-7 max-w-full cursor-pointer items-center gap-1.5 rounded-md px-2 font-mono text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 pointer-coarse:h-9",
+  "inline-flex h-7 max-w-full cursor-pointer items-center gap-1.5 rounded-md px-2 font-mono text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 pointer-coarse:h-9",
   key === props.selected
     ? "bg-surface-100 text-surface-900 dark:bg-surface-800 dark:text-surface-0"
     : "text-surface-600 hover:bg-surface-50 hover:text-surface-900 dark:text-surface-400 dark:hover:bg-surface-800/60 dark:hover:text-surface-100",
@@ -82,7 +101,7 @@ const tabClass = (key: string) => [
 <template>
   <div v-if="drafts.length > 0" class="flex flex-col gap-2">
     <div
-      class="flex flex-wrap items-center gap-1"
+      class="-m-0.5 flex max-h-[6.75rem] flex-wrap items-center gap-1 overflow-y-auto p-0.5 pointer-coarse:max-h-[8.5rem]"
       role="tablist"
       aria-label="Responses"
       @keydown="moveSelection"
@@ -102,7 +121,7 @@ const tabClass = (key: string) => [
         Default
         <span
           v-if="dirty.has(DEFAULT_RESPONSE)"
-          class="size-1 shrink-0 rounded-full bg-current opacity-60"
+          class="size-1.5 shrink-0 rounded-full bg-current"
         />
         <span v-if="dirty.has(DEFAULT_RESPONSE)" class="sr-only"
           >, unsaved</span
@@ -121,15 +140,22 @@ const tabClass = (key: string) => [
         :title="draft.path"
         @click="emit('select', draft.key)"
       >
-        <span v-if="draft.method" class="shrink-0 opacity-60">{{
-          draft.method
-        }}</span>
+        <span
+          v-if="draft.method"
+          class="shrink-0"
+          :class="
+            selected === draft.key
+              ? ''
+              : 'text-surface-500 dark:text-surface-400'
+          "
+          >{{ draft.method }}</span
+        >
         <span class="max-w-48 truncate" :class="{ italic: !draft.path.trim() }">
           {{ draft.path.trim() || "empty" }}
         </span>
         <span
           v-if="dirty.has(draft.key)"
-          class="size-1 shrink-0 rounded-full bg-current opacity-60"
+          class="size-1.5 shrink-0 rounded-full bg-current"
         />
         <span v-if="dirty.has(draft.key)" class="sr-only">, unsaved</span>
         <span v-if="errors[draft.key]" class="sr-only">, invalid</span>
@@ -139,35 +165,43 @@ const tabClass = (key: string) => [
     <div v-if="active && editable" class="flex flex-col gap-1">
       <div class="flex items-center gap-1">
         <div
-          class="flex h-8 min-w-0 flex-1 items-center rounded-md border bg-white transition-colors focus-within:border-primary dark:bg-surface-950 pointer-coarse:h-10"
+          class="flex h-8 min-w-0 flex-1 items-center rounded-md border bg-white transition-colors dark:bg-surface-950 pointer-coarse:h-10"
           :class="
             activeError === undefined
-              ? 'border-surface-300 dark:border-surface-700'
-              : 'border-red-500 dark:border-red-400'
+              ? 'border-surface-300 focus-within:border-primary dark:border-surface-700'
+              : 'border-red-500 focus-within:ring-1 focus-within:ring-red-500/40 dark:border-red-400'
           "
         >
-          <select
-            :value="active.method ?? ''"
-            aria-label="Method"
-            class="h-full shrink-0 cursor-pointer appearance-none rounded-l-md border-r border-surface-200 bg-transparent pl-2.5 pr-2 font-mono text-xs text-surface-600 outline-none hover:text-surface-900 focus-visible:text-surface-900 dark:border-surface-700 dark:text-surface-400 dark:[color-scheme:dark] dark:hover:text-surface-100"
-            @change="
-              emit(
-                'setMethod',
-                active.key,
-                (($event.target as HTMLSelectElement).value || undefined) as
-                  RouteMethod | undefined,
-              )
-            "
+          <div
+            class="relative flex h-full shrink-0 border-r border-surface-200 dark:border-surface-700"
           >
-            <option value="">ANY</option>
-            <option
-              v-for="method in ROUTE_METHODS"
-              :key="method"
-              :value="method"
+            <select
+              :value="active.method ?? ''"
+              aria-label="Method"
+              class="h-full cursor-pointer appearance-none rounded-l-md bg-transparent pl-2.5 pr-6 font-mono text-xs text-surface-600 outline-none hover:text-surface-900 focus-visible:bg-surface-100 focus-visible:text-surface-900 dark:focus-visible:bg-surface-800 dark:text-surface-400 dark:[color-scheme:dark] dark:hover:text-surface-100"
+              @change="
+                emit(
+                  'setMethod',
+                  active.key,
+                  (($event.target as HTMLSelectElement).value || undefined) as
+                    RouteMethod | undefined,
+                )
+              "
             >
-              {{ method }}
-            </option>
-          </select>
+              <option value="">ANY</option>
+              <option
+                v-for="method in ROUTE_METHODS"
+                :key="method"
+                :value="method"
+              >
+                {{ method }}
+              </option>
+            </select>
+            <i
+              class="pi pi-chevron-down pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[8px]! text-surface-400! dark:text-surface-500!"
+              aria-hidden="true"
+            />
+          </div>
           <input
             ref="pathInputRef"
             :value="active.path"
