@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 import {
   createRouteDraft,
+  responseSummary,
   routeLabel,
   routesEqual,
   toInstanceRoutes,
@@ -21,11 +22,8 @@ describe("responseRoutes", () => {
     ]);
   });
 
-  test("suggests a free path for new drafts", () => {
-    const first = createRouteDraft([], "raw");
-    const second = createRouteDraft([first], "raw");
-    expect(first.path).toBe("/path-1");
-    expect(second.path).toBe("/path-2");
+  test("starts new drafts at the root path", () => {
+    expect(createRouteDraft("raw")).toMatchObject({ path: "/", raw: "raw" });
   });
 
   test("flags invalid and duplicate paths", () => {
@@ -38,10 +36,10 @@ describe("responseRoutes", () => {
     ]);
     const errors = validateRouteDrafts(drafts);
     expect(drafts.map(({ key }) => errors[key])).toEqual([
-      undefined,
-      "Enter a path",
-      expect.any(String),
-      "This path already has a response",
+      "Duplicate",
+      "Required",
+      "No spaces, ? or #",
+      "Duplicate",
       undefined,
     ]);
   });
@@ -64,5 +62,21 @@ describe("responseRoutes", () => {
   test("labels routes with their method", () => {
     expect(routeLabel({ path: " /a " })).toBe("/a");
     expect(routeLabel({ method: "POST", path: "/a" })).toBe("POST /a");
+  });
+
+  test("summarizes status codes and redirect targets", () => {
+    expect(responseSummary("HTTP/1.1 201 Created\r\n\r\n")).toEqual({
+      code: "201",
+      detail: "201 Created",
+    });
+    expect(
+      responseSummary(
+        "HTTP/1.1 302 Found\r\nLocation: http://169.254.169.254/x\r\n\r\nLocation: ignored",
+      ),
+    ).toEqual({
+      code: "302 → 169.254.169.254/x",
+      detail: "302 Found → http://169.254.169.254/x",
+    });
+    expect(responseSummary("nope").code).toBe("Invalid");
   });
 });

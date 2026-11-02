@@ -164,7 +164,7 @@ export const useInstanceEditor = (
 
   const addRoute = () => {
     if (!canManageInstance.value || !canAddRoute(routeDrafts.value)) return;
-    const draft = createRouteDraft(routeDrafts.value, editorContent.value);
+    const draft = createRouteDraft(editorContent.value);
     routeDrafts.value = [...routeDrafts.value, draft];
     selectedResponse.value = draft.key;
     pathFocusRequest.value += 1;

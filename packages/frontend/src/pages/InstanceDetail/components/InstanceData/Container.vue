@@ -14,7 +14,9 @@ import {
   nextTick,
   type ComponentPublicInstance,
 } from "vue";
-import ResponseTabs from "./ResponseTabs.vue";
+import ResponseStack from "./ResponseStack.vue";
+import { config } from "@/config";
+import { useNotify } from "@/composables";
 import { useInstanceDataLogic } from "./useLogic";
 import { useConfirm } from "primevue/useconfirm";
 import { useEventListener } from "@vueuse/core";
@@ -95,6 +97,16 @@ const {
 } = useInstanceDataLogic(instance);
 
 const router = useRouter();
+const notify = useNotify();
+const instanceUrl = computed(() => config.getInstanceUrl(instance.value.id));
+const copyUrl = async (url: string, unsaved: boolean) => {
+  await navigator.clipboard.writeText(url);
+  if (unsaved) {
+    notify.success("Copied. Save to make this path live");
+    return;
+  }
+  notify.copied();
+};
 
 const { data: webhooks } = useWebhooks({
   enabled: computed(() => canManageInstance.value && !isGuest.value),
@@ -149,7 +161,7 @@ watch(
   () => {
     editorLabel.value =
       activeRoute.value === undefined
-        ? "Fallback response"
+        ? "Response for every other request"
         : `Response for ${activeRoute.value.path}`;
   },
   { immediate: true },
@@ -168,7 +180,7 @@ const responseModes = [
     value: "advanced",
     label: "Advanced",
     advanced: true,
-    hint: "Different responses per path",
+    hint: "Different responses per path. Most specific match wins.",
   },
 ];
 
@@ -183,7 +195,7 @@ const setMode = (advanced: boolean) => {
     return;
   }
   confirmLeave.require({
-    message: `Remove ${routeDrafts.value.length === 1 ? "the path response" : `all ${routeDrafts.value.length} path responses`}? Only the fallback response will be kept. Nothing changes until you save.`,
+    message: `Remove ${routeDrafts.value.length === 1 ? "the path response" : `all ${routeDrafts.value.length} path responses`}? Only Every other request will be kept. Nothing changes until you save.`,
     header: "Switch to Basic",
     icon: "pi pi-exclamation-triangle",
     rejectProps: { label: "Cancel", severity: "secondary", outlined: true },
@@ -359,7 +371,10 @@ useEventListener(window, "beforeunload", (event: BeforeUnloadEvent) => {
       </div>
     </div>
 
-    <div class="flex min-h-[320px] flex-1 flex-col gap-3 lg:min-h-0">
+    <div
+      class="flex flex-col gap-3"
+      :class="isAdvanced ? 'shrink-0' : 'min-h-[320px] flex-1 lg:min-h-0'"
+    >
       <div class="flex items-center justify-between gap-2">
         <h3 class="font-semibold text-surface-900 dark:text-surface-0">
           Response
@@ -390,7 +405,7 @@ useEventListener(window, "beforeunload", (event: BeforeUnloadEvent) => {
         </div>
       </div>
 
-      <ResponseTabs
+      <ResponseStack
         v-if="isAdvanced"
         :drafts="routeDrafts"
         :fallback-raw="rawContent"
@@ -399,11 +414,14 @@ useEventListener(window, "beforeunload", (event: BeforeUnloadEvent) => {
         :selected="selectedResponse"
         :editable="canManageInstance"
         :can-add="canAddRoute"
+        :base-url="instanceUrl"
         :focus-path-request="pathFocusRequest"
         :focus-tab-request="tabFocusRequest"
         @select="selectResponse"
         @add="addRoute"
         @remove="removeRoute"
+        @upload="triggerFileUpload"
+        @copy="copyUrl"
         @set-path="setRoutePath"
         @set-method="setRouteMethod"
       >
@@ -418,7 +436,7 @@ useEventListener(window, "beforeunload", (event: BeforeUnloadEvent) => {
           @update:modelValue="handleEditorChange"
           @save="handleSave"
         />
-      </ResponseTabs>
+      </ResponseStack>
       <div
         v-else
         class="h-72 min-h-0 overflow-hidden rounded-md lg:h-auto lg:min-h-64 lg:flex-1"
@@ -442,23 +460,24 @@ useEventListener(window, "beforeunload", (event: BeforeUnloadEvent) => {
           accept=".txt,.json,.xml,.html"
           @change="handleFileUpload"
         />
-        <Button
-          v-if="activeRoute === undefined"
-          icon="pi pi-wrench"
-          label="Builder"
-          severity="secondary"
-          text
-          size="small"
-          @click="handleOpenBuilder"
-        />
-        <Button
-          icon="pi pi-upload"
-          label="Upload"
-          severity="secondary"
-          text
-          size="small"
-          @click="triggerFileUpload"
-        />
+        <template v-if="!isAdvanced">
+          <Button
+            icon="pi pi-wrench"
+            label="Builder"
+            severity="secondary"
+            text
+            size="small"
+            @click="handleOpenBuilder"
+          />
+          <Button
+            icon="pi pi-upload"
+            label="Upload"
+            severity="secondary"
+            text
+            size="small"
+            @click="triggerFileUpload"
+          />
+        </template>
         <Button
           label="Save"
           size="small"

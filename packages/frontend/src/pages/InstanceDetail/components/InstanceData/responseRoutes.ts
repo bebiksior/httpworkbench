@@ -36,45 +36,43 @@ export const toInstanceRoutes = (
     raw,
   }));
 
-const suggestPath = (drafts: readonly RouteDraft[]) => {
-  const taken = new Set(drafts.map((draft) => draft.path));
-  for (let index = 1; ; index += 1) {
-    const path = `/path-${index}`;
-    if (!taken.has(path)) {
-      return path;
-    }
-  }
-};
-
-export const createRouteDraft = (
-  drafts: readonly RouteDraft[],
-  raw: string,
-): RouteDraft => ({ key: createDraftKey(), path: suggestPath(drafts), raw });
+export const createRouteDraft = (raw: string): RouteDraft => ({
+  key: createDraftKey(),
+  path: "/",
+  raw,
+});
 
 export const canAddRoute = (drafts: readonly RouteDraft[]) =>
   drafts.length < MAX_INSTANCE_ROUTES;
+
+const pathProblem = (path: string) => {
+  if (path === "") return "Required";
+  if (!path.startsWith("/")) return "Must start with /";
+  if (/[\s?#]/.test(path)) return "No spaces, ? or #";
+  return RoutePathSchema.safeParse(path).success ? undefined : "Too long";
+};
 
 export const validateRouteDrafts = (
   drafts: readonly RouteDraft[],
 ): Record<string, string> => {
   const errors: Record<string, string> = {};
-  const seen = new Set<string>();
+  const byKey = new Map<string, string[]>();
   for (const draft of drafts) {
     const path = draft.path.trim();
-    const parsed = RoutePathSchema.safeParse(path);
-    if (!parsed.success) {
-      errors[draft.key] =
-        path === ""
-          ? "Enter a path"
-          : (parsed.error.issues[0]?.message ?? "Invalid path");
+    const problem = pathProblem(path);
+    if (problem !== undefined) {
+      errors[draft.key] = problem;
       continue;
     }
     const key = routeKey({ method: draft.method, path });
-    if (seen.has(key)) {
-      errors[draft.key] = "This path already has a response";
-      continue;
+    byKey.set(key, [...(byKey.get(key) ?? []), draft.key]);
+  }
+  for (const keys of byKey.values()) {
+    if (keys.length > 1) {
+      for (const key of keys) {
+        errors[key] = "Duplicate";
+      }
     }
-    seen.add(key);
   }
   return errors;
 };
@@ -97,10 +95,29 @@ export const routesEqual = (
 export const routeLabel = (route: Pick<RouteDraft, "method" | "path">) =>
   sharedRouteLabel({ method: route.method, path: route.path.trim() });
 
-export const statusLineOf = (raw: string) => {
+const statusLineOf = (raw: string) => {
   const firstLine = raw.split(/\r?\n/, 1)[0] ?? "";
   const match = /^HTTP\/\S+\s+(\d{3})(?:\s+(.*))?$/.exec(firstLine.trim());
   return match === null
     ? undefined
     : { code: match[1] ?? "", reason: match[2]?.trim() ?? "" };
+};
+
+export const responseSummary = (raw: string) => {
+  const status = statusLineOf(raw);
+  if (status === undefined) {
+    return { code: "Invalid", detail: "Invalid status line" };
+  }
+  const location = status.code.startsWith("3")
+    ? /^location:[ \t]*(.+)$/im.exec(raw.split(/\r?\n\r?\n/, 1)[0] ?? "")?.[1]
+    : undefined;
+  const detail = `${status.code} ${status.reason}`.trim();
+  if (location === undefined) {
+    return { code: status.code, detail };
+  }
+  const target = location.trim();
+  return {
+    code: `${status.code} → ${target.replace(/^https?:\/\//i, "")}`,
+    detail: `${detail} → ${target}`,
+  };
 };
