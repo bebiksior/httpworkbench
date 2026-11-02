@@ -1,2 +1,3 @@
 ALTER TABLE `instances` ADD `routesJson` text DEFAULT '[]' NOT NULL;--> statement-breakpoint
-ALTER TABLE `instances` ADD `createdByApiKeyId` text;
+ALTER TABLE `instances` ADD `createdByApiKeyId` text;--> statement-breakpoint
+ALTER TABLE `logs` ADD `route` text;

@@ -3,6 +3,7 @@ import {
   findInstanceRoute,
   parseRequestTarget,
   routeKey,
+  routeLabel,
   type Log,
 } from "shared";
 import { addLogWithOutcome } from "../../storage";
@@ -46,7 +47,7 @@ export const resetInstanceResponseCacheForTests = () => {
 const selectInstanceResponse = (
   instance: ServableInstance,
   rawRequest: string,
-): { cacheKey: string; raw: string } => {
+): { cacheKey: string; raw: string; route?: string } => {
   const target = parseRequestTarget(rawRequest);
   const route =
     target === undefined
@@ -54,7 +55,11 @@ const selectInstanceResponse = (
       : findInstanceRoute(instance.routes, target.method, target.path);
   return route === undefined
     ? { cacheKey: instance.id, raw: instance.raw }
-    : { cacheKey: `${instance.id} ${routeKey(route)}`, raw: route.raw };
+    : {
+        cacheKey: `${instance.id} ${routeKey(route)}`,
+        raw: route.raw,
+        route: routeLabel(route),
+      };
 };
 
 const encodeInstanceResponse = (response: {
@@ -99,16 +104,16 @@ const createHttpLog = (
   instanceId: string,
   address: string,
   rawRequest: string,
-) => {
-  return {
-    id: crypto.randomUUID(),
-    instanceId,
-    type: "http",
-    timestamp: Date.now(),
-    address,
-    raw: rawRequest,
-  } satisfies Log;
-};
+  route?: string,
+): Log => ({
+  id: crypto.randomUUID(),
+  instanceId,
+  type: "http",
+  timestamp: Date.now(),
+  address,
+  raw: rawRequest,
+  ...(route === undefined ? {} : { route }),
+});
 
 const tryLogInteraction = <T>(
   socket: Socket<T>,
@@ -219,10 +224,12 @@ export const createInstancesServer = (
             rawRequest,
             INTERNAL_HEADER_NAMES,
           );
+          const response = selectInstanceResponse(instance, rawRequest);
           const log = createHttpLog(
             instance.id,
             clientAddress,
             rawWithoutInternalHeaders,
+            response.route,
           );
 
           const outcome = addLogWithOutcome(log);
@@ -231,12 +238,7 @@ export const createInstancesServer = (
           }
           didLog = true;
 
-          respond(
-            socket,
-            encodeInstanceResponse(
-              selectInstanceResponse(instance, rawRequest),
-            ),
-          );
+          respond(socket, encodeInstanceResponse(response));
         } catch (error) {
           console.error(error);
           if (!didLog) {

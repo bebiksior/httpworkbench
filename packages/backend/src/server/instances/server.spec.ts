@@ -343,18 +343,35 @@ describe("createInstancesServer", () => {
   });
 
   test.each([
-    { requestLine: "GET / HTTP/1.1", expected: "fallback" },
-    { requestLine: "GET /callback?x=1 HTTP/1.1", expected: "callback" },
-    { requestLine: "POST /callback HTTP/1.1", expected: "post-callback" },
-    { requestLine: "HEAD /callback HTTP/1.1", expected: "callback" },
-    { requestLine: "GET /assets/app.js HTTP/1.1", expected: "assets" },
+    { requestLine: "GET / HTTP/1.1", expected: "fallback", route: undefined },
+    {
+      requestLine: "GET /callback?x=1 HTTP/1.1",
+      expected: "callback",
+      route: "GET /callback",
+    },
+    {
+      requestLine: "POST /callback HTTP/1.1",
+      expected: "post-callback",
+      route: "POST /callback",
+    },
+    {
+      requestLine: "HEAD /callback HTTP/1.1",
+      expected: "callback",
+      route: "GET /callback",
+    },
+    {
+      requestLine: "GET /assets/app.js HTTP/1.1",
+      expected: "assets",
+      route: "/assets/*",
+    },
     {
       requestLine: "GET http://demo.instances.example.com/callback HTTP/1.1",
       expected: "callback",
+      route: "GET /callback",
     },
   ])(
     "serves the matching path response for $requestLine",
-    async ({ requestLine, expected }) => {
+    async ({ requestLine, expected, route }) => {
       getServableInstanceByIdMock.mockReturnValue(
         createStaticInstance("HTTP/1.1 200 OK\r\n\r\nfallback", [
           {
@@ -386,6 +403,7 @@ describe("createInstancesServer", () => {
 
       expect(decode(socket.write.mock.calls[0]?.[0])).toEndWith(expected);
       expect(addLogMock).toHaveBeenCalledTimes(1);
+      expect(addLogMock.mock.calls[0]?.[0]?.route).toBe(route);
     },
   );
 });

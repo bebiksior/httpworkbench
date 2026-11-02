@@ -32,6 +32,13 @@ const notifyWebhooks = (log: Log, now: number): void => {
   }
 };
 
+const toLog = ({
+  route,
+  seq: _seq,
+  ...log
+}: Omit<Log, "route"> & { route: string | null; seq?: number }): Log =>
+  route === null ? log : { ...log, route };
+
 export type AddLogOutcome = { log: Log; tombstoned: boolean };
 
 export function addLogWithOutcome(log: Log): AddLogOutcome {
@@ -74,11 +81,13 @@ export function getLogsForInstance(instanceId: string): Log[] {
       timestamp: logs.timestamp,
       address: logs.address,
       raw: logs.raw,
+      route: logs.route,
     })
     .from(logs)
     .where(eq(logs.instanceId, instanceId))
     .orderBy(asc(logs.seq))
-    .all();
+    .all()
+    .map(toLog);
 }
 
 export function getRecentLogsForInstance(
@@ -119,6 +128,7 @@ export function getRecentLogsForInstancePage(
       timestamp: logs.timestamp,
       address: logs.address,
       raw: logs.raw,
+      route: logs.route,
     })
     .from(logs)
     .where(and(...filters))
@@ -129,7 +139,7 @@ export function getRecentLogsForInstancePage(
   const pageRows = rows.slice(0, input.limit);
   const oldestIncluded = pageRows.at(-1);
   return {
-    logs: pageRows.map(({ seq: _seq, ...log }) => log).reverse(),
+    logs: pageRows.map(toLog).reverse(),
     olderCursor:
       rows.length > input.limit && oldestIncluded !== undefined
         ? { seq: oldestIncluded.seq }
@@ -176,6 +186,7 @@ export function getLogsForInstancePage(input: GetLogsPageInput): LogsPage {
       timestamp: logs.timestamp,
       address: logs.address,
       raw: logs.raw,
+      route: logs.route,
     })
     .from(logs)
     .where(and(...filters))
@@ -187,7 +198,7 @@ export function getLogsForInstancePage(input: GetLogsPageInput): LogsPage {
   const lastRow = pageRows.at(-1);
 
   return {
-    logs: pageRows.map(({ seq: _seq, ...log }) => log),
+    logs: pageRows.map(toLog),
     resumeCursor:
       lastRow === undefined
         ? input.cursor

@@ -39,6 +39,9 @@ export const InstanceRouteSchema = z.object({
 
 export type InstanceRoute = z.infer<typeof InstanceRouteSchema>;
 
+export const routeLabel = (route: Pick<InstanceRoute, "method" | "path">) =>
+  route.method === undefined ? route.path : `${route.method} ${route.path}`;
+
 export const routeKey = (route: Pick<InstanceRoute, "method" | "path">) =>
   `${route.method ?? "*"} ${route.path}`;
 

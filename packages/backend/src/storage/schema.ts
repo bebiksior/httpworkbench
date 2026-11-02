@@ -131,6 +131,7 @@ export const logs = sqliteTable(
     timestamp: integer("timestamp", { mode: "number" }).notNull(),
     address: text("address").notNull(),
     raw: text("raw").notNull(),
+    route: text("route"),
   },
   (table) => [
     uniqueIndex("logs_id_unique").on(table.id),

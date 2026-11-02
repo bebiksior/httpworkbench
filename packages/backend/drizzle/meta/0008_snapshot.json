@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "ce08e0ee-326b-43d0-a246-ab4949af4174",
+  "id": "b2ee1ec7-c8ec-4bef-9635-eba994ff0156",
   "prevId": "df367690-0b2b-41ee-8d31-45c942d1eff3",
   "tables": {
     "apiKeys": {
@@ -445,6 +445,13 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true,
+          "autoincrement": false
+        },
+        "route": {
+          "name": "route",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
           "autoincrement": false
         }
       },

@@ -53,6 +53,7 @@ export const LogSchema = z.object({
   address: z.string(),
   addressVerified: z.boolean().optional(),
   raw: z.string(),
+  route: z.string().optional(),
 });
 
 export type Log = z.infer<typeof LogSchema>;
