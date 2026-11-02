@@ -14,22 +14,43 @@ import {
   nextTick,
   type ComponentPublicInstance,
 } from "vue";
+import ResponseTabs from "./ResponseTabs.vue";
 import { useInstanceDataLogic } from "./useLogic";
+import { useConfirm } from "primevue/useconfirm";
+import { useEventListener } from "@vueuse/core";
+import { onBeforeRouteLeave, onBeforeRouteUpdate, useRouter } from "vue-router";
+import { createLeaveGuard } from "@/pages/PoCBuilder/exitBuilder";
 import { useWebhooks } from "@/queries/domains/useWebhooks";
 
 const props = defineProps<{
   instance: Instance;
+  requestedResponse?: { label: string };
 }>();
 const emit = defineEmits<{
   hidePanel: [];
 }>();
 
-const { instance } = toRefs(props);
+const { instance, requestedResponse } = toRefs(props);
 
 const {
   instanceHost,
-  rawContent,
+  editorContent,
+  routeDrafts,
+  routeErrors,
+  selectedResponse,
+  activeRoute,
   isDirty,
+  canSave,
+  canAddRoute,
+  dirtyResponses,
+  pathFocusRequest,
+  selectResponse,
+  selectResponseByLabel,
+  discardChanges,
+  addRoute,
+  removeRoute,
+  setRoutePath,
+  setRouteMethod,
   isUpdating,
   isCloning,
   isDeleting,
@@ -67,6 +88,8 @@ const {
   isSettingPublic,
   handleTogglePublic,
 } = useInstanceDataLogic(instance);
+
+const router = useRouter();
 
 const { data: webhooks } = useWebhooks({
   enabled: computed(() => canManageInstance.value && !isGuest.value),
@@ -114,6 +137,41 @@ const showVisibility = computed(() => {
 });
 
 const isWebhooksDialogVisible = ref(false);
+
+watch(requestedResponse, (request) => {
+  if (request !== undefined) {
+    selectResponseByLabel(request.label);
+  }
+});
+
+const confirmLeave = useConfirm();
+const leaveGuard = createLeaveGuard({
+  isDirty: () => isDirty.value,
+  markClean: discardChanges,
+  confirmLeave: (accept) => {
+    confirmLeave.require({
+      message: "You have unsaved response changes. Leave without saving?",
+      header: "Unsaved Changes",
+      icon: "pi pi-exclamation-triangle",
+      rejectProps: { label: "Cancel", severity: "secondary", outlined: true },
+      acceptProps: { label: "Leave", severity: "danger" },
+      accept,
+    });
+  },
+  navigate: (target) => {
+    router.push(target);
+  },
+});
+
+onBeforeRouteLeave((to, _from, next) => leaveGuard(to, next));
+onBeforeRouteUpdate((to, from, next) =>
+  to.params.id === from.params.id ? next() : leaveGuard(to, next),
+);
+useEventListener(window, "beforeunload", (event: BeforeUnloadEvent) => {
+  if (isDirty.value) {
+    event.preventDefault();
+  }
+});
 </script>
 
 <template>
@@ -249,63 +307,94 @@ const isWebhooksDialogVisible = ref(false);
     </div>
 
     <div class="flex min-h-[260px] flex-1 flex-col gap-3 lg:min-h-0">
-      <div class="flex justify-between items-end">
-        <div>
-          <h3 class="font-semibold text-surface-900 dark:text-surface-0">
-            Raw Response
-          </h3>
-          <p class="text-xs text-surface-600 dark:text-surface-400 mt-1">
-            Customize the raw HTTP response returned by this instance.
-          </p>
+      <div class="flex items-center justify-between gap-2">
+        <h3 class="font-semibold text-surface-900 dark:text-surface-0">
+          Response
+        </h3>
+        <div v-if="canManageInstance" class="flex items-center gap-1">
+          <input
+            :ref="setFileInputRef"
+            type="file"
+            class="hidden"
+            accept=".txt,.json,.xml,.html"
+            @change="handleFileUpload"
+          />
+          <Button
+            v-if="activeRoute === undefined"
+            icon="pi pi-wrench"
+            severity="secondary"
+            text
+            size="small"
+            aria-label="Open in builder"
+            v-tooltip.top="'Open in builder'"
+            @click="handleOpenBuilder"
+          />
+          <Button
+            icon="pi pi-upload"
+            severity="secondary"
+            text
+            size="small"
+            aria-label="Upload file into this response"
+            v-tooltip.top="'Upload file'"
+            @click="triggerFileUpload"
+          />
+          <Button
+            v-if="!isGuest"
+            icon="pi pi-plus"
+            label="Path"
+            severity="secondary"
+            text
+            size="small"
+            :disabled="!canAddRoute"
+            aria-label="Add path response"
+            v-tooltip.top="
+              canAddRoute
+                ? 'Serve a different response for a path'
+                : 'Path limit reached'
+            "
+            @click="addRoute"
+          />
+          <Button
+            label="Save"
+            size="small"
+            :outlined="!isDirty"
+            :severity="isDirty ? undefined : 'secondary'"
+            class="ml-1"
+            :loading="isUpdating"
+            :disabled="!canSave"
+            @click="handleSave"
+          />
         </div>
       </div>
 
-      <div class="mb-2 grid grid-cols-3 gap-2">
-        <input
-          v-if="canManageInstance"
-          :ref="setFileInputRef"
-          type="file"
-          class="hidden"
-          accept=".txt,.json,.xml,.html"
-          @change="handleFileUpload"
-        />
-        <Button
-          v-if="canManageInstance"
-          label="Upload"
-          icon="pi pi-upload"
-          severity="secondary"
-          size="small"
-          outlined
-          class="min-w-0 justify-center"
-          @click="triggerFileUpload"
-        />
-        <Button
-          v-if="canManageInstance"
-          label="Builder"
-          icon="pi pi-wrench"
-          severity="secondary"
-          size="small"
-          outlined
-          class="min-w-0 justify-center"
-          @click="handleOpenBuilder"
-        />
-        <Button
-          v-if="canManageInstance"
-          label="Save"
-          icon="pi pi-save"
-          size="small"
-          outlined
-          class="min-w-0 justify-center"
-          :loading="isUpdating"
-          :disabled="!isDirty || isUpdating"
-          @click="handleSave"
-        />
-      </div>
+      <ResponseTabs
+        v-if="!isGuest"
+        :drafts="routeDrafts"
+        :errors="routeErrors"
+        :dirty="dirtyResponses"
+        :selected="selectedResponse"
+        :editable="canManageInstance"
+        :focus-path-request="pathFocusRequest"
+        @select="selectResponse"
+        @remove="removeRoute"
+        @set-path="setRoutePath"
+        @set-method="setRouteMethod"
+      />
 
-      <div class="h-72 min-h-0 overflow-hidden rounded-md lg:h-auto lg:flex-1">
+      <div
+        id="response-panel"
+        :role="routeDrafts.length > 0 ? 'tabpanel' : undefined"
+        :aria-labelledby="
+          routeDrafts.length > 0
+            ? `response-tab-${selectedResponse}`
+            : undefined
+        "
+        class="h-72 min-h-0 overflow-hidden rounded-md lg:h-auto lg:flex-1"
+      >
         <HttpEditor
-          :model-value="rawContent"
-          :is-dirty="isDirty"
+          :key="selectedResponse"
+          :model-value="editorContent"
+          :is-dirty="canSave"
           :readonly="!canManageInstance"
           syntax="response"
           @update:modelValue="handleEditorChange"

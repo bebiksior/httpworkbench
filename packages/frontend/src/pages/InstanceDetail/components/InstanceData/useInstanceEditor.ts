@@ -1,11 +1,24 @@
-import type { Instance } from "shared";
+import type { Instance, InstanceRoute, RouteMethod } from "shared";
 import { computed, ref, watch, type ComputedRef, type Ref } from "vue";
 import { useNotify } from "@/composables";
 import { useUpdateInstance } from "@/queries/domains/useInstances";
 import { isAbsent } from "@/utils/types";
+import {
+  canAddRoute,
+  createRouteDraft,
+  isDraftDirty,
+  routeLabel,
+  routesEqual,
+  toInstanceRoutes,
+  toRouteDrafts,
+  validateRouteDrafts,
+  type RouteDraft,
+} from "./responseRoutes";
 import { useFileUpload } from "./useFileUpload";
 
 const normalizeLineEndings = (value: string) => value.replace(/\r\n/g, "\n");
+
+export const DEFAULT_RESPONSE = "default";
 
 export const useInstanceEditor = (
   instance: Ref<Instance>,
@@ -17,7 +30,9 @@ export const useInstanceEditor = (
     useUpdateInstance();
   const rawContent = ref("");
   const savedRawContent = ref("");
-  const isDirty = ref(false);
+  const routeDrafts = ref<RouteDraft[]>([]);
+  const savedRoutes = ref<InstanceRoute[]>([]);
+  const selectedResponse = ref(DEFAULT_RESPONSE);
   const fileInputRef = ref<HTMLInputElement | null>(null);
   const selectedWebhookIds = ref<string[]>([]);
   const isSavingRaw = ref(false);
@@ -27,8 +42,50 @@ export const useInstanceEditor = (
       isMutationPending.value || isSavingRaw.value || isSavingWebhooks.value,
   );
 
-  const hasUnsavedRawChanges = (value: string) =>
-    normalizeLineEndings(value) !== normalizeLineEndings(savedRawContent.value);
+  const draftRoutes = computed(() => toInstanceRoutes(routeDrafts.value));
+  const routeErrors = computed(() => validateRouteDrafts(routeDrafts.value));
+  const isDirty = computed(
+    () =>
+      normalizeLineEndings(rawContent.value) !==
+        normalizeLineEndings(savedRawContent.value) ||
+      !routesEqual(draftRoutes.value, savedRoutes.value),
+  );
+  const canSave = computed(() => isDirty.value && !isUpdating.value);
+  const pathFocusRequest = ref(0);
+
+  const dirtyResponses = computed(() => {
+    const dirty = new Set<string>();
+    if (
+      normalizeLineEndings(rawContent.value) !==
+      normalizeLineEndings(savedRawContent.value)
+    ) {
+      dirty.add(DEFAULT_RESPONSE);
+    }
+    for (const draft of routeDrafts.value) {
+      if (isDraftDirty(draft)) {
+        dirty.add(draft.key);
+      }
+    }
+    return dirty;
+  });
+
+  const activeRoute = computed(() =>
+    routeDrafts.value.find((draft) => draft.key === selectedResponse.value),
+  );
+  const editorContent = computed(
+    () => activeRoute.value?.raw ?? rawContent.value,
+  );
+
+  const resetRouteDrafts = (routes: InstanceRoute[]) => {
+    const selectedLabel =
+      activeRoute.value === undefined
+        ? undefined
+        : routeLabel(activeRoute.value);
+    routeDrafts.value = toRouteDrafts(routes);
+    selectedResponse.value =
+      routeDrafts.value.find((draft) => routeLabel(draft) === selectedLabel)
+        ?.key ?? DEFAULT_RESPONSE;
+  };
 
   let activeInstanceId: string | undefined;
 
@@ -36,12 +93,24 @@ export const useInstanceEditor = (
     instance,
     (newInstance) => {
       const instanceChanged = activeInstanceId !== newInstance.id;
+      const wasDirty = isDirty.value;
       activeInstanceId = newInstance.id;
       savedRawContent.value = newInstance.raw;
-      if (instanceChanged || !isDirty.value) {
-        rawContent.value = newInstance.raw;
+      savedRoutes.value = newInstance.routes;
+      if (instanceChanged) {
+        selectedResponse.value = DEFAULT_RESPONSE;
       }
-      isDirty.value = hasUnsavedRawChanges(rawContent.value);
+      if (instanceChanged || !wasDirty) {
+        rawContent.value = newInstance.raw;
+        if (routesEqual(draftRoutes.value, newInstance.routes)) {
+          routeDrafts.value = routeDrafts.value.map((draft, index) => ({
+            ...draft,
+            saved: newInstance.routes[index],
+          }));
+        } else {
+          resetRouteDrafts(newInstance.routes);
+        }
+      }
       if (instanceChanged || !isSavingWebhooks.value) {
         selectedWebhookIds.value = [...newInstance.webhookIds];
       }
@@ -49,26 +118,93 @@ export const useInstanceEditor = (
     { immediate: true },
   );
 
+  const updateDraft = (key: string, update: Partial<RouteDraft>) => {
+    routeDrafts.value = routeDrafts.value.map((draft) =>
+      draft.key === key ? { ...draft, ...update } : draft,
+    );
+  };
+
   const handleEditorChange = (value: string) => {
     if (!canManageInstance.value) return;
-    rawContent.value = value;
-    isDirty.value = hasUnsavedRawChanges(value);
+    if (activeRoute.value === undefined) {
+      rawContent.value = value;
+      return;
+    }
+    updateDraft(activeRoute.value.key, { raw: value });
+  };
+
+  const selectResponse = (key: string) => {
+    selectedResponse.value =
+      key === DEFAULT_RESPONSE ||
+      routeDrafts.value.some((draft) => draft.key === key)
+        ? key
+        : DEFAULT_RESPONSE;
+  };
+
+  const selectResponseByLabel = (label: string) => {
+    const draft = routeDrafts.value.find(
+      (candidate) => routeLabel(candidate) === label,
+    );
+    if (draft !== undefined) {
+      selectedResponse.value = draft.key;
+    }
+  };
+
+  const addRoute = () => {
+    if (!canManageInstance.value || !canAddRoute(routeDrafts.value)) return;
+    const draft = createRouteDraft(routeDrafts.value, editorContent.value);
+    routeDrafts.value = [...routeDrafts.value, draft];
+    selectedResponse.value = draft.key;
+    pathFocusRequest.value += 1;
+    return draft.key;
+  };
+
+  const removeRoute = (key: string) => {
+    if (!canManageInstance.value) return;
+    const index = routeDrafts.value.findIndex((draft) => draft.key === key);
+    if (index === -1) return;
+    routeDrafts.value = routeDrafts.value.filter((draft) => draft.key !== key);
+    if (selectedResponse.value === key) {
+      selectedResponse.value =
+        routeDrafts.value[Math.min(index, routeDrafts.value.length - 1)]?.key ??
+        DEFAULT_RESPONSE;
+    }
+  };
+
+  const setRoutePath = (key: string, path: string) => {
+    if (!canManageInstance.value) return;
+    updateDraft(key, { path });
+  };
+
+  const setRouteMethod = (key: string, method: RouteMethod | undefined) => {
+    if (!canManageInstance.value) return;
+    updateDraft(key, { method });
   };
 
   const handleSave = async () => {
     if (!canManageInstance.value || isUpdating.value) return;
+    const firstInvalid = routeDrafts.value.find(
+      (draft) => routeErrors.value[draft.key] !== undefined,
+    );
+    if (firstInvalid !== undefined) {
+      selectedResponse.value = firstInvalid.key;
+      pathFocusRequest.value += 1;
+      notify.error(`Fix the path: ${routeErrors.value[firstInvalid.key]}`);
+      return;
+    }
     const instanceId = instance.value.id;
     const raw = rawContent.value;
+    const routes = draftRoutes.value;
     isSavingRaw.value = true;
     try {
       const updated = await updateInstance({
         id: instanceId,
-        input: { raw, webhookIds: selectedWebhookIds.value },
+        input: { raw, routes, webhookIds: selectedWebhookIds.value },
       });
       if (instance.value.id !== instanceId) return;
       savedRawContent.value = updated.raw;
-      isDirty.value = hasUnsavedRawChanges(rawContent.value);
-      notify.success("Raw response updated");
+      savedRoutes.value = updated.routes;
+      notify.success("Responses saved");
     } catch (error) {
       if (instance.value.id !== instanceId) return;
       notify.error("Update failed", error);
@@ -99,6 +235,11 @@ export const useInstanceEditor = (
     }
   };
 
+  const discardChanges = () => {
+    rawContent.value = savedRawContent.value;
+    resetRouteDrafts(savedRoutes.value);
+  };
+
   const triggerFileUpload = () => fileInputRef.value?.click();
 
   const handleFileUpload = async (event: Event) => {
@@ -117,13 +258,29 @@ export const useInstanceEditor = (
 
   return {
     rawContent,
+    editorContent,
+    routeDrafts,
+    routeErrors,
+    selectedResponse,
+    activeRoute,
     isDirty,
+    canSave,
+    dirtyResponses,
+    pathFocusRequest,
     isUpdating,
     fileInputRef,
     selectedWebhookIds,
     handleSave,
     handleEditorChange,
     handleWebhookChange,
+    selectResponse,
+    selectResponseByLabel,
+    discardChanges,
+    addRoute,
+    removeRoute,
+    setRoutePath,
+    setRouteMethod,
+    canAddRoute: computed(() => canAddRoute(routeDrafts.value)),
     triggerFileUpload,
     handleFileUpload,
   };

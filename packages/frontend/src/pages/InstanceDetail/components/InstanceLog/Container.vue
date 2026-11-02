@@ -10,6 +10,9 @@ import { SMTPLog, useSmtpLogDisplay } from "./components/SMTPLog";
 const props = defineProps<{
   log: Log;
 }>();
+const emit = defineEmits<{
+  selectResponse: [label: string];
+}>();
 
 const { log } = toRefs(props);
 const {
@@ -86,6 +89,16 @@ const handleMouseLeave = (event: MouseEvent) => {
           class="min-w-0 truncate font-mono text-surface-800 dark:text-surface-300"
           >{{ log.address }}</span
         >
+        <button
+          v-if="log.route"
+          type="button"
+          class="min-w-0 cursor-pointer truncate rounded font-mono text-surface-500 transition-colors hover:text-surface-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 dark:text-surface-500 dark:hover:text-surface-100"
+          :title="`Served the ${log.route} response`"
+          :aria-label="`Served the ${log.route} response. Show it`"
+          @click.stop="emit('selectResponse', log.route)"
+        >
+          → {{ log.route }}
+        </button>
       </div>
       <div
         class="flex min-w-0 shrink-0 items-center gap-1.5 whitespace-nowrap text-right"

@@ -35,6 +35,12 @@ const {
 } = useLogsPanelControls(logs, setSidePanelHidden);
 
 const scrollerRef = ref<HTMLElement | null>(null);
+const requestedResponse = ref<{ label: string }>();
+
+const showResponse = (label: string) => {
+  requestedResponse.value = { label };
+  setSidePanelHidden(false);
+};
 
 const estimateLogSize = (index: number) => {
   switch (filteredLogs.value[index]?.type) {
@@ -121,6 +127,7 @@ const exitLogOnEscape = (event: KeyboardEvent) => {
         <InstanceData
           v-if="instance && !isLoadingInstance"
           :instance="instance"
+          :requested-response="requestedResponse"
           @hide-panel="setSidePanelHidden(true)"
         />
 
@@ -300,7 +307,10 @@ const exitLogOnEscape = (event: KeyboardEvent) => {
                 class="absolute left-0 top-0 w-full pb-4"
                 :style="{ transform: `translateY(${virtualRow.start}px)` }"
               >
-                <InstanceLog :log="filteredLogs[virtualRow.index]" />
+                <InstanceLog
+                  :log="filteredLogs[virtualRow.index]"
+                  @select-response="showResponse"
+                />
               </div>
             </div>
           </div>
