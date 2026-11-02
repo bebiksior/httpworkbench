@@ -1,24 +1,25 @@
 <script setup lang="ts">
-import Button from "primevue/button";
 import { ROUTE_METHODS, type RouteMethod } from "shared";
 import { computed, nextTick, ref, watch } from "vue";
-import { type RouteDraft } from "./responseRoutes";
+import { statusLineOf, type RouteDraft } from "./responseRoutes";
 import { DEFAULT_RESPONSE } from "./useInstanceEditor";
 
 const props = defineProps<{
   drafts: RouteDraft[];
+  fallbackRaw: string;
   errors: Record<string, string>;
   dirty: Set<string>;
   selected: string;
   editable: boolean;
+  canAdd: boolean;
   focusPathRequest: number;
   focusTabRequest: number;
 }>();
 
 const emit = defineEmits<{
   select: [key: string];
+  add: [];
   remove: [key: string];
-  emptied: [];
   setPath: [key: string, path: string];
   setMethod: [key: string, method: RouteMethod | undefined];
 }>();
@@ -27,9 +28,19 @@ const panelId = "response-panel";
 const tabId = (key: string) => `response-tab-${key}`;
 const errorId = "response-path-error";
 
-const tabKeys = computed(() => [
-  DEFAULT_RESPONSE,
-  ...props.drafts.map((draft) => draft.key),
+const tabs = computed(() => [
+  {
+    key: DEFAULT_RESPONSE,
+    method: undefined,
+    label: "Fallback",
+    status: statusLineOf(props.fallbackRaw),
+  },
+  ...props.drafts.map((draft) => ({
+    key: draft.key,
+    method: draft.method,
+    label: draft.path.trim(),
+    status: statusLineOf(draft.raw),
+  })),
 ]);
 const active = computed(() =>
   props.drafts.find((draft) => draft.key === props.selected),
@@ -40,41 +51,37 @@ const activeError = computed(() =>
 
 const pathInputRef = ref<HTMLInputElement | null>(null);
 
-const focusPath = () =>
-  nextTick(() => {
-    document
-      .getElementById(tabId(props.selected))
-      ?.scrollIntoView({ block: "nearest" });
-    pathInputRef.value?.focus();
-    pathInputRef.value?.select();
-  });
-
-const focusTab = (key: string) =>
+const revealTab = (key: string, focus: boolean) =>
   nextTick(() => {
     const tab = document.getElementById(tabId(key));
-    tab?.focus();
-    tab?.scrollIntoView({ block: "nearest" });
+    tab?.scrollIntoView({ block: "nearest", inline: "nearest" });
+    if (focus) tab?.focus();
   });
 
-watch(() => props.focusPathRequest, focusPath);
+watch(
+  () => props.selected,
+  (key) => revealTab(key, false),
+);
 watch(
   () => props.focusTabRequest,
-  () => focusTab(props.selected),
+  () => revealTab(props.selected, true),
+);
+watch(
+  () => props.focusPathRequest,
+  () =>
+    nextTick(() => {
+      pathInputRef.value?.focus();
+      pathInputRef.value?.select();
+    }),
 );
 
 const handleRemove = (key: string) => {
   emit("remove", key);
-  nextTick(() => {
-    if (props.drafts.length === 0) {
-      emit("emptied");
-      return;
-    }
-    focusTab(props.selected);
-  });
+  revealTab(props.selected, true);
 };
 
 const moveSelection = (event: KeyboardEvent) => {
-  const keys = tabKeys.value;
+  const keys = tabs.value.map((tab) => tab.key);
   const index = keys.indexOf(props.selected);
   const nextIndex = {
     ArrowRight: (index + 1) % keys.length,
@@ -86,160 +93,206 @@ const moveSelection = (event: KeyboardEvent) => {
   if (next === undefined) return;
   event.preventDefault();
   emit("select", next);
-  focusTab(next);
+  revealTab(next, true);
 };
 
-const tabClass = (key: string) => [
-  "inline-flex h-7 max-w-full cursor-pointer items-center gap-1.5 rounded-md px-2 font-mono text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 pointer-coarse:h-9",
-  key === props.selected
-    ? "bg-surface-100 text-surface-900 dark:bg-surface-800 dark:text-surface-0"
-    : "text-surface-600 hover:bg-surface-50 hover:text-surface-900 dark:text-surface-400 dark:hover:bg-surface-800/60 dark:hover:text-surface-100",
-  props.errors[key] === undefined ? "" : "text-red-600! dark:text-red-400!",
-];
+const scrollTabsHorizontally = (event: WheelEvent) => {
+  const strip = event.currentTarget;
+  if (
+    !(strip instanceof HTMLElement) ||
+    strip.scrollWidth <= strip.clientWidth ||
+    Math.abs(event.deltaX) > Math.abs(event.deltaY)
+  ) {
+    return;
+  }
+  strip.scrollLeft += event.deltaY;
+  event.preventDefault();
+};
+
+const statusTone = (code: string | undefined) => {
+  switch (code?.[0]) {
+    case "2":
+      return "bg-emerald-500";
+    case "3":
+      return "bg-sky-500";
+    case "4":
+      return "bg-amber-500";
+    case "5":
+      return "bg-red-500";
+    default:
+      return "bg-surface-400";
+  }
+};
+
+const fieldClass =
+  "h-7 rounded-md border bg-white font-mono text-xs text-surface-900 outline-none transition-colors focus:border-surface-500 dark:bg-surface-900 dark:text-surface-0 dark:focus:border-surface-400";
 </script>
 
 <template>
-  <div v-if="drafts.length > 0" class="flex flex-col gap-2">
+  <div
+    class="flex min-h-0 flex-1 flex-col overflow-hidden rounded-md border border-surface-200 dark:border-surface-700"
+  >
     <div
-      class="-m-0.5 flex max-h-[6.75rem] flex-wrap items-center gap-1 overflow-y-auto p-0.5 pointer-coarse:max-h-[8.5rem]"
-      role="tablist"
-      aria-label="Responses"
-      @keydown="moveSelection"
+      class="flex shrink-0 border-b border-surface-200 bg-surface-50 dark:border-surface-700 dark:bg-surface-900"
     >
-      <button
-        :id="tabId(DEFAULT_RESPONSE)"
-        type="button"
-        role="tab"
-        :aria-selected="selected === DEFAULT_RESPONSE"
-        :aria-controls="panelId"
-        :tabindex="selected === DEFAULT_RESPONSE ? 0 : -1"
-        :class="tabClass(DEFAULT_RESPONSE)"
-        class="font-sans!"
-        v-tooltip.top="'Served when no path matches'"
-        @click="emit('select', DEFAULT_RESPONSE)"
+      <div
+        class="flex min-w-0 flex-1 overflow-x-auto [scrollbar-width:none]"
+        role="tablist"
+        aria-label="Responses"
+        @keydown="moveSelection"
+        @wheel="scrollTabsHorizontally"
       >
-        Default
-        <span
-          v-if="dirty.has(DEFAULT_RESPONSE)"
-          class="size-1.5 shrink-0 rounded-full bg-current"
-        />
-        <span v-if="dirty.has(DEFAULT_RESPONSE)" class="sr-only"
-          >, unsaved</span
-        >
-      </button>
-      <button
-        v-for="draft in drafts"
-        :id="tabId(draft.key)"
-        :key="draft.key"
-        type="button"
-        role="tab"
-        :aria-selected="selected === draft.key"
-        :aria-controls="panelId"
-        :tabindex="selected === draft.key ? 0 : -1"
-        :class="tabClass(draft.key)"
-        :title="draft.path"
-        @click="emit('select', draft.key)"
-      >
-        <span
-          v-if="draft.method"
-          class="shrink-0"
+        <button
+          v-for="tab in tabs"
+          :id="tabId(tab.key)"
+          :key="tab.key"
+          type="button"
+          role="tab"
+          :aria-selected="selected === tab.key"
+          :aria-controls="panelId"
+          :tabindex="selected === tab.key ? 0 : -1"
+          :title="tab.method ? `${tab.method} ${tab.label}` : tab.label"
+          class="relative -mb-px flex min-w-24 max-w-48 shrink-0 cursor-pointer flex-col items-start gap-0.5 border-r border-b border-surface-200 px-3 py-1.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/60 dark:border-surface-700"
           :class="
-            selected === draft.key
-              ? ''
-              : 'text-surface-500 dark:text-surface-400'
+            selected === tab.key
+              ? 'border-b-white bg-white text-surface-900 before:absolute before:inset-x-0 before:top-0 before:h-0.5 before:bg-primary dark:border-b-[#282c34] dark:bg-[#282c34] dark:text-surface-0'
+              : 'text-surface-600 hover:bg-surface-100 hover:text-surface-900 dark:text-surface-400 dark:hover:bg-surface-800 dark:hover:text-surface-100'
           "
-          >{{ draft.method }}</span
+          @click="emit('select', tab.key)"
         >
-        <span class="max-w-48 truncate" :class="{ italic: !draft.path.trim() }">
-          {{ draft.path.trim() || "empty" }}
-        </span>
-        <span
-          v-if="dirty.has(draft.key)"
-          class="size-1.5 shrink-0 rounded-full bg-current"
-        />
-        <span v-if="dirty.has(draft.key)" class="sr-only">, unsaved</span>
-        <span v-if="errors[draft.key]" class="sr-only">, invalid</span>
+          <span
+            class="flex w-full min-w-0 items-center gap-1.5 text-xs font-medium"
+            :class="[
+              tab.key === DEFAULT_RESPONSE ? '' : 'font-mono',
+              errors[tab.key] ? 'text-red-600 dark:text-red-400' : '',
+            ]"
+          >
+            <span
+              v-if="tab.method"
+              class="shrink-0 text-surface-500 dark:text-surface-400"
+              >{{ tab.method }}</span
+            >
+            <span class="min-w-0 truncate" :class="{ italic: !tab.label }">{{
+              tab.label || "no path"
+            }}</span>
+            <span
+              v-if="dirty.has(tab.key)"
+              class="ml-auto size-1.5 shrink-0 rounded-full bg-current"
+            />
+            <span v-if="dirty.has(tab.key)" class="sr-only">, unsaved</span>
+            <span v-if="errors[tab.key]" class="sr-only">, invalid</span>
+          </span>
+          <span
+            class="flex w-full min-w-0 items-center gap-1.5 text-[11px] text-surface-500 dark:text-surface-400"
+          >
+            <span
+              class="size-1.5 shrink-0 rounded-full"
+              :class="statusTone(tab.status?.code)"
+            />
+            <span class="truncate">{{
+              tab.status === undefined
+                ? "Invalid response"
+                : `${tab.status.code} ${tab.status.reason}`.trim()
+            }}</span>
+          </span>
+        </button>
+      </div>
+      <button
+        v-if="editable"
+        type="button"
+        class="flex w-10 shrink-0 cursor-pointer items-center justify-center border-l border-surface-200 text-surface-500 transition-colors hover:bg-surface-100 hover:text-surface-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/60 aria-disabled:cursor-not-allowed aria-disabled:opacity-40 dark:border-surface-700 dark:hover:bg-surface-800 dark:hover:text-surface-100"
+        :aria-disabled="!canAdd"
+        aria-label="Add path response"
+        v-tooltip.top="canAdd ? 'Add path' : 'Path limit reached'"
+        @click="canAdd && emit('add')"
+      >
+        <i class="pi pi-plus text-xs" aria-hidden="true" />
       </button>
     </div>
 
-    <div v-if="active && editable" class="flex flex-col gap-1">
-      <div class="flex items-center gap-1">
-        <div
-          class="flex h-8 min-w-0 flex-1 items-center rounded-md border bg-white transition-colors dark:bg-surface-950 pointer-coarse:h-10"
-          :class="
-            activeError === undefined
-              ? 'border-surface-300 focus-within:border-primary dark:border-surface-700'
-              : 'border-red-500 focus-within:ring-1 focus-within:ring-red-500/40 dark:border-red-400'
+    <div
+      class="flex min-h-10 shrink-0 items-center gap-2 border-b border-surface-200 px-2 py-1.5 dark:border-surface-700 dark:bg-[#282c34]"
+    >
+      <template v-if="active && editable">
+        <select
+          :value="active.method ?? ''"
+          aria-label="Method"
+          :class="fieldClass"
+          class="w-auto shrink-0 cursor-pointer border-surface-300 px-1.5 dark:border-surface-700 dark:[color-scheme:dark]"
+          @change="
+            emit(
+              'setMethod',
+              active.key,
+              (($event.target as HTMLSelectElement).value || undefined) as
+                RouteMethod | undefined,
+            )
           "
         >
-          <div
-            class="relative flex h-full shrink-0 border-r border-surface-200 dark:border-surface-700"
-          >
-            <select
-              :value="active.method ?? ''"
-              aria-label="Method"
-              class="h-full cursor-pointer appearance-none rounded-l-md bg-transparent pl-2.5 pr-6 font-mono text-xs text-surface-600 outline-none hover:text-surface-900 focus-visible:bg-surface-100 focus-visible:text-surface-900 dark:focus-visible:bg-surface-800 dark:text-surface-400 dark:[color-scheme:dark] dark:hover:text-surface-100"
-              @change="
-                emit(
-                  'setMethod',
-                  active.key,
-                  (($event.target as HTMLSelectElement).value || undefined) as
-                    RouteMethod | undefined,
-                )
-              "
-            >
-              <option value="">ANY</option>
-              <option
-                v-for="method in ROUTE_METHODS"
-                :key="method"
-                :value="method"
-              >
-                {{ method }}
-              </option>
-            </select>
-            <i
-              class="pi pi-chevron-down pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[8px]! text-surface-400! dark:text-surface-500!"
-              aria-hidden="true"
-            />
-          </div>
-          <input
-            ref="pathInputRef"
-            :value="active.path"
-            type="text"
-            spellcheck="false"
-            autocomplete="off"
-            aria-label="Path"
-            placeholder="/callback"
-            :aria-invalid="activeError !== undefined"
-            :aria-describedby="activeError ? errorId : undefined"
-            class="h-full min-w-0 flex-1 bg-transparent px-2.5 font-mono text-xs text-surface-900 outline-none placeholder:text-surface-400 dark:text-surface-0"
-            @input="
-              emit(
-                'setPath',
-                active.key,
-                ($event.target as HTMLInputElement).value,
-              )
-            "
-          />
-        </div>
-        <Button
-          icon="pi pi-trash"
-          severity="secondary"
-          text
-          size="small"
-          class="shrink-0 text-surface-400! hover:text-red-600! pointer-coarse:min-h-10 pointer-coarse:min-w-10"
-          aria-label="Remove path response"
-          v-tooltip.top="'Remove'"
-          @click="handleRemove(active.key)"
+          <option value="">Any</option>
+          <option v-for="method in ROUTE_METHODS" :key="method" :value="method">
+            {{ method }}
+          </option>
+        </select>
+        <input
+          ref="pathInputRef"
+          :value="active.path"
+          type="text"
+          spellcheck="false"
+          autocomplete="off"
+          aria-label="Path"
+          placeholder="/callback or /assets/*"
+          :aria-invalid="activeError !== undefined"
+          :aria-describedby="activeError ? errorId : undefined"
+          :class="[
+            fieldClass,
+            activeError === undefined
+              ? 'border-surface-300 dark:border-surface-700'
+              : 'border-red-500! dark:border-red-400!',
+          ]"
+          class="min-w-0 flex-1 px-2 placeholder:text-surface-400"
+          @input="
+            emit(
+              'setPath',
+              active.key,
+              ($event.target as HTMLInputElement).value,
+            )
+          "
         />
-      </div>
+        <button
+          type="button"
+          class="flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-md text-surface-400 transition-colors hover:bg-surface-100 hover:text-red-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 dark:hover:bg-surface-800"
+          aria-label="Remove path response"
+          v-tooltip.top="'Remove path'"
+          @click="handleRemove(active.key)"
+        >
+          <i class="pi pi-trash text-xs" aria-hidden="true" />
+        </button>
+      </template>
       <p
-        :id="errorId"
-        aria-live="polite"
-        class="text-xs text-red-600 empty:-mt-1 dark:text-red-400"
+        v-else-if="active"
+        class="px-1 font-mono text-xs text-surface-700 dark:text-surface-300"
       >
-        {{ activeError ?? "" }}
+        {{ active.method ?? "Any" }} {{ active.path }}
       </p>
+      <p v-else class="px-1 text-xs text-surface-500 dark:text-surface-400">
+        Served for any request that doesn't match a path tab.
+      </p>
+    </div>
+    <p
+      :id="errorId"
+      aria-live="polite"
+      class="shrink-0 border-b border-surface-200 px-3 py-1 text-xs text-red-600 empty:hidden dark:border-surface-700 dark:text-red-400"
+    >
+      {{ activeError ?? "" }}
+    </p>
+
+    <div
+      :id="panelId"
+      role="tabpanel"
+      :aria-labelledby="tabId(selected)"
+      class="min-h-0 flex-1"
+    >
+      <slot />
     </div>
   </div>
 </template>

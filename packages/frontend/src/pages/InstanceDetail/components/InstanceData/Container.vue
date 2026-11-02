@@ -42,6 +42,10 @@ const {
   isDirty,
   canSave,
   canAddRoute,
+  rawContent,
+  isAdvanced,
+  enterAdvanced,
+  enterBasic,
   dirtyResponses,
   pathFocusRequest,
   tabFocusRequest,
@@ -145,14 +149,48 @@ watch(
   () => {
     editorLabel.value =
       activeRoute.value === undefined
-        ? "Default response"
+        ? "Fallback response"
         : `Response for ${activeRoute.value.path}`;
   },
   { immediate: true },
 );
 
-const addPathButtonRef = ref<{ $el?: HTMLElement } | null>(null);
-const focusAddPathButton = () => addPathButtonRef.value?.$el?.focus();
+const confirmLeave = useConfirm();
+
+const responseModes = [
+  {
+    value: "basic",
+    label: "Basic",
+    advanced: false,
+    hint: "One response for every request",
+  },
+  {
+    value: "advanced",
+    label: "Advanced",
+    advanced: true,
+    hint: "Different responses per path",
+  },
+];
+
+const setMode = (advanced: boolean) => {
+  if (advanced) {
+    enterAdvanced();
+    return;
+  }
+  if (!isAdvanced.value) return;
+  if (routeDrafts.value.length === 0) {
+    enterBasic();
+    return;
+  }
+  confirmLeave.require({
+    message: `Remove ${routeDrafts.value.length === 1 ? "the path response" : `all ${routeDrafts.value.length} path responses`}? Only the fallback response will be kept. Nothing changes until you save.`,
+    header: "Switch to Basic",
+    icon: "pi pi-exclamation-triangle",
+    rejectProps: { label: "Cancel", severity: "secondary", outlined: true },
+    acceptProps: { label: "Remove paths", severity: "danger" },
+    accept: enterBasic,
+  });
+};
 
 watch(requestedResponse, (request) => {
   if (request !== undefined) {
@@ -160,7 +198,6 @@ watch(requestedResponse, (request) => {
   }
 });
 
-const confirmLeave = useConfirm();
 const leaveGuard = createLeaveGuard({
   isDirty: () => isDirty.value,
   markClean: discardChanges,
@@ -322,93 +359,57 @@ useEventListener(window, "beforeunload", (event: BeforeUnloadEvent) => {
       </div>
     </div>
 
-    <div class="flex min-h-[260px] flex-1 flex-col gap-3 lg:min-h-0">
+    <div class="flex min-h-[320px] flex-1 flex-col gap-3 lg:min-h-0">
       <div class="flex items-center justify-between gap-2">
         <h3 class="font-semibold text-surface-900 dark:text-surface-0">
           Response
         </h3>
-        <div v-if="canManageInstance" class="flex items-center gap-1">
-          <input
-            :ref="setFileInputRef"
-            type="file"
-            class="hidden"
-            accept=".txt,.json,.xml,.html"
-            @change="handleFileUpload"
-          />
-          <Button
-            v-if="activeRoute === undefined"
-            icon="pi pi-wrench"
-            severity="secondary"
-            text
-            size="small"
-            aria-label="Open in builder"
-            v-tooltip.top="'Open in builder'"
-            @click="handleOpenBuilder"
-          />
-          <Button
-            icon="pi pi-upload"
-            severity="secondary"
-            text
-            size="small"
-            aria-label="Upload file into this response"
-            v-tooltip.top="'Upload file'"
-            @click="triggerFileUpload"
-          />
-          <Button
-            v-if="!isGuest"
-            ref="addPathButtonRef"
-            icon="pi pi-plus"
-            label="Path"
-            severity="secondary"
-            text
-            size="small"
-            :aria-disabled="!canAddRoute"
-            :class="{ 'opacity-50': !canAddRoute }"
-            aria-label="Add path response"
-            v-tooltip.top="canAddRoute ? undefined : 'Path limit reached'"
-            @click="addRoute"
-          />
-          <Button
-            label="Save"
-            size="small"
-            :outlined="!isDirty"
-            :severity="isDirty ? undefined : 'secondary'"
-            class="ml-1"
-            :loading="isUpdating"
-            :disabled="!canSave"
-            @click="handleSave"
-          />
+        <div
+          v-if="canManageInstance && !isGuest"
+          class="inline-flex rounded-lg bg-surface-100 p-0.5 dark:bg-surface-800"
+          role="radiogroup"
+          aria-label="Response mode"
+        >
+          <button
+            v-for="mode in responseModes"
+            :key="mode.value"
+            type="button"
+            role="radio"
+            :aria-checked="isAdvanced === mode.advanced"
+            class="h-7 cursor-pointer rounded-md px-3 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60"
+            :class="
+              isAdvanced === mode.advanced
+                ? 'bg-white text-surface-900 shadow-sm dark:bg-surface-950 dark:text-surface-0'
+                : 'text-surface-600 hover:text-surface-900 dark:text-surface-400 dark:hover:text-surface-100'
+            "
+            v-tooltip.top="mode.hint"
+            @click="setMode(mode.advanced)"
+          >
+            {{ mode.label }}
+          </button>
         </div>
       </div>
 
       <ResponseTabs
-        v-if="!isGuest"
+        v-if="isAdvanced"
         :drafts="routeDrafts"
+        :fallback-raw="rawContent"
         :errors="routeErrors"
         :dirty="dirtyResponses"
         :selected="selectedResponse"
         :editable="canManageInstance"
+        :can-add="canAddRoute"
         :focus-path-request="pathFocusRequest"
         :focus-tab-request="tabFocusRequest"
-        @emptied="focusAddPathButton"
         @select="selectResponse"
+        @add="addRoute"
         @remove="removeRoute"
         @set-path="setRoutePath"
         @set-method="setRouteMethod"
-      />
-
-      <div
-        id="response-panel"
-        :role="routeDrafts.length > 0 ? 'tabpanel' : undefined"
-        :aria-labelledby="
-          routeDrafts.length > 0
-            ? `response-tab-${selectedResponse}`
-            : undefined
-        "
-        class="h-72 min-h-0 overflow-hidden rounded-md lg:h-auto lg:min-h-64 lg:flex-1"
       >
         <HttpEditor
           :key="selectedResponse"
+          flush
           :aria-label="editorLabel"
           :model-value="editorContent"
           :is-dirty="canSave"
@@ -416,6 +417,57 @@ useEventListener(window, "beforeunload", (event: BeforeUnloadEvent) => {
           syntax="response"
           @update:modelValue="handleEditorChange"
           @save="handleSave"
+        />
+      </ResponseTabs>
+      <div
+        v-else
+        class="h-72 min-h-0 overflow-hidden rounded-md lg:h-auto lg:min-h-64 lg:flex-1"
+      >
+        <HttpEditor
+          aria-label="Response"
+          :model-value="editorContent"
+          :is-dirty="canSave"
+          :readonly="!canManageInstance"
+          syntax="response"
+          @update:modelValue="handleEditorChange"
+          @save="handleSave"
+        />
+      </div>
+
+      <div v-if="canManageInstance" class="flex items-center justify-end gap-1">
+        <input
+          :ref="setFileInputRef"
+          type="file"
+          class="hidden"
+          accept=".txt,.json,.xml,.html"
+          @change="handleFileUpload"
+        />
+        <Button
+          v-if="activeRoute === undefined"
+          icon="pi pi-wrench"
+          label="Builder"
+          severity="secondary"
+          text
+          size="small"
+          @click="handleOpenBuilder"
+        />
+        <Button
+          icon="pi pi-upload"
+          label="Upload"
+          severity="secondary"
+          text
+          size="small"
+          @click="triggerFileUpload"
+        />
+        <Button
+          label="Save"
+          size="small"
+          :outlined="!isDirty"
+          :severity="isDirty ? undefined : 'secondary'"
+          class="ml-1 min-w-20"
+          :loading="isUpdating"
+          :disabled="!canSave"
+          @click="handleSave"
         />
       </div>
     </div>

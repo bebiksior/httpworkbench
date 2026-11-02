@@ -33,6 +33,7 @@ export const useInstanceEditor = (
   const routeDrafts = ref<RouteDraft[]>([]);
   const savedRoutes = ref<InstanceRoute[]>([]);
   const selectedResponse = ref(DEFAULT_RESPONSE);
+  const isAdvanced = ref(false);
   const fileInputRef = ref<HTMLInputElement | null>(null);
   const selectedWebhookIds = ref<string[]>([]);
   const isSavingRaw = ref(false);
@@ -99,6 +100,7 @@ export const useInstanceEditor = (
       savedRoutes.value = newInstance.routes;
       if (instanceChanged) {
         selectedResponse.value = DEFAULT_RESPONSE;
+        isAdvanced.value = newInstance.routes.length > 0;
       }
       if (instanceChanged || !wasDirty) {
         rawContent.value = newInstance.raw;
@@ -109,6 +111,9 @@ export const useInstanceEditor = (
           }));
         } else {
           resetRouteDrafts(newInstance.routes);
+        }
+        if (newInstance.routes.length > 0) {
+          isAdvanced.value = true;
         }
       }
       if (instanceChanged || !isSavingWebhooks.value) {
@@ -244,6 +249,18 @@ export const useInstanceEditor = (
   const discardChanges = () => {
     rawContent.value = savedRawContent.value;
     resetRouteDrafts(savedRoutes.value);
+    isAdvanced.value = savedRoutes.value.length > 0;
+  };
+
+  const enterAdvanced = () => {
+    isAdvanced.value = true;
+  };
+
+  const enterBasic = () => {
+    if (!canManageInstance.value) return;
+    routeDrafts.value = [];
+    selectedResponse.value = DEFAULT_RESPONSE;
+    isAdvanced.value = false;
   };
 
   const triggerFileUpload = () => fileInputRef.value?.click();
@@ -283,6 +300,9 @@ export const useInstanceEditor = (
     selectResponse,
     selectResponseByLabel,
     discardChanges,
+    isAdvanced,
+    enterAdvanced,
+    enterBasic,
     addRoute,
     removeRoute,
     setRoutePath,

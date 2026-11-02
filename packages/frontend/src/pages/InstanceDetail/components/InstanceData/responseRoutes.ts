@@ -96,3 +96,11 @@ export const routesEqual = (
 
 export const routeLabel = (route: Pick<RouteDraft, "method" | "path">) =>
   sharedRouteLabel({ method: route.method, path: route.path.trim() });
+
+export const statusLineOf = (raw: string) => {
+  const firstLine = raw.split(/\r?\n/, 1)[0] ?? "";
+  const match = /^HTTP\/\S+\s+(\d{3})(?:\s+(.*))?$/.exec(firstLine.trim());
+  return match === null
+    ? undefined
+    : { code: match[1] ?? "", reason: match[2]?.trim() ?? "" };
+};

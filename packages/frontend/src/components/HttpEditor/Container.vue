@@ -27,6 +27,7 @@ const props = defineProps<{
   isDirty?: boolean;
   syntax?: EditorSyntax;
   ariaLabel?: string;
+  flush?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -168,8 +169,13 @@ const editorStyle = computed(() => {
 
 <template>
   <div
-    class="http-editor overflow-hidden rounded-md border border-surface-200 transition-colors focus-within:border-surface-400 dark:border-surface-700 dark:focus-within:border-surface-500"
-    :class="{ 'h-full': !autoHeight && height === undefined }"
+    class="http-editor overflow-hidden"
+    :class="[
+      { 'h-full': !autoHeight && height === undefined },
+      flush
+        ? ''
+        : 'rounded-md border border-surface-200 transition-colors focus-within:border-surface-400 dark:border-surface-700 dark:focus-within:border-surface-500',
+    ]"
   >
     <Codemirror
       :model-value="modelValue"
