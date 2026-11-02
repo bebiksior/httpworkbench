@@ -42,6 +42,7 @@ const createInstance = (overrides?: Partial<Instance>): Instance => ({
   public: false,
   locked: false,
   raw: "HTTP/1.1 200 OK\r\n\r\nok",
+  routes: [],
   ...overrides,
 });
 
@@ -470,6 +471,7 @@ describe("addLog", () => {
     expect(getServableInstanceById("inst-1")).toEqual({
       id: "inst-1",
       raw: "HTTP/1.1 200 OK\r\n\r\nok",
+      routes: [],
     });
     expect(getInstanceAccessMetadata("inst-1")).toEqual({
       id: "inst-1",

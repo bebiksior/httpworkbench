@@ -226,12 +226,113 @@ describe("authenticated instance routes", () => {
     const response = await call("/api/instances", "DELETE", "owner-1", {});
 
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ deleted: 2 });
+    expect(await response.json()).toEqual({
+      deleted: 2,
+      ids: expect.arrayContaining(unlockedIds),
+    });
     for (const id of unlockedIds) {
       expect(getInstanceById(id)).toBeUndefined();
     }
     expect(getInstanceById(lockedId)?.locked).toBe(true);
     expect(getInstanceById(otherOwnerId)).toBeDefined();
+  });
+
+  test("bulk deletes only instances matching the filters", async () => {
+    const create = async (label?: string) => {
+      const response = await call("/api/instances", "POST", "owner-1", {
+        raw: "HTTP/1.1 200 OK\n\nok",
+      });
+      const id = ((await response.json()) as { id: string }).id;
+      if (label !== undefined) {
+        await call(`/api/instances/${id}/rename`, "PATCH", "owner-1", {
+          label,
+        });
+      }
+      return id;
+    };
+    const runIds = [await create("run-7 a"), await create("run-7 b")];
+    const keptId = await create("other");
+
+    const preview = await call(
+      "/api/instances?labelPrefix=run-7&dryRun=true",
+      "DELETE",
+      "owner-1",
+      {},
+    );
+    expect(await preview.json()).toEqual({
+      wouldDelete: 2,
+      ids: expect.arrayContaining(runIds),
+    });
+    expect(getInstanceById(runIds[0] ?? "")).toBeDefined();
+
+    const response = await call(
+      "/api/instances?labelPrefix=run-7&hasLogs=false",
+      "DELETE",
+      "owner-1",
+      {},
+    );
+    expect(await response.json()).toMatchObject({ deleted: 2 });
+    expect(getInstanceById(runIds[0] ?? "")).toBeUndefined();
+    expect(getInstanceById(keptId)).toBeDefined();
+  });
+
+  test("stores per-path responses and rejects duplicates", async () => {
+    const createdResponse = await call("/api/instances", "POST", "owner-1", {
+      raw: "HTTP/1.1 200 OK\n\nfallback",
+      routes: [
+        { path: "/a", raw: "HTTP/1.1 302 Found\nLocation: /b\n\n" },
+        { method: "POST", path: "/a", raw: "HTTP/1.1 201 Created\n\n" },
+      ],
+    });
+    expect(createdResponse.status).toBe(201);
+    const created = (await createdResponse.json()) as {
+      id: string;
+      routes: Array<{ path: string; raw: string }>;
+    };
+    expect(created.routes[0]?.raw).toBe(
+      "HTTP/1.1 302 Found\r\nLocation: /b\r\n\r\n",
+    );
+
+    const duplicate = await call(
+      `/api/instances/${created.id}`,
+      "PUT",
+      "owner-1",
+      {
+        raw: "HTTP/1.1 200 OK\n\nfallback",
+        routes: [
+          { path: "/a", raw: "HTTP/1.1 200 OK\n\n" },
+          { path: "/a", raw: "HTTP/1.1 204 No Content\n\n" },
+        ],
+      },
+    );
+    expect(duplicate.status).toBe(400);
+
+    const invalidPath = await call(
+      `/api/instances/${created.id}`,
+      "PUT",
+      "owner-1",
+      {
+        raw: "HTTP/1.1 200 OK\n\nfallback",
+        routes: [{ path: "/a?x=1", raw: "HTTP/1.1 200 OK\n\n" }],
+      },
+    );
+    expect(invalidPath.status).toBe(422);
+    expect(getInstanceById(created.id)?.routes).toHaveLength(2);
+  });
+
+  test("leaves instances without an expiry unchanged when extending", async () => {
+    const createdResponse = await call("/api/instances", "POST", "owner-1", {
+      raw: "HTTP/1.1 200 OK\n\nok",
+    });
+    const { id } = (await createdResponse.json()) as { id: string };
+    const neverExpires = await call(
+      `/api/instances/${id}/extend`,
+      "POST",
+      "owner-1",
+      {},
+    );
+    expect(neverExpires.status).toBe(200);
+    expect(getInstanceById(id)?.expiresAt).toBeUndefined();
   });
 
   test("does not expose guest details through the public instance route", async () => {

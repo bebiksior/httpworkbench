@@ -95,6 +95,7 @@ const buildInstanceFromSummary = (summary: InstanceSummary): Instance => ({
   public: summary.public,
   locked: summary.locked,
   raw: "",
+  routes: [],
   webhookIds: [],
 });
 

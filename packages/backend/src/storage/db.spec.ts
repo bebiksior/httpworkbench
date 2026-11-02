@@ -33,6 +33,7 @@ const createInstance = (): Instance => ({
   public: false,
   locked: false,
   raw: "HTTP/1.1 200 OK\r\n\r\nok",
+  routes: [],
 });
 
 const createLog = (): Log => ({

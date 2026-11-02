@@ -23,6 +23,7 @@ const privateInstance: Instance = {
   webhookIds: [],
   public: false,
   locked: false,
+  routes: [],
 };
 
 describe("canReadInstance", () => {

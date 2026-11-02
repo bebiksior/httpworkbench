@@ -189,7 +189,7 @@ describe("instance service", () => {
       ok: false,
       error: {
         code: "instance_limit",
-        message: "Instance limit reached",
+        message: expect.stringContaining("Instance limit reached (1 active)"),
         status: 403,
       },
     });

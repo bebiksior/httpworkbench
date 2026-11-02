@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { InstanceRouteSchema } from "./routes";
 
 export const UserRecordSchema = z.object({
   id: z.string(),
@@ -26,13 +27,18 @@ export const InstanceSchema = z.object({
   public: z.boolean().optional().default(false),
   locked: z.boolean().optional().default(false),
   raw: z.string(),
+  routes: z.array(InstanceRouteSchema).optional().default([]),
+  createdByApiKeyId: z.string().optional(),
 });
 
 export type Instance = z.infer<typeof InstanceSchema>;
 
+export type InstanceInput = z.input<typeof InstanceSchema>;
+
 export const InstanceSummarySchema = InstanceSchema.omit({
   raw: true,
   webhookIds: true,
+  routes: true,
 }).extend({
   logCount: z.number().int().nonnegative(),
 });
@@ -126,7 +132,7 @@ export const ConfigSchema = z.object({
   isHosted: z.boolean(),
   allowGuest: z.boolean(),
   defaultTtlMs: z.number().optional(),
-  maxTtlMs: z.number().optional(),
+  maxTtlMs: z.number(),
   maxInstancesPerOwner: z.number().optional(),
   rawLimitBytes: z.number(),
   dnsEnabled: z.boolean(),

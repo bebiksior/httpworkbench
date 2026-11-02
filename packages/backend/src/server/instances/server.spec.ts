@@ -41,13 +41,21 @@ const { createInstancesServer, resetInstanceResponseCacheForTests } =
 const encode = (value: string) => new TextEncoder().encode(value);
 const decode = (value: Uint8Array) => new TextDecoder().decode(value);
 
-const createRawRequest = (headers: string[], body = "") => {
-  return ["GET / HTTP/1.1", ...headers, "", body].join("\r\n");
+const createRawRequest = (
+  headers: string[],
+  body = "",
+  requestLine = "GET / HTTP/1.1",
+) => {
+  return [requestLine, ...headers, "", body].join("\r\n");
 };
 
-const createStaticInstance = (raw: string) => ({
+const createStaticInstance = (
+  raw: string,
+  routes: Array<{ method?: string; path: string; raw: string }> = [],
+) => ({
   id: "demo",
   raw,
+  routes,
 });
 
 const createSocket = () => ({
@@ -75,6 +83,7 @@ describe("createInstancesServer", () => {
 
   beforeEach(() => {
     mock.clearAllMocks();
+    addLogMock.mockReset();
     addLogTombstoned = false;
     resetInstanceResponseCacheForTests();
     spyOn(console, "error").mockImplementation(() => undefined);
@@ -332,4 +341,51 @@ describe("createInstancesServer", () => {
       "500 Internal Server Error",
     );
   });
+
+  test.each([
+    { requestLine: "GET / HTTP/1.1", expected: "fallback" },
+    { requestLine: "GET /callback?x=1 HTTP/1.1", expected: "callback" },
+    { requestLine: "POST /callback HTTP/1.1", expected: "post-callback" },
+    { requestLine: "HEAD /callback HTTP/1.1", expected: "callback" },
+    { requestLine: "GET /assets/app.js HTTP/1.1", expected: "assets" },
+    {
+      requestLine: "GET http://demo.instances.example.com/callback HTTP/1.1",
+      expected: "callback",
+    },
+  ])(
+    "serves the matching path response for $requestLine",
+    async ({ requestLine, expected }) => {
+      getServableInstanceByIdMock.mockReturnValue(
+        createStaticInstance("HTTP/1.1 200 OK\r\n\r\nfallback", [
+          {
+            method: "GET",
+            path: "/callback",
+            raw: "HTTP/1.1 200 OK\r\n\r\ncallback",
+          },
+          {
+            method: "POST",
+            path: "/callback",
+            raw: "HTTP/1.1 201 Created\r\n\r\npost-callback",
+          },
+          { path: "/assets/*", raw: "HTTP/1.1 200 OK\r\n\r\nassets" },
+        ]),
+      );
+      const socket = createSocket();
+
+      handlers.open(socket);
+      await handlers.data(
+        socket,
+        encode(
+          createRawRequest(
+            ["Host: demo.instances.example.com"],
+            "",
+            requestLine,
+          ),
+        ),
+      );
+
+      expect(decode(socket.write.mock.calls[0]?.[0])).toEndWith(expected);
+      expect(addLogMock).toHaveBeenCalledTimes(1);
+    },
+  );
 });

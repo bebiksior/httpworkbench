@@ -5,6 +5,7 @@ import {
   UserNoticeSchema,
   WebhookSchema,
   type Instance,
+  type InstanceInput,
   type InstanceModeration,
   type InstanceSummary,
   type UserNotice,
@@ -40,10 +41,12 @@ export const toDomainInstance = (
     public: row.isPublic,
     locked: row.isLocked,
     raw: row.raw,
+    routes: row.routesJson,
+    createdByApiKeyId: row.createdByApiKeyId ?? undefined,
   });
 
 export const toDomainInstanceSummary = (
-  row: Omit<InstanceRow, "raw"> & { logCount: number },
+  row: Omit<InstanceRow, "raw" | "routesJson"> & { logCount: number },
 ): InstanceSummary =>
   InstanceSummarySchema.parse({
     id: row.id,
@@ -53,10 +56,11 @@ export const toDomainInstanceSummary = (
     label: row.label ?? undefined,
     public: row.isPublic,
     locked: row.isLocked,
+    createdByApiKeyId: row.createdByApiKeyId ?? undefined,
     logCount: row.logCount,
   });
 
-export const toInstanceRow = (instance: Instance): InstanceInsertRow => {
+export const toInstanceRow = (instance: InstanceInput): InstanceInsertRow => {
   const parsed = InstanceSchema.parse(instance);
   return {
     id: parsed.id,
@@ -67,6 +71,8 @@ export const toInstanceRow = (instance: Instance): InstanceInsertRow => {
     isPublic: parsed.public,
     isLocked: parsed.locked,
     raw: parsed.raw,
+    routesJson: parsed.routes,
+    createdByApiKeyId: parsed.createdByApiKeyId ?? null,
   };
 };
 

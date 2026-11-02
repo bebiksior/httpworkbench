@@ -1,17 +1,12 @@
 import { Elysia, status } from "elysia";
-import {
-  GUEST_INSTANCE_TTL_MS,
-  GUEST_OWNER_ID,
-  INSTANCE_RAW_LIMIT_BYTES,
-} from "shared";
+import { GUEST_OWNER_ID, INSTANCE_RAW_LIMIT_BYTES } from "shared";
 import {
   addLogWithOutcome,
   flushPendingWebhookNotifications,
   getInstanceAccessMetadata,
   hasActiveInstance,
-  removeExpiredInstances,
 } from "../storage";
-import { dnsConfig, instancePolicies, smtpConfig } from "../config";
+import { dnsConfig, smtpConfig } from "../config";
 import {
   aiRoutes,
   apiKeysRoutes,
@@ -28,6 +23,10 @@ import {
   resolveOptionalAccess,
 } from "./auth";
 import { closeMcpHandler, handleMcpRequest } from "./mcp";
+import {
+  instanceMaintenanceIntervalMs,
+  runInstanceMaintenance,
+} from "./instances/maintenance";
 import { openApiPlugin } from "./openapi";
 import { canReadInstance } from "./instances/access";
 import {
@@ -187,26 +186,18 @@ export const initServer = async () => {
       })
     : undefined;
 
-  let cleanupInterval: ReturnType<typeof setInterval> | undefined;
-  const defaultTtlMs = instancePolicies.defaultTtlMs;
-  if (defaultTtlMs !== undefined || instancePolicies.allowGuest) {
-    const shortestTtlMs = Math.min(
-      defaultTtlMs ?? Number.POSITIVE_INFINITY,
-      instancePolicies.allowGuest
-        ? GUEST_INSTANCE_TTL_MS
-        : Number.POSITIVE_INFINITY,
-    );
-    const intervalMs = Math.min(shortestTtlMs, 60 * 60 * 1000);
-    const runCleanup = () => {
-      try {
-        removeExpiredInstances(Date.now());
-      } catch (error) {
-        console.error("Failed to cleanup expired instances", error);
-      }
-    };
-    runCleanup();
-    cleanupInterval = setInterval(runCleanup, intervalMs);
-  }
+  const runCleanup = () => {
+    try {
+      runInstanceMaintenance(Date.now());
+    } catch (error) {
+      console.error("Failed to cleanup expired instances", error);
+    }
+  };
+  runCleanup();
+  let cleanupInterval: ReturnType<typeof setInterval> | undefined = setInterval(
+    runCleanup,
+    instanceMaintenanceIntervalMs,
+  );
 
   const stopMaintenance = () => {
     if (cleanupInterval !== undefined) {

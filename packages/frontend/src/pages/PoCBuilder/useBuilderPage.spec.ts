@@ -16,6 +16,7 @@ const instance = ref<Instance>({
   webhookIds: ["webhook-1"],
   public: false,
   locked: false,
+  routes: [],
   raw: "HTTP/1.1 200 OK\r\n\r\n<h1>saved</h1>",
 });
 const data = ref<InstanceDetailResponse>({

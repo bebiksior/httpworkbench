@@ -50,7 +50,12 @@ describe("static-only instance contracts", () => {
       kind: "static",
       processors: [],
     });
-    expect(parsed).toEqual({ ...instance, public: false, locked: false });
+    expect(parsed).toEqual({
+      ...instance,
+      public: false,
+      locked: false,
+      routes: [],
+    });
     expect("kind" in parsed).toBe(false);
     expect("processors" in parsed).toBe(false);
   });

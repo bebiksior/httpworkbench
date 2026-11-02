@@ -11,6 +11,15 @@ const defaultSmtpPort = 25;
 const env: Record<string, string | undefined> = Bun.env;
 const appConfig = buildPublicConfig(env);
 
+const parseOptionalPositiveIntegerEnv = (value: string | undefined) => {
+  const parsed = Number.parseInt(value ?? "", 10);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
+};
+
+const reapUnusedAfterHours = parseOptionalPositiveIntegerEnv(
+  env.REAP_UNUSED_INSTANCES_AFTER_HOURS,
+);
+
 export const authMode = appConfig.authMode;
 
 export const instancePolicies = {
@@ -18,8 +27,14 @@ export const instancePolicies = {
   allowGuest: appConfig.allowGuest,
   defaultTtlMs: appConfig.defaultTtlMs,
   maxTtlMs: appConfig.maxTtlMs,
-  maxInstancesPerOwner: appConfig.maxInstancesPerOwner,
+  maxInstancesPerOwner:
+    parseOptionalPositiveIntegerEnv(env.MAX_INSTANCES_PER_OWNER) ??
+    appConfig.maxInstancesPerOwner,
   rawLimitBytes: appConfig.rawLimitBytes,
+  reapUnusedAfterMs:
+    reapUnusedAfterHours === undefined
+      ? undefined
+      : reapUnusedAfterHours * 60 * 60 * 1000,
 };
 
 export type DnsConfig = {

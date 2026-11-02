@@ -35,6 +35,7 @@ const makeInstance = (
   webhookIds,
   public: false,
   locked: false,
+  routes: [],
   raw,
 });
 

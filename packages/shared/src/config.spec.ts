@@ -35,7 +35,7 @@ describe("buildPublicConfig", () => {
       isHosted: false,
       allowGuest: false,
       defaultTtlMs: undefined,
-      maxTtlMs: undefined,
+      maxTtlMs: 30 * 24 * 60 * 60 * 1000,
       maxInstancesPerOwner: undefined,
       rawLimitBytes: 10 * 1024 * 1024,
       dnsEnabled: false,

@@ -1,6 +1,7 @@
 import type { ServerContext } from "@modelcontextprotocol/server";
 import type { ApiKeyScope, Instance, InstanceSummary } from "shared";
 import type { ApiKeyAuthContext } from "../apiKeyAuth";
+import { dnsConfig } from "../../config";
 import { hasApiKeyScope } from "../apiKeyAuth";
 import { getOwnedInstance } from "../instances/service";
 
@@ -39,19 +40,30 @@ export const requireOwnedInstance = (
   return result.value;
 };
 
+export const publicInstancePageUrl = `${(Bun.env.FRONTEND_URL ?? "https://httpworkbench.com").replace(/\/+$/, "")}/instances/:id`;
+
+const instanceUrl = (id: string) => `${id}.${dnsConfig.instancesDomain}`;
+
 export const serializeInstance = (instance: Instance) => ({
-  ...instance,
-  url: `${instance.id}.${Bun.env.INSTANCES_DOMAIN ?? ""}`,
+  id: instance.id,
+  label: instance.label,
+  url: instanceUrl(instance.id),
+  createdAt: instance.createdAt,
+  expiresAt: instance.expiresAt,
+  public: instance.public,
+  locked: instance.locked,
+  webhookIds: instance.webhookIds,
+  raw: instance.raw,
+  routes: instance.routes,
 });
 
 export const serializeInstanceSummary = (instance: InstanceSummary) => ({
   id: instance.id,
-  ownerId: instance.ownerId,
+  label: instance.label,
+  url: instanceUrl(instance.id),
   createdAt: instance.createdAt,
   expiresAt: instance.expiresAt,
-  label: instance.label,
+  logCount: instance.logCount,
   public: instance.public,
   locked: instance.locked,
-  logCount: instance.logCount,
-  url: `${instance.id}.${Bun.env.INSTANCES_DOMAIN ?? ""}`,
 });

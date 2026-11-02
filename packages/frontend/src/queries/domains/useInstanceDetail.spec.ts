@@ -19,6 +19,7 @@ const makeInstance = (id: string): Instance => ({
   webhookIds: [],
   public: false,
   locked: false,
+  routes: [],
   raw: "HTTP/1.1 200 OK\r\n\r\nok",
 });
 
@@ -61,6 +62,7 @@ describe("buildInstanceDetailPlaceholder", () => {
         createdAt: 1,
         public: false,
         locked: false,
+        routes: [],
         raw: "",
         webhookIds: [],
       },

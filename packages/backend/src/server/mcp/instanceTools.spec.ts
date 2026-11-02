@@ -100,19 +100,19 @@ describe("MCP instance tools", () => {
   });
 
   test.each([
-    { ttlDays: undefined, expectedDays: 3 },
-    { ttlDays: 3, expectedDays: 3 },
-    { ttlDays: 14, expectedDays: 14 },
+    { ttlHours: undefined, expectedHours: 72 },
+    { ttlHours: 1, expectedHours: 1 },
+    { ttlHours: 24, expectedHours: 24 },
   ])(
-    "persists and returns expiry for ttlDays=$ttlDays",
-    async ({ ttlDays, expectedDays }) => {
+    "persists and returns expiry for ttlHours=$ttlHours",
+    async ({ ttlHours, expectedHours }) => {
       const { client } = await connectClient(apiKey);
       try {
         const result = await client.callTool({
           name: "create_instance",
           arguments: {
             raw: "HTTP/1.1 200 OK\r\n\r\nok",
-            ...(ttlDays === undefined ? {} : { ttlDays }),
+            ...(ttlHours === undefined ? {} : { ttlHours }),
           },
         });
         expect(result.isError).not.toBe(true);
@@ -123,11 +123,15 @@ describe("MCP instance tools", () => {
           throw new Error("Instance was not persisted");
         }
         expect(created.expiresAt).toBe(
-          created.createdAt + expectedDays * 24 * 60 * 60 * 1000,
+          created.createdAt + expectedHours * 60 * 60 * 1000,
         );
         expect(result.structuredContent).toMatchObject({
           instance: { id: created.id, expiresAt: created.expiresAt },
+          tip: expect.stringContaining(
+            `<token>.${created.id}.instances.example.com`,
+          ),
         });
+        expect(getInstanceById(created.id)?.createdByApiKeyId).toBeDefined();
 
         await client.callTool({
           name: "update_instance",
@@ -143,14 +147,14 @@ describe("MCP instance tools", () => {
     },
   );
 
-  test.each([0, 7, 15, "14", null])(
-    "rejects unsupported ttlDays=%j",
-    async (ttlDays) => {
+  test.each([0, 73, 336, "24", null])(
+    "rejects unsupported ttlHours=%j",
+    async (ttlHours) => {
       const { client } = await connectClient(apiKey);
       try {
         const result = await client.callTool({
           name: "create_instance",
-          arguments: { raw: "HTTP/1.1 200 OK\r\n\r\nok", ttlDays },
+          arguments: { raw: "HTTP/1.1 200 OK\r\n\r\nok", ttlHours },
         });
         expect(result.isError).toBe(true);
         expect(getInstanceSummariesByOwner("owner-1")).toHaveLength(1);
@@ -159,6 +163,266 @@ describe("MCP instance tools", () => {
       }
     },
   );
+
+  test("explains instance reuse in the server instructions", async () => {
+    const { client } = await connectClient(apiKey);
+    try {
+      const instructions = client.getInstructions() ?? "";
+      expect(instructions).toContain("<anything>.<id>.instances.example.com");
+      expect(instructions).toContain("set_instance_route");
+      expect(instructions).toContain("list_instances");
+    } finally {
+      await client.close();
+    }
+  });
+
+  test("manages per-path responses", async () => {
+    const { client } = await connectClient(apiKey);
+    try {
+      const added = await client.callTool({
+        name: "set_instance_route",
+        arguments: {
+          instanceId: "instance-1",
+          path: "/redirect",
+          raw: "HTTP/1.1 302 Found\nLocation: /final\n\n",
+        },
+      });
+      expect(added.isError).not.toBe(true);
+      await client.callTool({
+        name: "set_instance_route",
+        arguments: {
+          instanceId: "instance-1",
+          method: "POST",
+          path: "/redirect",
+          raw: "HTTP/1.1 201 Created\r\n\r\n",
+        },
+      });
+      const replaced = await client.callTool({
+        name: "set_instance_route",
+        arguments: {
+          instanceId: "instance-1",
+          path: "/redirect",
+          raw: "HTTP/1.1 307 Temporary Redirect\r\nLocation: /final\r\n\r\n",
+        },
+      });
+      expect(replaced.isError).not.toBe(true);
+      expect(getInstanceById("instance-1")?.routes).toEqual([
+        {
+          path: "/redirect",
+          raw: "HTTP/1.1 307 Temporary Redirect\r\nLocation: /final\r\n\r\n",
+        },
+        {
+          method: "POST",
+          path: "/redirect",
+          raw: "HTTP/1.1 201 Created\r\n\r\n",
+        },
+      ]);
+
+      const invalid = await client.callTool({
+        name: "set_instance_route",
+        arguments: {
+          instanceId: "instance-1",
+          path: "/broken",
+          raw: "not http",
+        },
+      });
+      expect(invalid.isError).toBe(true);
+
+      const deleted = await client.callTool({
+        name: "delete_instance_route",
+        arguments: { instanceId: "instance-1", path: "/redirect" },
+      });
+      expect(deleted.isError).not.toBe(true);
+      expect(getInstanceById("instance-1")?.routes).toEqual([
+        {
+          method: "POST",
+          path: "/redirect",
+          raw: "HTTP/1.1 201 Created\r\n\r\n",
+        },
+      ]);
+
+      const cleared = await client.callTool({
+        name: "update_instance",
+        arguments: { instanceId: "instance-1", routes: [] },
+      });
+      expect(cleared.isError).not.toBe(true);
+      expect(getInstanceById("instance-1")?.routes).toEqual([]);
+      expect(getInstanceById("instance-1")?.raw).toBe(
+        "HTTP/1.1 200 OK\r\n\r\nok",
+      );
+    } finally {
+      await client.close();
+    }
+  });
+
+  test("filters and pages list_instances", async () => {
+    const readKey = createApiKeyForUser({
+      userId: "owner-1",
+      name: "MCP list test",
+      scopes: ["instances:read"],
+    }).secret;
+    for (let index = 0; index < 5; index += 1) {
+      addInstance({
+        id: `run-${index}`,
+        ownerId: "owner-1",
+        createdAt: 10 + index,
+        label: index < 3 ? `devwild-api-${index}` : `vrbo-${index}`,
+        webhookIds: [],
+        public: false,
+        locked: false,
+        raw: "HTTP/1.1 200 OK\r\n\r\nok",
+      });
+    }
+    const { client } = await connectClient(readKey);
+    try {
+      const first = await client.callTool({
+        name: "list_instances",
+        arguments: { labelPrefix: "devwild-", limit: 2 },
+      });
+      const firstPage = first.structuredContent as {
+        total: number;
+        instances: Array<{ id: string; ownerId?: string }>;
+        nextCursor?: string;
+      };
+      expect(firstPage.total).toBe(3);
+      expect(firstPage.instances.map(({ id }) => id)).toEqual([
+        "run-2",
+        "run-1",
+      ]);
+      expect(firstPage.instances[0]?.ownerId).toBeUndefined();
+      expect(firstPage.nextCursor).toBeDefined();
+
+      const second = await client.callTool({
+        name: "list_instances",
+        arguments: {
+          labelPrefix: "devwild-",
+          limit: 2,
+          cursor: firstPage.nextCursor,
+        },
+      });
+      expect(second.structuredContent).toMatchObject({
+        total: 3,
+        instances: [{ id: "run-0" }],
+      });
+      expect(
+        (second.structuredContent as { nextCursor?: string }).nextCursor,
+      ).toBeUndefined();
+
+      const searched = await client.callTool({
+        name: "list_instances",
+        arguments: { query: "VRBO" },
+      });
+      expect(searched.structuredContent).toMatchObject({ total: 2 });
+    } finally {
+      await client.close();
+    }
+  });
+
+  test("bulk deletes matching unlocked instances", async () => {
+    const deleteKey = createApiKeyForUser({
+      userId: "owner-1",
+      name: "MCP delete test",
+      scopes: ["instances:write", "instances:delete"],
+    }).secret;
+    for (const [id, locked] of [
+      ["run-a", false],
+      ["run-b", true],
+      ["run-c", false],
+    ] as const) {
+      addInstance({
+        id,
+        ownerId: "owner-1",
+        createdAt: 5,
+        label: `run-42 ${id}`,
+        webhookIds: [],
+        public: false,
+        locked,
+        raw: "HTTP/1.1 200 OK\r\n\r\nok",
+      });
+    }
+    const { client } = await connectClient(deleteKey);
+    try {
+      const unfiltered = await client.callTool({
+        name: "delete_instances",
+        arguments: {},
+      });
+      expect(unfiltered.isError).toBe(true);
+
+      const preview = await client.callTool({
+        name: "delete_instances",
+        arguments: { labelPrefix: "run-42", dryRun: true },
+      });
+      expect(preview.structuredContent).toEqual({
+        wouldDelete: 2,
+        ids: ["run-a", "run-c"],
+      });
+      expect(getInstanceById("run-a")).toBeDefined();
+
+      const deleted = await client.callTool({
+        name: "delete_instances",
+        arguments: { labelPrefix: "run-42" },
+      });
+      expect(deleted.structuredContent).toMatchObject({ deleted: 2 });
+      expect(getInstanceById("run-a")).toBeUndefined();
+      expect(getInstanceById("run-b")).toBeDefined();
+      expect(getInstanceById("instance-1")).toBeDefined();
+    } finally {
+      await client.close();
+    }
+  });
+
+  test("extends instances and keeps locked ones alive", async () => {
+    const createdAt = Date.now();
+    addInstance({
+      id: "short-lived",
+      ownerId: "owner-1",
+      createdAt,
+      expiresAt: createdAt + 60 * 60 * 1000,
+      webhookIds: [],
+      public: false,
+      locked: false,
+      raw: "HTTP/1.1 200 OK\r\n\r\nok",
+    });
+    const dayMs = 24 * 60 * 60 * 1000;
+    const { client } = await connectClient(apiKey);
+    try {
+      const extended = await client.callTool({
+        name: "extend_instance",
+        arguments: { instanceId: "short-lived", ttlDays: 7 },
+      });
+      expect(extended.isError).not.toBe(true);
+      const afterExtend = getInstanceById("short-lived")?.expiresAt ?? 0;
+      expect(afterExtend).toBeGreaterThanOrEqual(createdAt + 7 * dayMs);
+
+      await client.callTool({
+        name: "extend_instance",
+        arguments: { instanceId: "short-lived", ttlDays: 1 },
+      });
+      expect(getInstanceById("short-lived")?.expiresAt).toBe(afterExtend);
+
+      const tooLong = await client.callTool({
+        name: "extend_instance",
+        arguments: { instanceId: "short-lived", ttlDays: 31 },
+      });
+      expect(tooLong.isError).toBe(true);
+
+      await client.callTool({
+        name: "set_instance_locked",
+        arguments: { instanceId: "short-lived", locked: true },
+      });
+      expect(
+        getInstanceById("short-lived")?.expiresAt ?? 0,
+      ).toBeGreaterThanOrEqual(createdAt + 30 * dayMs);
+
+      await client.callTool({
+        name: "extend_instance",
+        arguments: { instanceId: "instance-1", ttlDays: 3 },
+      });
+      expect(getInstanceById("instance-1")?.expiresAt).toBeUndefined();
+    } finally {
+      await client.close();
+    }
+  });
 
   test("serves MCP 2026-07-28 and updates instance visibility", async () => {
     const { client, requests } = await connectClient(apiKey);
@@ -211,7 +475,7 @@ describe("MCP instance tools", () => {
         ({ name }) => name === "set_instance_locked",
       );
       expect(lockTool?.description).toContain(
-        "does not stop the instance from expiring",
+        "extends it to the maximum lifetime",
       );
 
       const locked = await client.callTool({

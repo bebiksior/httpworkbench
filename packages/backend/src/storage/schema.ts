@@ -1,4 +1,9 @@
-import type { ApiKeyScope, LogType, UserNoticeKind } from "shared";
+import type {
+  ApiKeyScope,
+  InstanceRoute,
+  LogType,
+  UserNoticeKind,
+} from "shared";
 import {
   index,
   integer,
@@ -44,6 +49,11 @@ export const instances = sqliteTable(
     isPublic: integer("isPublic", { mode: "boolean" }).notNull(),
     isLocked: integer("isLocked", { mode: "boolean" }).notNull(),
     raw: text("raw").notNull(),
+    routesJson: text("routesJson", { mode: "json" })
+      .$type<InstanceRoute[]>()
+      .notNull()
+      .default([]),
+    createdByApiKeyId: text("createdByApiKeyId"),
   },
   (table) => [
     index("instances_by_owner").on(table.ownerId),

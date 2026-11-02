@@ -224,6 +224,7 @@ describe("instance log stream lifecycle", () => {
         webhookIds: [],
         public: false,
         locked: false,
+        routes: [],
         raw: "HTTP/1.1 200 OK\r\n\r\nok",
       },
       logs: Array.from({ length: 100 }, (_, index) => ({
@@ -279,6 +280,7 @@ describe("instance log stream lifecycle", () => {
         webhookIds: [],
         public: false,
         locked: false,
+        routes: [],
         raw: "HTTP/1.1 200 OK\r\n\r\nok",
       },
       logs: [
@@ -316,6 +318,7 @@ describe("instance log stream lifecycle", () => {
         webhookIds: [],
         public: false,
         locked: false,
+        routes: [],
         raw: "HTTP/1.1 200 OK\r\n\r\nok",
       },
       logs: [{ ...log, id: "snapshot-log" }],
@@ -354,6 +357,7 @@ describe("instance log stream lifecycle", () => {
         webhookIds: [],
         public: false,
         locked: false,
+        routes: [],
         raw: "HTTP/1.1 200 OK\r\n\r\nok",
       },
       logs: [
@@ -413,6 +417,7 @@ describe("instance log stream lifecycle", () => {
         webhookIds: [],
         public: false,
         locked: false,
+        routes: [],
         raw: "HTTP/1.1 200 OK\r\n\r\nok",
       },
       logs: [{ ...log, id: "existing" }],

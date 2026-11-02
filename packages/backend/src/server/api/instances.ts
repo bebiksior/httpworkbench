@@ -13,14 +13,13 @@ import {
 import {
   clearLogsForInstance,
   deleteInstance,
-  deleteUnlockedInstancesByOwner,
+  deleteUnlockedInstancesMatching,
   getInstanceById,
   getInstanceSummariesByOwner,
   getRecentLogsForInstancePage,
   getLogsForInstancePage,
   updateInstance,
 } from "../../storage";
-import { instancePolicies } from "../../config";
 import {
   apiKeyMissingScope,
   authPlugin,
@@ -32,8 +31,10 @@ import {
 import { canReadInstance } from "../instances/access";
 import {
   createInstance,
+  extendInstance,
   getOwnedInstance,
   replaceInstance,
+  setInstanceLocked,
   type InstanceServiceError,
 } from "../instances/service";
 import { clampLogLimit, decodeLogsCursor, encodeLogsCursor } from "../utils";
@@ -49,6 +50,21 @@ const RecentLogsQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(500).optional(),
   cursor: z.string().max(256).optional(),
   type: z.enum(["http", "dns", "smtp"]).optional(),
+});
+
+const booleanQuery = z
+  .enum(["true", "false"])
+  .transform((value) => value === "true")
+  .optional();
+
+const BulkDeleteQuerySchema = z.object({
+  query: z.string().max(200).optional(),
+  labelPrefix: z.string().max(100).optional(),
+  createdBefore: z.coerce.number().int().min(0).optional(),
+  maxLogCount: z.coerce.number().int().min(0).optional(),
+  hasLogs: booleanQuery,
+  createdByThisKey: booleanQuery,
+  dryRun: booleanQuery,
 });
 
 const INSTANCE_DETAIL_LOG_LIMIT = 100;
@@ -76,11 +92,14 @@ export const instancesRoutes = new Elysia({ name: "routes/instances" })
   })
   .post(
     "/api/instances",
-    ({ body, user }) => {
+    ({ body, user, access }) => {
       const result = createInstance({
         ownerId: user.id,
         raw: body.raw,
+        routes: body.routes,
         webhookIds: body.webhookIds,
+        createdByApiKeyId:
+          access.via === "api_key" ? access.apiKey.id : undefined,
       });
       return result.ok
         ? status(201, result.value)
@@ -93,20 +112,45 @@ export const instancesRoutes = new Elysia({ name: "routes/instances" })
         tags: ["Instances"],
         summary: "Create an instance",
         description:
-          "Create an instance that serves the given raw HTTP response from a public URL.",
+          "Create an instance that serves the given raw HTTP response from a public URL. Optional routes serve different responses for specific request paths; raw is the fallback.",
       },
     },
   )
   .delete(
     "/api/instances",
-    ({ user }) => ({ deleted: deleteUnlockedInstancesByOwner(user.id) }),
+    ({ user, access, query }) => {
+      if (query.createdByThisKey === true && access.via !== "api_key") {
+        return status(400, {
+          error: "createdByThisKey requires API key authentication",
+        });
+      }
+      const ids = deleteUnlockedInstancesMatching({
+        ownerId: user.id,
+        filters: {
+          query: query.query,
+          labelPrefix: query.labelPrefix,
+          createdBefore: query.createdBefore,
+          maxLogCount: query.maxLogCount,
+          hasLogs: query.hasLogs,
+          createdByApiKeyId:
+            query.createdByThisKey === true && access.via === "api_key"
+              ? access.apiKey.id
+              : undefined,
+        },
+        dryRun: query.dryRun,
+      });
+      return query.dryRun === true
+        ? { wouldDelete: ids.length, ids }
+        : { deleted: ids.length, ids };
+    },
     {
       scope: "instances:delete",
+      query: BulkDeleteQuerySchema,
       detail: {
         tags: ["Instances"],
-        summary: "Delete all unlocked instances",
+        summary: "Delete unlocked instances",
         description:
-          "Delete every unlocked instance owned by the key's user. Locked instances are kept.",
+          "Delete unlocked instances owned by the key's user, optionally filtered. Without filters every unlocked instance is deleted. Locked instances are always kept. Use dryRun=true to preview.",
       },
     },
   )
@@ -170,6 +214,7 @@ export const instancesRoutes = new Elysia({ name: "routes/instances" })
         instanceId: params.id,
         ownerId: user.id,
         raw: body.raw,
+        routes: body.routes,
         webhookIds: body.webhookIds,
       });
       return result.ok ? result.value : serviceErrorResponse(result.error);
@@ -209,22 +254,11 @@ export const instancesRoutes = new Elysia({ name: "routes/instances" })
   .post(
     "/api/instances/:id/extend",
     ({ params, user }) => {
-      if (instancePolicies.maxTtlMs === undefined) {
-        return status(400, { error: "Instance expiration is disabled" });
-      }
-      const loaded = loadOwnedInstance(params.id, user.id);
-      if (!loaded.ok) {
-        return loaded.res;
-      }
-      const nextExpiration = Date.now() + instancePolicies.maxTtlMs;
-      const extended = updateInstance(params.id, (inst) => ({
-        ...inst,
-        expiresAt: nextExpiration,
-      }));
-      if (extended === undefined) {
-        return status(404, { error: "Not found" });
-      }
-      return extended;
+      const result = extendInstance({
+        instanceId: params.id,
+        ownerId: user.id,
+      });
+      return result.ok ? result.value : serviceErrorResponse(result.error);
     },
     {
       scope: "instances:write",
@@ -232,7 +266,7 @@ export const instancesRoutes = new Elysia({ name: "routes/instances" })
         tags: ["Instances"],
         summary: "Extend instance expiration",
         description:
-          "Reset the instance's expiration to the maximum TTL from now.",
+          "Extend the instance's expiration to the maximum lifetime from now. Instances without an expiration are unchanged.",
       },
     },
   )
@@ -378,18 +412,12 @@ export const instancesRoutes = new Elysia({ name: "routes/instances" })
   .patch(
     "/api/instances/:id/lock",
     ({ params, body, user }) => {
-      const loaded = loadOwnedInstance(params.id, user.id);
-      if (!loaded.ok) {
-        return loaded.res;
-      }
-      const updated = updateInstance(params.id, (inst) => ({
-        ...inst,
+      const result = setInstanceLocked({
+        instanceId: params.id,
+        ownerId: user.id,
         locked: body.locked,
-      }));
-      if (updated === undefined) {
-        return status(404, { error: "Not found" });
-      }
-      return updated;
+      });
+      return result.ok ? result.value : serviceErrorResponse(result.error);
     },
     {
       scope: "instances:write",
@@ -398,7 +426,7 @@ export const instancesRoutes = new Elysia({ name: "routes/instances" })
         tags: ["Instances"],
         summary: "Lock or unlock an instance",
         description:
-          "Locked instances cannot be deleted, individually or in bulk. Locking does not prevent expiry and does not block other changes.",
+          "Locked instances cannot be deleted, individually or in bulk. Locking an expiring instance extends it to the maximum lifetime. It does not block other changes.",
       },
     },
   )

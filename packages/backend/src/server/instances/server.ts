@@ -1,7 +1,15 @@
 import { listen, type Socket } from "bun";
-import { type Log } from "shared";
+import {
+  findInstanceRoute,
+  parseRequestTarget,
+  routeKey,
+  type Log,
+} from "shared";
 import { addLogWithOutcome } from "../../storage";
-import { getServableInstanceById } from "../../storage/repositories/instances";
+import {
+  getServableInstanceById,
+  type ServableInstance,
+} from "../../storage/repositories/instances";
 import { broadcastLog } from "./logStream";
 import { HttpRequestBuffer } from "./httpBuffer";
 import {
@@ -35,21 +43,39 @@ export const resetInstanceResponseCacheForTests = () => {
   cachedResponseBytes = 0;
 };
 
-const encodeInstanceResponse = (instance: { id: string; raw: string }) => {
-  const cached = responseCache.get(instance.id);
-  if (cached?.raw === instance.raw) {
-    responseCache.delete(instance.id);
-    responseCache.set(instance.id, cached);
+const selectInstanceResponse = (
+  instance: ServableInstance,
+  rawRequest: string,
+): { cacheKey: string; raw: string } => {
+  const target = parseRequestTarget(rawRequest);
+  const route =
+    target === undefined
+      ? undefined
+      : findInstanceRoute(instance.routes, target.method, target.path);
+  return route === undefined
+    ? { cacheKey: instance.id, raw: instance.raw }
+    : { cacheKey: `${instance.id} ${routeKey(route)}`, raw: route.raw };
+};
+
+const encodeInstanceResponse = (response: {
+  cacheKey: string;
+  raw: string;
+}) => {
+  const { cacheKey, raw } = response;
+  const cached = responseCache.get(cacheKey);
+  if (cached?.raw === raw) {
+    responseCache.delete(cacheKey);
+    responseCache.set(cacheKey, cached);
     return cached.encoded;
   }
 
   if (cached !== undefined) {
-    responseCache.delete(instance.id);
+    responseCache.delete(cacheKey);
     cachedResponseBytes -= cached.size;
   }
 
-  const encoded = responseEncoder.encode(adjustContentLength(instance.raw));
-  const size = encoded.byteLength + instance.raw.length * 2;
+  const encoded = responseEncoder.encode(adjustContentLength(raw));
+  const size = encoded.byteLength + raw.length * 2;
   if (size > maxCachedResponseBytes) {
     return encoded;
   }
@@ -64,7 +90,7 @@ const encodeInstanceResponse = (instance: { id: string; raw: string }) => {
     cachedResponseBytes -= oldest?.size ?? 0;
   }
 
-  responseCache.set(instance.id, { raw: instance.raw, encoded, size });
+  responseCache.set(cacheKey, { raw, encoded, size });
   cachedResponseBytes += size;
   return encoded;
 };
@@ -205,7 +231,12 @@ export const createInstancesServer = (
           }
           didLog = true;
 
-          respond(socket, encodeInstanceResponse(instance));
+          respond(
+            socket,
+            encodeInstanceResponse(
+              selectInstanceResponse(instance, rawRequest),
+            ),
+          );
         } catch (error) {
           console.error(error);
           if (!didLog) {

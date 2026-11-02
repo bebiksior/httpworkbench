@@ -73,7 +73,7 @@ export const buildPublicConfig = (env: PublicConfigEnv): Config => {
     isHosted,
     allowGuest: parseBooleanEnv(env.ALLOW_GUEST) ?? false,
     defaultTtlMs: isHosted ? defaultInstanceTtlMs : undefined,
-    maxTtlMs: isHosted ? maxInstanceTtlMs : undefined,
+    maxTtlMs: maxInstanceTtlMs,
     maxInstancesPerOwner: isHosted ? hostedInstanceLimit : undefined,
     rawLimitBytes: INSTANCE_RAW_LIMIT_BYTES,
     dnsEnabled: parseBooleanEnv(env.DNS_ENABLED) ?? false,

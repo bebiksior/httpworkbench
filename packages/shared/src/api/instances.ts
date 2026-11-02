@@ -6,11 +6,15 @@ import {
   INSTANCE_ID_PATTERN,
 } from "../constants";
 import { InstanceSchema, InstanceSummarySchema, LogSchema } from "../schemas";
+import { InstanceRouteSchema, MAX_INSTANCE_ROUTES } from "../routes";
+
+const RoutesInputSchema = z.array(InstanceRouteSchema).max(MAX_INSTANCE_ROUTES);
 
 export const CreateInstanceSchema = z
   .object({
     raw: z.string().max(INSTANCE_RAW_LIMIT_BYTES),
     webhookIds: z.array(z.string().min(1).max(100)).max(100).optional(),
+    routes: RoutesInputSchema.optional(),
   })
   .strict();
 
@@ -20,6 +24,7 @@ export const UpdateInstanceSchema = z
   .object({
     raw: z.string().max(INSTANCE_RAW_LIMIT_BYTES),
     webhookIds: z.array(z.string().min(1).max(100)).max(100).optional(),
+    routes: RoutesInputSchema.optional(),
   })
   .strict();
 
