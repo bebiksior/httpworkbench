@@ -19,10 +19,10 @@ export type RouteMethod = z.infer<typeof RouteMethodSchema>;
 
 export const RoutePathSchema = z
   .string()
-  .min(1)
-  .max(512)
-  .regex(/^\//, "Path must start with /")
-  .regex(/^[^\s?#]*$/, "Path cannot contain spaces, ? or #");
+  .min(1, "Required")
+  .max(512, "Too long")
+  .regex(/^\//, "Must start with /")
+  .regex(/^[^\s?#]*$/, "No spaces, ? or #");
 
 export const InstanceRouteSchema = z.object({
   method: RouteMethodSchema.optional().describe(

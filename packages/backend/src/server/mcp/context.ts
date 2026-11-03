@@ -1,12 +1,17 @@
 import type { ServerContext } from "@modelcontextprotocol/server";
-import type { ApiKeyScope, Instance, InstanceSummary } from "shared";
+import {
+  routeLabel,
+  type ApiKeyScope,
+  type Instance,
+  type InstanceSummary,
+} from "shared";
 import type { ApiKeyAuthContext } from "../apiKeyAuth";
 import { dnsConfig } from "../../config";
 import { hasApiKeyScope } from "../apiKeyAuth";
 import { getOwnedInstance } from "../instances/service";
 
 export const jsonToolResult = (value: Record<string, unknown>) => ({
-  content: [{ type: "text" as const, text: JSON.stringify(value, null, 2) }],
+  content: [{ type: "text" as const, text: JSON.stringify(value) }],
   structuredContent: value,
 });
 
@@ -55,6 +60,16 @@ export const serializeInstance = (instance: Instance) => ({
   webhookIds: instance.webhookIds,
   raw: instance.raw,
   routes: instance.routes,
+});
+
+export const serializeInstanceChange = (instance: Instance) => ({
+  id: instance.id,
+  label: instance.label,
+  url: instanceUrl(instance.id),
+  expiresAt: instance.expiresAt,
+  public: instance.public,
+  locked: instance.locked,
+  routes: instance.routes.map(routeLabel),
 });
 
 export const serializeInstanceSummary = (instance: InstanceSummary) => ({

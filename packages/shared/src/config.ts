@@ -1,3 +1,4 @@
+import { z } from "zod";
 import { INSTANCE_RAW_LIMIT_BYTES } from "./constants";
 import { AuthModeSchema } from "./schemas";
 import type { Config } from "./schemas";
@@ -46,10 +47,8 @@ export const parseBooleanEnv = (
 
 export const parseOptionalPositiveIntegerEnv = (
   value: string | undefined,
-): number | undefined => {
-  const parsed = Number.parseInt(value ?? "", 10);
-  return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
-};
+): number | undefined =>
+  z.coerce.number().int().positive().safeParse(value).data;
 
 export const normalizeDnsName = (value: string): string => {
   return value.trim().replace(/\.+$/, "").toLowerCase();

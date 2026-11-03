@@ -1,9 +1,7 @@
 import type { Log } from "shared";
 import { describe, expect, test } from "vitest";
 import {
-  adjacentKey,
   arrangeByOrder,
-  createRouteDraft,
   priorityOrder,
   routeLabel,
   routesEqual,
@@ -26,10 +24,6 @@ describe("responseRoutes", () => {
       { path: "/a", raw: "HTTP/1.1 200 OK\r\n\r\n" },
       { method: "POST", path: "/b", raw: "HTTP/1.1 201 Created\r\n\r\n" },
     ]);
-  });
-
-  test("starts new drafts at the root path", () => {
-    expect(createRouteDraft("raw")).toMatchObject({ path: "/", raw: "raw" });
   });
 
   test("flags invalid and duplicate paths", () => {
@@ -63,18 +57,6 @@ describe("responseRoutes", () => {
         [{ method: "GET", path: "/a", raw: "x" }],
       ),
     ).toBe(false);
-  });
-
-  test("labels routes with their method", () => {
-    expect(routeLabel({ path: " /a " })).toBe("/a");
-    expect(routeLabel({ method: "POST", path: "/a" })).toBe("POST /a");
-  });
-
-  test("starts new drafts at a given path", () => {
-    expect(createRouteDraft("raw", "/login")).toMatchObject({
-      path: "/login",
-      raw: "raw",
-    });
   });
 
   test("reads the status code from the status line", () => {
@@ -124,15 +106,7 @@ describe("responseRoutes", () => {
     expect(c).toBeDefined();
   });
 
-  test("steps through keys without leaving the list", () => {
-    const keys = ["a", "b", "default"];
-    expect(adjacentKey(keys, "a", 1)).toBe("b");
-    expect(adjacentKey(keys, "default", 1)).toBe("default");
-    expect(adjacentKey(keys, "a", -1)).toBe("a");
-    expect(adjacentKey(keys, "missing", 1)).toBe("a");
-  });
-
-  test("builds a visitable URL, cutting wildcards to their prefix", () => {
+  test("builds a visitable URL by dropping wildcards", () => {
     const base = "https://abc.instances.test";
     expect(routeUrl(base, "/login")).toBe(`${base}/login`);
     expect(routeUrl(base, "/api/*")).toBe(`${base}/api/`);

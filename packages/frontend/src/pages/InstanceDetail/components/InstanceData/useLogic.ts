@@ -20,6 +20,7 @@ import {
   useSetInstanceLocked,
   useSetInstancePublic,
 } from "@/queries/domains/useInstances";
+import { unsavedResponsesDialog } from "@/pages/InstanceResponses/useUnsavedChanges";
 import { useAuthStore } from "@/stores/auth";
 import { isAbsent, isPresent } from "@/utils/types";
 import { useInstanceEditor } from "./useInstanceEditor";
@@ -125,14 +126,7 @@ export const useInstanceDataLogic = (instance: Ref<Instance>) => {
       void open();
       return;
     }
-    confirm.require({
-      message: "You have unsaved response changes. Leave without saving?",
-      header: "Unsaved Changes",
-      icon: "pi pi-exclamation-triangle",
-      rejectProps: { label: "Cancel", severity: "secondary", outlined: true },
-      acceptProps: { label: "Leave", severity: "danger" },
-      accept: open,
-    });
+    confirm.require(unsavedResponsesDialog(open));
   };
 
   const handleDelete = async () => {

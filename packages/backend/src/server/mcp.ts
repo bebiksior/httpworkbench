@@ -1,7 +1,6 @@
 import { createMcpHandler, McpServer } from "@modelcontextprotocol/server";
 import { dnsConfig } from "../config";
 import { authenticateApiKeyRequest } from "./apiKeyAuth";
-import { publicInstancePageUrl } from "./mcp/context";
 import { registerInstanceTools } from "./mcp/instanceTools";
 import { registerLogTools } from "./mcp/logTools";
 import { createFixedWindowRateLimiter } from "./rateLimit";
@@ -19,24 +18,20 @@ const unauthMcpRateLimiter = createFixedWindowRateLimiter({
 const instancesDomain = dnsConfig.instancesDomain;
 
 const mcpServerInstructions = `
-HTTP Workbench helps pentesters and security researchers host proof-of-concept HTTP responses and capture HTTP, DNS and SMTP interactions for authorized security testing.
+HTTP Workbench hosts proof-of-concept HTTP responses and captures HTTP, DNS and SMTP interactions for authorized security testing.
 
-An instance is the hostname <id>.${instancesDomain}. It serves a raw HTTP response and records every request it receives. Deployments with DNS or SMTP enabled also record DNS lookups and email for its hostnames.
+An instance is the hostname <id>.${instancesDomain}. It serves a raw HTTP response and logs every request to it and to any name under it: <anything>.<id>.${instancesDomain} for HTTP and DNS, user@<anything>.<id>.${instancesDomain} for SMTP (when enabled).
 
 Reuse instances instead of creating one per probe:
-- Every name under an instance logs to it: <anything>.<id>.${instancesDomain} for HTTP and DNS, and user@<anything>.<id>.${instancesDomain} for SMTP. Put a unique token per probe in that label, e.g. avatar-ssrf.<id>.${instancesDomain}, and find it in the logs.
-- Paths and query strings are logged too, so https://<id>.${instancesDomain}/<probe-name> also tells probes apart.
-- To serve several responses (redirect hops, content types, status codes, multi-step PoCs), add per-path responses with set_instance_route. The instance's raw response is the fallback for paths without a route.
-- To change a response, update the instance you already have.
-- Before creating an instance, look for one to reuse with list_instances (query or labelPrefix). Label new instances with the target and purpose.
+- Tell probes apart with a unique label or path, e.g. avatar-ssrf.<id>.${instancesDomain} or /avatar-ssrf.
+- Serve different responses per path with set_instance_route. The instance's raw response is the fallback.
+- Look for an instance to reuse with list_instances before creating one, and label new ones with the target and purpose.
 
-Instances created here expire after 72 hours by default. Use extend_instance when you need one longer. When an instance becomes evidence in a report, lock it with set_instance_locked: it can no longer be deleted and its lifetime is extended to the maximum. When you are done, clean up with delete_instance or delete_instances.
+Instances created here expire after 72 hours unless extended with extend_instance. Lock instances that become evidence with set_instance_locked. Clean up with delete_instance or delete_instances when done.
 
-Raw responses must be complete: status line, headers, a blank line, and body. Line endings are normalized, Content-Length is set automatically, size limits are enforced, and invalid HTTP is rejected.
+Raw responses need a status line, headers, a blank line and a body. Line endings are normalized and Content-Length is set automatically.
 
-Publishing an instance lets an unauthenticated user visit ${publicInstancePageUrl} and view its logs and basic data. Access is read-only. This is useful when sharing callback information with a triager in a vulnerability report.
-
-Use watch_instance_logs by polling again with resumeCursor after pollAfterMs when the user is actively waiting for new interactions. nextCursor only indicates another historical page is already available.
+When the user is waiting for interactions, call watch_instance_logs again with resumeCursor after pollAfterMs.
 `.trim();
 
 const frontendUrl = Bun.env.FRONTEND_URL;

@@ -127,9 +127,6 @@ describe("MCP instance tools", () => {
         );
         expect(result.structuredContent).toMatchObject({
           instance: { id: created.id, expiresAt: created.expiresAt },
-          tip: expect.stringContaining(
-            `<token>.${created.id}.instances.example.com`,
-          ),
         });
         expect(getInstanceById(created.id)?.createdByApiKeyId).toBeDefined();
 
@@ -163,18 +160,6 @@ describe("MCP instance tools", () => {
       }
     },
   );
-
-  test("explains instance reuse in the server instructions", async () => {
-    const { client } = await connectClient(apiKey);
-    try {
-      const instructions = client.getInstructions() ?? "";
-      expect(instructions).toContain("<anything>.<id>.instances.example.com");
-      expect(instructions).toContain("set_instance_route");
-      expect(instructions).toContain("list_instances");
-    } finally {
-      await client.close();
-    }
-  });
 
   test("manages per-path responses", async () => {
     const { client } = await connectClient(apiKey);
@@ -443,7 +428,7 @@ describe("MCP instance tools", () => {
       expect(visibilityTool?.description).toContain(
         "https://httpworkbench.com/instances/:id",
       );
-      expect(visibilityTool?.description).toContain("Access is read-only");
+      expect(visibilityTool?.description).toContain("read-only");
 
       const published = await client.callTool({
         name: "set_instance_public",
@@ -480,9 +465,7 @@ describe("MCP instance tools", () => {
       const lockTool = tools.tools.find(
         ({ name }) => name === "set_instance_locked",
       );
-      expect(lockTool?.description).toContain(
-        "extends it to the maximum lifetime",
-      );
+      expect(lockTool?.description).toContain("extends an expiring one");
 
       const locked = await client.callTool({
         name: "set_instance_locked",

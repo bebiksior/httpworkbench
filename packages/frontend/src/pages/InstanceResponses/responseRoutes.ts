@@ -42,12 +42,8 @@ export const createRouteDraft = (raw: string, path = "/"): RouteDraft => ({
 export const canAddRoute = (drafts: readonly RouteDraft[]) =>
   drafts.length < MAX_INSTANCE_ROUTES;
 
-const pathProblem = (path: string) => {
-  if (path === "") return "Required";
-  if (!path.startsWith("/")) return "Must start with /";
-  if (/[\s?#]/.test(path)) return "No spaces, ? or #";
-  return RoutePathSchema.safeParse(path).success ? undefined : "Too long";
-};
+const pathProblem = (path: string) =>
+  RoutePathSchema.safeParse(path).error?.issues[0]?.message;
 
 export const validateRouteDrafts = (
   drafts: readonly RouteDraft[],

@@ -33,6 +33,7 @@ import {
   requireOwnedInstance,
   requireScope,
   serializeInstance,
+  serializeInstanceChange,
   serializeInstanceSummary,
   toolError,
 } from "./context";
@@ -45,39 +46,34 @@ const maxTtlDays = Math.floor(instancePolicies.maxTtlMs / dayMs);
 const encodeListCursor = (cursor: InstanceListCursor) =>
   Buffer.from(JSON.stringify(cursor), "utf8").toString("base64url");
 
+const ListCursorSchema = z.object({ createdAt: z.number(), id: z.string() });
+
 const decodeListCursor = (cursor: string): InstanceListCursor | undefined => {
   try {
-    const decoded = JSON.parse(
-      Buffer.from(cursor, "base64url").toString("utf8"),
+    return ListCursorSchema.parse(
+      JSON.parse(Buffer.from(cursor, "base64url").toString("utf8")),
     );
-    if (
-      typeof decoded?.createdAt === "number" &&
-      typeof decoded?.id === "string"
-    ) {
-      return { createdAt: decoded.createdAt, id: decoded.id };
-    }
   } catch {
     return undefined;
   }
-  return undefined;
 };
-
-const reuseTip = (id: string) =>
-  `Reuse this instance for related probes: any <token>.${id}.${dnsConfig.instancesDomain} hostname and any URL path log here, and set_instance_route serves a different response per path.`;
 
 const instanceResult = (result: InstanceServiceResult<Instance>) =>
   result.ok
-    ? jsonToolResult({ instance: serializeInstance(result.value) })
+    ? jsonToolResult({ instance: serializeInstanceChange(result.value) })
     : toolError(result.error.message);
 
 const instanceFilterSchema = {
   query: z
     .string()
+    .trim()
+    .min(1)
     .max(200)
     .optional()
     .describe("Case-insensitive substring of the label or instance ID."),
   labelPrefix: z
     .string()
+    .min(1)
     .max(100)
     .optional()
     .describe("Only instances whose label starts with this text."),
@@ -97,7 +93,7 @@ export const registerInstanceTools = (server: McpServer) => {
     {
       title: "List Instances",
       description:
-        "Find owned instances, newest first. Use it to reuse an existing instance before creating one, or to find an instanceId the user refers to. Filter with query or labelPrefix; results are paged with nextCursor and include total. Returns metadata only, not response bodies or logs.",
+        "Find owned instances, newest first, to reuse one or to look up an instanceId. Paged with nextCursor. Returns metadata only, not responses or logs.",
       inputSchema: z.object({
         ...instanceFilterSchema,
         locked: z.boolean().optional(),
@@ -145,7 +141,7 @@ export const registerInstanceTools = (server: McpServer) => {
     "create_instance",
     {
       title: "Create Instance",
-      description: `Create a new instance that serves the provided raw HTTP response at <id>.${dnsConfig.instancesDomain}. Prefer reusing an instance you already have: every subdomain and path of an instance logs to it, and set_instance_route adds per-path responses. Optional routes serve different responses per request path, with raw as the fallback. Instances expire after 72 hours by default; use extend_instance later if you need longer.`,
+      description: `Create an instance at <id>.${dnsConfig.instancesDomain}. Reuse an existing instance when you can.`,
       inputSchema: z.object({
         raw: z
           .string()
@@ -192,12 +188,7 @@ export const registerInstanceTools = (server: McpServer) => {
         ttlMs: ttlHours * hourMs,
         createdByApiKeyId: auth.apiKey.id,
       });
-      return result.ok
-        ? jsonToolResult({
-            instance: serializeInstance(result.value),
-            tip: reuseTip(result.value.id),
-          })
-        : toolError(result.error.message);
+      return instanceResult(result);
     },
   );
 
@@ -206,7 +197,7 @@ export const registerInstanceTools = (server: McpServer) => {
     {
       title: "Get Instance",
       description:
-        "Get one owned HTTP Workbench instance, including its responses, routes and a small recent log preview when the API key also has logs:read.",
+        "Get one owned instance with its responses, plus its latest logs when the API key has logs:read.",
       inputSchema: z.object({ instanceId: z.string().min(1) }),
       annotations: {
         readOnlyHint: true,
@@ -230,7 +221,7 @@ export const registerInstanceTools = (server: McpServer) => {
     {
       title: "Update Instance",
       description:
-        "Change what an owned instance serves. raw replaces the fallback response; routes replaces the whole list of per-path responses (pass [] to remove them all). Omitted fields stay as they are. To add or change one path, use set_instance_route. Existing logs remain unchanged.",
+        "Replace what an owned instance serves. routes replaces the whole list ([] removes all); omitted fields are kept. To change one path, use set_instance_route.",
       inputSchema: z.object({
         instanceId: z.string().min(1),
         raw: z.string().optional(),
@@ -263,7 +254,7 @@ export const registerInstanceTools = (server: McpServer) => {
     {
       title: "Set Path Response",
       description:
-        "Serve a specific raw HTTP response for one request path on an owned instance, replacing any existing response for the same method and path. Use it for redirect chains, content-type or status variants and multi-step PoCs on one instance instead of creating more instances. Requests that match no route get the instance's fallback raw response.",
+        "Serve a raw HTTP response for one path on an owned instance, replacing any existing one for the same method and path. Paths without a route get the instance's raw response.",
       inputSchema: z.object({
         instanceId: z.string().min(1),
         method: InstanceRouteSchema.shape.method,
@@ -294,8 +285,7 @@ export const registerInstanceTools = (server: McpServer) => {
     "delete_instance_route",
     {
       title: "Delete Path Response",
-      description:
-        "Remove a per-path response from an owned instance. Requests to that path then get the fallback raw response.",
+      description: "Remove one path's response from an owned instance.",
       inputSchema: z.object({
         instanceId: z.string().min(1),
         method: RouteMethodSchema.optional(),
@@ -325,7 +315,8 @@ export const registerInstanceTools = (server: McpServer) => {
     "extend_instance",
     {
       title: "Extend Instance",
-      description: `Keep an owned instance alive longer: its expiry moves to ttlDays from now (up to ${maxTtlDays}). It never shortens the current lifetime. Instances without an expiry are unchanged.`,
+      description:
+        "Move an owned instance's expiry to ttlDays from now. Never shortens it.",
       inputSchema: z.object({
         instanceId: z.string().min(1),
         ttlDays: z.number().int().min(1).max(maxTtlDays),
@@ -354,7 +345,7 @@ export const registerInstanceTools = (server: McpServer) => {
     "set_instance_public",
     {
       title: "Set Instance Visibility",
-      description: `Publish or unpublish an owned HTTP Workbench instance. When published, an unauthenticated user can visit ${publicInstancePageUrl} and view its logs and basic data. Access is read-only. Publishing is useful for sharing callback information with a triager in a vulnerability report.`,
+      description: `Publish or unpublish an owned instance. Anyone can view a published instance and its logs, read-only, at ${publicInstancePageUrl}.`,
       inputSchema: z.object({
         instanceId: z.string().min(1),
         public: z.boolean(),
@@ -376,7 +367,7 @@ export const registerInstanceTools = (server: McpServer) => {
       }));
       return updated === undefined
         ? toolError("Instance not found")
-        : jsonToolResult({ instance: serializeInstance(updated) });
+        : jsonToolResult({ instance: serializeInstanceChange(updated) });
     },
   );
 
@@ -384,7 +375,7 @@ export const registerInstanceTools = (server: McpServer) => {
     "set_instance_locked",
     {
       title: "Lock Instance",
-      description: `Lock or unlock an owned instance. Lock an instance once it is evidence, for example referenced in a vulnerability report or a triager conversation. A locked instance cannot be deleted by delete_instance or delete_instances, and locking an expiring instance extends it to the maximum lifetime (${maxTtlDays} days from now). Locking does not block updating responses, changing visibility, or clearing logs.`,
+      description: `Lock or unlock an owned instance. Locked instances cannot be deleted, and locking extends an expiring one to ${maxTtlDays} days. Lock instances that are evidence in a report.`,
       inputSchema: z.object({
         instanceId: z.string().min(1),
         locked: z.boolean(),
@@ -410,7 +401,7 @@ export const registerInstanceTools = (server: McpServer) => {
     {
       title: "Delete Instance",
       description:
-        "Delete an owned HTTP Workbench instance and its logs. Fails if the instance is locked; unlock it with set_instance_locked first.",
+        "Delete an owned instance and its logs. Locked instances must be unlocked first.",
       inputSchema: z.object({ instanceId: z.string().min(1) }),
       annotations: {
         readOnlyHint: false,
@@ -438,7 +429,7 @@ export const registerInstanceTools = (server: McpServer) => {
     {
       title: "Delete Instances",
       description:
-        "Delete several owned instances and their logs at once, for example everything with a run's label prefix when the run is done, or unused instances. At least one filter is required. Locked instances are never deleted. Use dryRun to preview the matching IDs first.",
+        "Delete all owned, unlocked instances matching the filters, with their logs. Needs at least one filter. Use dryRun to preview.",
       inputSchema: z.object({
         ...instanceFilterSchema,
         createdBefore: z
@@ -466,9 +457,7 @@ export const registerInstanceTools = (server: McpServer) => {
       requireScope(auth, "instances:delete");
       const hasFilter =
         createdByThisKey === true ||
-        Object.values(filters).some((value) =>
-          typeof value === "string" ? value.trim() !== "" : value !== undefined,
-        );
+        Object.values(filters).some((value) => value !== undefined);
       if (!hasFilter) {
         return toolError(
           "Provide at least one filter: query, labelPrefix, hasLogs, createdByThisKey, createdBefore or maxLogCount.",
