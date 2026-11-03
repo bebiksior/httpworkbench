@@ -75,7 +75,7 @@ const activeError = computed(() =>
 );
 const fallbackStatus = computed(() => statusCode(fallbackRaw.value));
 const methodWidth = computed(
-  () => `${(activeRoute.value?.method ?? "*").length * 7.3 + 30}px`,
+  () => `${(activeRoute.value?.method ?? "*").length + 4}ch`,
 );
 
 const servedLabel = computed(() => {
@@ -189,10 +189,10 @@ const showInLogs = () => {
 const examples = ["/login", "/api/*", "/*.js"];
 
 watch(
-  () => route.query.path,
-  (path) => {
-    if (typeof path === "string" && path !== "") {
-      selectByLabel(path);
+  () => route.query.route,
+  (label) => {
+    if (typeof label === "string" && label !== "") {
+      selectByLabel(label);
     }
   },
   { immediate: true },
@@ -496,7 +496,7 @@ onBeforeRouteUpdate((to, from, next) =>
       <div
         class="flex h-8 shrink-0 items-center justify-between border-t border-surface-200 px-3 text-xs text-surface-400 dark:border-surface-800 dark:text-surface-500"
       >
-        <span v-if="served.count === 0">No requests served yet</span>
+        <span v-if="served.count === 0">No recent requests</span>
         <span v-else>
           Served {{ served.count }}
           {{ served.count === 1 ? "request" : "requests" }}, last

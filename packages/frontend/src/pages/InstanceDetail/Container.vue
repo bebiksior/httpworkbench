@@ -1,8 +1,7 @@
 <script setup lang="ts">
 import { useVirtualizer } from "@tanstack/vue-virtual";
 import { routeLabel } from "shared";
-import { useAuthStore } from "@/stores/auth";
-import { useCanManageInstance } from "@/composables";
+import { useCanEditResponses } from "@/composables";
 import Button from "primevue/button";
 import { computed, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
@@ -40,19 +39,18 @@ const {
 
 const scrollerRef = ref<HTMLElement | null>(null);
 
-const authStore = useAuthStore();
-const canManageInstance = useCanManageInstance(instance);
+const canEditResponses = useCanEditResponses(instance);
 const routeLabels = computed(
   () => new Set((instance.value?.routes ?? []).map(routeLabel)),
 );
 const canShowResponse = (label: string) =>
-  canManageInstance.value && !authStore.isGuest && routeLabels.value.has(label);
+  canEditResponses.value && routeLabels.value.has(label);
 
 const showResponse = (label: string) => {
   router.push({
     name: "instanceResponses",
     params: { id: instanceId.value },
-    query: { path: label },
+    query: { route: label },
   });
 };
 

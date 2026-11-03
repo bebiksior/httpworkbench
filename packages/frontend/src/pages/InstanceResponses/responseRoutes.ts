@@ -142,8 +142,7 @@ export const adjacentKey = (
 export const routeUrl = (baseUrl: string, path: string | undefined) => {
   const trimmed = path?.trim() ?? "";
   if (!trimmed.startsWith("/")) return `${baseUrl}/`;
-  const wildcard = trimmed.indexOf("*");
-  return `${baseUrl}${wildcard === -1 ? trimmed : trimmed.slice(0, wildcard)}`;
+  return `${baseUrl}${trimmed.replaceAll("*", "")}`;
 };
 
 export const servedStats = (

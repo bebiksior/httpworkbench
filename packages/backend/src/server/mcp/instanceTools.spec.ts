@@ -348,6 +348,12 @@ describe("MCP instance tools", () => {
       });
       expect(unfiltered.isError).toBe(true);
 
+      const blankQuery = await client.callTool({
+        name: "delete_instances",
+        arguments: { query: "   " },
+      });
+      expect(blankQuery.isError).toBe(true);
+
       const preview = await client.callTool({
         name: "delete_instances",
         arguments: { labelPrefix: "run-42", dryRun: true },

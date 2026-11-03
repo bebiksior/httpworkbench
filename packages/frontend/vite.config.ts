@@ -89,6 +89,9 @@ export default defineConfig(({ mode }) => {
       "import.meta.env.VITE_INSTANCES_DOMAIN": JSON.stringify(
         readBuildEnv("INSTANCES_DOMAIN"),
       ),
+      "import.meta.env.VITE_MAX_INSTANCES_PER_OWNER": JSON.stringify(
+        readBuildEnv("MAX_INSTANCES_PER_OWNER"),
+      ),
       __APP_VERSION__: JSON.stringify(rootPackageJson.version),
     },
   };

@@ -14,6 +14,7 @@ export const buildConfig = (
     VITE_SMTP_ENABLED?: string;
     VITE_DOMAIN?: string;
     VITE_INSTANCES_DOMAIN?: string;
+    VITE_MAX_INSTANCES_PER_OWNER?: string;
   },
   version: string,
 ) => {
@@ -26,6 +27,7 @@ export const buildConfig = (
     SMTP_ENABLED: env.VITE_SMTP_ENABLED,
     DOMAIN: env.VITE_DOMAIN,
     INSTANCES_DOMAIN: env.VITE_INSTANCES_DOMAIN,
+    MAX_INSTANCES_PER_OWNER: env.VITE_MAX_INSTANCES_PER_OWNER,
   });
 
   return {
@@ -48,6 +50,7 @@ export const config = buildConfig(
     VITE_SMTP_ENABLED: import.meta.env.VITE_SMTP_ENABLED,
     VITE_DOMAIN: import.meta.env.VITE_DOMAIN,
     VITE_INSTANCES_DOMAIN: import.meta.env.VITE_INSTANCES_DOMAIN,
+    VITE_MAX_INSTANCES_PER_OWNER: import.meta.env.VITE_MAX_INSTANCES_PER_OWNER,
   },
   appVersion,
 );

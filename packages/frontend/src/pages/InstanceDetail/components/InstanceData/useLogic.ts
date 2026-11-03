@@ -5,7 +5,11 @@ import { useRouter } from "vue-router";
 import { storeToRefs } from "pinia";
 import { useTimeAgo } from "@vueuse/core";
 import dayjs from "dayjs";
-import { useCanManageInstance, useNotify } from "@/composables";
+import {
+  useCanEditResponses,
+  useCanManageInstance,
+  useNotify,
+} from "@/composables";
 import { config } from "@/config";
 import {
   useClearLogs,
@@ -106,17 +110,28 @@ export const useInstanceDataLogic = (instance: Ref<Instance>) => {
     });
   };
 
-  const canOpenResponses = computed(
-    () => canManageInstance.value && !isGuest.value,
-  );
+  const canOpenResponses = useCanEditResponses(instance);
 
   const handleOpenResponses = () => {
     if (!canOpenResponses.value) {
       return;
     }
-    router.push({
-      name: "instanceResponses",
-      params: { id: instance.value.id },
+    const open = () =>
+      router.push({
+        name: "instanceResponses",
+        params: { id: instance.value.id },
+      });
+    if (!editor.isDirty.value) {
+      void open();
+      return;
+    }
+    confirm.require({
+      message: "You have unsaved response changes. Leave without saving?",
+      header: "Unsaved Changes",
+      icon: "pi pi-exclamation-triangle",
+      rejectProps: { label: "Cancel", severity: "secondary", outlined: true },
+      acceptProps: { label: "Leave", severity: "danger" },
+      accept: open,
     });
   };
 

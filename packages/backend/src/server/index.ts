@@ -190,20 +190,17 @@ export const initServer = async () => {
     try {
       runInstanceMaintenance(Date.now());
     } catch (error) {
-      console.error("Failed to cleanup expired instances", error);
+      console.error("Failed to run instance maintenance", error);
     }
   };
   runCleanup();
-  let cleanupInterval: ReturnType<typeof setInterval> | undefined = setInterval(
+  const cleanupInterval = setInterval(
     runCleanup,
     instanceMaintenanceIntervalMs,
   );
 
   const stopMaintenance = () => {
-    if (cleanupInterval !== undefined) {
-      clearInterval(cleanupInterval);
-      cleanupInterval = undefined;
-    }
+    clearInterval(cleanupInterval);
   };
 
   const drainBackgroundWork = async () => {

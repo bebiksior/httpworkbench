@@ -2,6 +2,7 @@ import {
   buildPublicConfig,
   normalizeDnsName,
   parseBooleanEnv,
+  parseOptionalPositiveIntegerEnv,
   resolveDomain,
   resolveInstancesDomain,
 } from "shared";
@@ -10,11 +11,6 @@ const defaultDnsPort = 53;
 const defaultSmtpPort = 25;
 const env: Record<string, string | undefined> = Bun.env;
 const appConfig = buildPublicConfig(env);
-
-const parseOptionalPositiveIntegerEnv = (value: string | undefined) => {
-  const parsed = Number.parseInt(value ?? "", 10);
-  return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
-};
 
 const reapUnusedAfterHours = parseOptionalPositiveIntegerEnv(
   env.REAP_UNUSED_INSTANCES_AFTER_HOURS,
@@ -27,9 +23,7 @@ export const instancePolicies = {
   allowGuest: appConfig.allowGuest,
   defaultTtlMs: appConfig.defaultTtlMs,
   maxTtlMs: appConfig.maxTtlMs,
-  maxInstancesPerOwner:
-    parseOptionalPositiveIntegerEnv(env.MAX_INSTANCES_PER_OWNER) ??
-    appConfig.maxInstancesPerOwner,
+  maxInstancesPerOwner: appConfig.maxInstancesPerOwner,
   rawLimitBytes: appConfig.rawLimitBytes,
   reapUnusedAfterMs:
     reapUnusedAfterHours === undefined

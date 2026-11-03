@@ -1,2 +1,5 @@
-export { useCanManageInstance } from "./useCanManageInstance";
+export {
+  useCanEditResponses,
+  useCanManageInstance,
+} from "./useCanManageInstance";
 export { useNotify } from "./useNotify";

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { INSTANCE_RAW_LIMIT_BYTES } from "./constants";
 
 export const ROUTE_METHODS = [
   "GET",
@@ -28,10 +29,11 @@ export const InstanceRouteSchema = z.object({
     "Only match this method. Omit to match any method. GET also matches HEAD.",
   ),
   path: RoutePathSchema.describe(
-    "Request path to match, without query string. Use * as a wildcard, e.g. /api/* or /*.js.",
+    "Request path to match exactly, without query string, so /login does not match /login/. Use * as a wildcard, e.g. /api/* or /*.js.",
   ),
   raw: z
     .string()
+    .max(INSTANCE_RAW_LIMIT_BYTES)
     .describe(
       "Complete raw HTTP response served for this path: status line, headers, blank line, and body.",
     ),

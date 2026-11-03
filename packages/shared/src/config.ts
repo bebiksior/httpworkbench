@@ -16,6 +16,7 @@ export type PublicConfigEnv = {
   SMTP_ENABLED?: string;
   DOMAIN?: string;
   INSTANCES_DOMAIN?: string;
+  MAX_INSTANCES_PER_OWNER?: string;
 };
 
 const resolveEnvString = (value: string | undefined): string | undefined => {
@@ -41,6 +42,13 @@ export const parseBooleanEnv = (
   }
 
   return undefined;
+};
+
+export const parseOptionalPositiveIntegerEnv = (
+  value: string | undefined,
+): number | undefined => {
+  const parsed = Number.parseInt(value ?? "", 10);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
 };
 
 export const normalizeDnsName = (value: string): string => {
@@ -74,7 +82,9 @@ export const buildPublicConfig = (env: PublicConfigEnv): Config => {
     allowGuest: parseBooleanEnv(env.ALLOW_GUEST) ?? false,
     defaultTtlMs: isHosted ? defaultInstanceTtlMs : undefined,
     maxTtlMs: maxInstanceTtlMs,
-    maxInstancesPerOwner: isHosted ? hostedInstanceLimit : undefined,
+    maxInstancesPerOwner:
+      parseOptionalPositiveIntegerEnv(env.MAX_INSTANCES_PER_OWNER) ??
+      (isHosted ? hostedInstanceLimit : undefined),
     rawLimitBytes: INSTANCE_RAW_LIMIT_BYTES,
     dnsEnabled: parseBooleanEnv(env.DNS_ENABLED) ?? false,
     smtpEnabled: parseBooleanEnv(env.SMTP_ENABLED) ?? false,

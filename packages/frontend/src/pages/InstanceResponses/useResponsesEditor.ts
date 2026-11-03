@@ -175,6 +175,7 @@ export const useResponsesEditor = (instance: Ref<Instance>) => {
     const instanceId = instance.value.id;
     const raw = fallbackRaw.value;
     const routes = draftRoutes.value;
+    const sentKeys = drafts.value.map((draft) => draft.key);
     isSaving.value = true;
     try {
       const updated = await updateInstance({
@@ -184,10 +185,14 @@ export const useResponsesEditor = (instance: Ref<Instance>) => {
       if (instance.value.id !== instanceId) return false;
       savedFallbackRaw.value = updated.raw;
       savedRoutes.value = updated.routes;
-      drafts.value = drafts.value.map((draft, index) => ({
-        ...draft,
-        saved: updated.routes[index],
-      }));
+      const savedByKey = new Map(
+        sentKeys.map((key, index) => [key, updated.routes[index]]),
+      );
+      drafts.value = drafts.value.map((draft) =>
+        savedByKey.has(draft.key)
+          ? { ...draft, saved: savedByKey.get(draft.key) }
+          : draft,
+      );
       reorder();
       notify.success("Responses saved");
       return true;
@@ -208,7 +213,6 @@ export const useResponsesEditor = (instance: Ref<Instance>) => {
 
   return {
     fallbackRaw,
-    drafts,
     rows,
     errors,
     selected,

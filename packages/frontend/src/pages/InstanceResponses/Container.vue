@@ -1,21 +1,17 @@
 <script setup lang="ts">
-import { storeToRefs } from "pinia";
 import { computed, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import { useCanManageInstance } from "@/composables";
+import { useCanEditResponses } from "@/composables";
 import { useInstanceDetailLogic } from "@/pages/InstanceDetail/useLogic";
-import { useAuthStore } from "@/stores/auth";
 import { Workspace } from "./components/Workspace";
 
 const route = useRoute();
 const router = useRouter();
 const instanceId = computed(() => route.params.id as string);
-const { isGuest } = storeToRefs(useAuthStore());
 
 const { instance, isLoadingInstance, logs } =
   useInstanceDetailLogic(instanceId);
-const canManageInstance = useCanManageInstance(instance);
-const canEdit = computed(() => canManageInstance.value && !isGuest.value);
+const canEdit = useCanEditResponses(instance);
 
 watch(
   [instance, isLoadingInstance, canEdit],

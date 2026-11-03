@@ -25,3 +25,11 @@ export const useCanManageInstance = (
     return authStore.user?.id === current.ownerId;
   });
 };
+
+export const useCanEditResponses = (
+  instance: MaybeRefOrGetter<Instance | undefined>,
+) => {
+  const canManage = useCanManageInstance(instance);
+  const { isGuest } = storeToRefs(useAuthStore());
+  return computed(() => canManage.value && !isGuest.value);
+};

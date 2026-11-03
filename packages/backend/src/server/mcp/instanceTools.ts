@@ -4,6 +4,7 @@ import {
   MAX_INSTANCE_ROUTES,
   RouteMethodSchema,
   RoutePathSchema,
+  type Instance,
 } from "shared";
 import * as z from "zod/v4";
 import { dnsConfig, instancePolicies } from "../../config";
@@ -24,7 +25,6 @@ import {
   setInstanceRoute,
   type InstanceServiceResult,
 } from "../instances/service";
-import type { Instance } from "shared";
 import { hasApiKeyScope } from "../apiKeyAuth";
 import {
   getAuthContext,
@@ -466,8 +466,8 @@ export const registerInstanceTools = (server: McpServer) => {
       requireScope(auth, "instances:delete");
       const hasFilter =
         createdByThisKey === true ||
-        Object.values(filters).some(
-          (value) => value !== undefined && value !== "",
+        Object.values(filters).some((value) =>
+          typeof value === "string" ? value.trim() !== "" : value !== undefined,
         );
       if (!hasFilter) {
         return toolError(

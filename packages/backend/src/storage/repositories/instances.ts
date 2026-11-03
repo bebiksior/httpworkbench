@@ -318,9 +318,7 @@ const instanceFilterConditions = (
     );
   }
   if (filters.labelPrefix !== undefined && filters.labelPrefix !== "") {
-    conditions.push(
-      sql`substr(${instances.label}, 1, ${filters.labelPrefix.length}) = ${filters.labelPrefix}`,
-    );
+    conditions.push(sql`instr(${instances.label}, ${filters.labelPrefix}) = 1`);
   }
   if (filters.createdAfter !== undefined) {
     conditions.push(gte(instances.createdAt, filters.createdAfter));

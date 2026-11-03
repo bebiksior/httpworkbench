@@ -136,7 +136,7 @@ describe("responseRoutes", () => {
     const base = "https://abc.instances.test";
     expect(routeUrl(base, "/login")).toBe(`${base}/login`);
     expect(routeUrl(base, "/api/*")).toBe(`${base}/api/`);
-    expect(routeUrl(base, "/*.js")).toBe(`${base}/`);
+    expect(routeUrl(base, "/*.js")).toBe(`${base}/.js`);
     expect(routeUrl(base, undefined)).toBe(`${base}/`);
     expect(routeUrl(base, "oops")).toBe(`${base}/`);
   });
