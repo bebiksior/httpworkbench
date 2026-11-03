@@ -14,50 +14,22 @@ import {
   nextTick,
   type ComponentPublicInstance,
 } from "vue";
-import ResponseStack from "./ResponseStack.vue";
-import { config } from "@/config";
-import { useNotify } from "@/composables";
 import { useInstanceDataLogic } from "./useLogic";
-import { useConfirm } from "primevue/useconfirm";
-import { useEventListener } from "@vueuse/core";
-import { onBeforeRouteLeave, onBeforeRouteUpdate, useRouter } from "vue-router";
-import { createLeaveGuard } from "@/pages/PoCBuilder/exitBuilder";
 import { useWebhooks } from "@/queries/domains/useWebhooks";
 
 const props = defineProps<{
   instance: Instance;
-  requestedResponse?: { label: string };
 }>();
 const emit = defineEmits<{
   hidePanel: [];
 }>();
 
-const { instance, requestedResponse } = toRefs(props);
+const { instance } = toRefs(props);
 
 const {
   instanceHost,
-  editorContent,
-  routeDrafts,
-  routeErrors,
-  selectedResponse,
-  activeRoute,
-  isDirty,
-  canSave,
-  canAddRoute,
   rawContent,
-  isAdvanced,
-  enterAdvanced,
-  enterBasic,
-  dirtyResponses,
-  pathFocusRequest,
-  tabFocusRequest,
-  selectResponse,
-  selectResponseByLabel,
-  discardChanges,
-  addRoute,
-  removeRoute,
-  setRoutePath,
-  setRouteMethod,
+  isDirty,
   isUpdating,
   isCloning,
   isDeleting,
@@ -84,6 +56,8 @@ const {
   isGuest,
   canManageInstance,
   handleOpenBuilder,
+  canOpenResponses,
+  handleOpenResponses,
   displayName,
   isEditingLabel,
   editLabel,
@@ -95,18 +69,6 @@ const {
   isSettingPublic,
   handleTogglePublic,
 } = useInstanceDataLogic(instance);
-
-const router = useRouter();
-const notify = useNotify();
-const instanceUrl = computed(() => config.getInstanceUrl(instance.value.id));
-const copyUrl = async (url: string, unsaved: boolean) => {
-  await navigator.clipboard.writeText(url);
-  if (unsaved) {
-    notify.success("Copied. Save to make this path live");
-    return;
-  }
-  notify.copied();
-};
 
 const { data: webhooks } = useWebhooks({
   enabled: computed(() => canManageInstance.value && !isGuest.value),
@@ -154,89 +116,6 @@ const showVisibility = computed(() => {
 });
 
 const isWebhooksDialogVisible = ref(false);
-
-const editorLabel = ref("Default response");
-watch(
-  selectedResponse,
-  () => {
-    editorLabel.value =
-      activeRoute.value === undefined
-        ? "Response for every other request"
-        : `Response for ${activeRoute.value.path}`;
-  },
-  { immediate: true },
-);
-
-const confirmLeave = useConfirm();
-
-const responseModes = [
-  {
-    value: "basic",
-    label: "Basic",
-    advanced: false,
-    hint: "One response for every request",
-  },
-  {
-    value: "advanced",
-    label: "Advanced",
-    advanced: true,
-    hint: "Different responses per path. Most specific match wins.",
-  },
-];
-
-const setMode = (advanced: boolean) => {
-  if (advanced) {
-    enterAdvanced();
-    return;
-  }
-  if (!isAdvanced.value) return;
-  if (routeDrafts.value.length === 0) {
-    enterBasic();
-    return;
-  }
-  confirmLeave.require({
-    message: `Remove ${routeDrafts.value.length === 1 ? "the path response" : `all ${routeDrafts.value.length} path responses`}? Only Every other request will be kept. Nothing changes until you save.`,
-    header: "Switch to Basic",
-    icon: "pi pi-exclamation-triangle",
-    rejectProps: { label: "Cancel", severity: "secondary", outlined: true },
-    acceptProps: { label: "Remove paths", severity: "danger" },
-    accept: enterBasic,
-  });
-};
-
-watch(requestedResponse, (request) => {
-  if (request !== undefined) {
-    selectResponseByLabel(request.label);
-  }
-});
-
-const leaveGuard = createLeaveGuard({
-  isDirty: () => isDirty.value,
-  markClean: discardChanges,
-  confirmLeave: (accept) => {
-    confirmLeave.require({
-      message: "You have unsaved response changes. Leave without saving?",
-      header: "Unsaved Changes",
-      icon: "pi pi-exclamation-triangle",
-      rejectProps: { label: "Cancel", severity: "secondary", outlined: true },
-      acceptProps: { label: "Leave", severity: "danger" },
-      accept,
-    });
-  },
-  navigate: (target) => {
-    router.push(target);
-  },
-});
-
-onBeforeRouteLeave((to, _from, next) => leaveGuard(to, next));
-onBeforeRouteUpdate((to, from, next) =>
-  to.params.id === from.params.id ? next() : leaveGuard(to, next),
-);
-useEventListener(window, "beforeunload", (event: BeforeUnloadEvent) => {
-  if (isDirty.value) {
-    event.preventDefault();
-  }
-});
 </script>
 
 <template>
@@ -371,122 +250,85 @@ useEventListener(window, "beforeunload", (event: BeforeUnloadEvent) => {
       </div>
     </div>
 
-    <div
-      class="flex flex-col gap-3"
-      :class="isAdvanced ? 'shrink-0' : 'min-h-[320px] flex-1 lg:min-h-0'"
-    >
-      <div class="flex items-center justify-between gap-2">
-        <h3 class="font-semibold text-surface-900 dark:text-surface-0">
-          Response
-        </h3>
-        <div
-          v-if="canManageInstance && !isGuest"
-          class="inline-flex rounded-lg bg-surface-100 p-0.5 dark:bg-surface-800"
-          role="radiogroup"
-          aria-label="Response mode"
-        >
-          <button
-            v-for="mode in responseModes"
-            :key="mode.value"
-            type="button"
-            role="radio"
-            :aria-checked="isAdvanced === mode.advanced"
-            class="h-7 cursor-pointer rounded-md px-3 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60"
-            :class="
-              isAdvanced === mode.advanced
-                ? 'bg-white text-surface-900 shadow-sm dark:bg-surface-950 dark:text-surface-0'
-                : 'text-surface-600 hover:text-surface-900 dark:text-surface-400 dark:hover:text-surface-100'
-            "
-            v-tooltip.top="mode.hint"
-            @click="setMode(mode.advanced)"
-          >
-            {{ mode.label }}
-          </button>
+    <div class="flex min-h-[260px] flex-1 flex-col gap-3 lg:min-h-0">
+      <div class="flex justify-between items-end">
+        <div>
+          <h3 class="font-semibold text-surface-900 dark:text-surface-0">
+            Raw Response
+          </h3>
+          <p class="text-xs text-surface-600 dark:text-surface-400 mt-1">
+            {{
+              instance.routes.length > 0
+                ? "Returned for every path without its own response."
+                : "Customize the raw HTTP response returned by this instance."
+            }}
+          </p>
         </div>
       </div>
 
-      <ResponseStack
-        v-if="isAdvanced"
-        :drafts="routeDrafts"
-        :fallback-raw="rawContent"
-        :errors="routeErrors"
-        :dirty="dirtyResponses"
-        :selected="selectedResponse"
-        :editable="canManageInstance"
-        :can-add="canAddRoute"
-        :base-url="instanceUrl"
-        :focus-path-request="pathFocusRequest"
-        :focus-tab-request="tabFocusRequest"
-        @select="selectResponse"
-        @add="addRoute"
-        @remove="removeRoute"
-        @upload="triggerFileUpload"
-        @copy="copyUrl"
-        @set-path="setRoutePath"
-        @set-method="setRouteMethod"
-      >
-        <HttpEditor
-          :key="selectedResponse"
-          flush
-          :aria-label="editorLabel"
-          :model-value="editorContent"
-          :is-dirty="canSave"
-          :readonly="!canManageInstance"
-          syntax="response"
-          @update:modelValue="handleEditorChange"
-          @save="handleSave"
-        />
-      </ResponseStack>
       <div
-        v-else
-        class="h-72 min-h-0 overflow-hidden rounded-md lg:h-auto lg:min-h-64 lg:flex-1"
+        class="mb-2 grid gap-2"
+        :class="canOpenResponses ? 'grid-cols-4' : 'grid-cols-3'"
       >
-        <HttpEditor
-          aria-label="Response"
-          :model-value="editorContent"
-          :is-dirty="canSave"
-          :readonly="!canManageInstance"
-          syntax="response"
-          @update:modelValue="handleEditorChange"
-          @save="handleSave"
-        />
-      </div>
-
-      <div v-if="canManageInstance" class="flex items-center justify-end gap-1">
         <input
+          v-if="canManageInstance"
           :ref="setFileInputRef"
           type="file"
           class="hidden"
           accept=".txt,.json,.xml,.html"
           @change="handleFileUpload"
         />
-        <template v-if="!isAdvanced">
-          <Button
-            icon="pi pi-wrench"
-            label="Builder"
-            severity="secondary"
-            text
-            size="small"
-            @click="handleOpenBuilder"
-          />
-          <Button
-            icon="pi pi-upload"
-            label="Upload"
-            severity="secondary"
-            text
-            size="small"
-            @click="triggerFileUpload"
-          />
-        </template>
         <Button
-          label="Save"
+          v-if="canManageInstance"
+          label="Upload"
+          icon="pi pi-upload"
+          severity="secondary"
           size="small"
-          :outlined="!isDirty"
-          :severity="isDirty ? undefined : 'secondary'"
-          class="ml-1 min-w-20"
+          outlined
+          class="min-w-0 justify-center"
+          @click="triggerFileUpload"
+        />
+        <Button
+          v-if="canManageInstance"
+          label="Builder"
+          icon="pi pi-wrench"
+          severity="secondary"
+          size="small"
+          outlined
+          class="min-w-0 justify-center"
+          @click="handleOpenBuilder"
+        />
+        <Button
+          v-if="canOpenResponses"
+          label="Paths"
+          icon="pi pi-sitemap"
+          severity="secondary"
+          size="small"
+          outlined
+          class="min-w-0 justify-center"
+          @click="handleOpenResponses"
+        />
+        <Button
+          v-if="canManageInstance"
+          label="Save"
+          icon="pi pi-save"
+          size="small"
+          outlined
+          class="min-w-0 justify-center"
           :loading="isUpdating"
-          :disabled="!canSave"
+          :disabled="!isDirty || isUpdating"
           @click="handleSave"
+        />
+      </div>
+
+      <div class="h-72 min-h-0 overflow-hidden rounded-md lg:h-auto lg:flex-1">
+        <HttpEditor
+          :model-value="rawContent"
+          :is-dirty="isDirty"
+          :readonly="!canManageInstance"
+          syntax="response"
+          @update:modelValue="handleEditorChange"
+          @save="handleSave"
         />
       </div>
     </div>

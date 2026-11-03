@@ -2,9 +2,10 @@
 import { useVirtualizer } from "@tanstack/vue-virtual";
 import { routeLabel } from "shared";
 import { useAuthStore } from "@/stores/auth";
+import { useCanManageInstance } from "@/composables";
 import Button from "primevue/button";
 import { computed, ref } from "vue";
-import { useRoute } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
 import { useInstanceDetailLogic } from "./useLogic";
 import { useLogsPanelControls } from "./useLogsPanelControls";
 import { useSidePanel } from "./useSidePanel";
@@ -12,6 +13,7 @@ import { InstanceData, InstanceDataLoading } from "./components/InstanceData";
 import { InstanceLog } from "./components/InstanceLog";
 
 const route = useRoute();
+const router = useRouter();
 const instanceId = computed(() => route.params.id as string);
 const {
   instance,
@@ -37,18 +39,21 @@ const {
 } = useLogsPanelControls(logs, setSidePanelHidden);
 
 const scrollerRef = ref<HTMLElement | null>(null);
-const requestedResponse = ref<{ label: string }>();
 
 const authStore = useAuthStore();
+const canManageInstance = useCanManageInstance(instance);
 const routeLabels = computed(
   () => new Set((instance.value?.routes ?? []).map(routeLabel)),
 );
 const canShowResponse = (label: string) =>
-  !authStore.isGuest && routeLabels.value.has(label);
+  canManageInstance.value && !authStore.isGuest && routeLabels.value.has(label);
 
 const showResponse = (label: string) => {
-  requestedResponse.value = { label };
-  setSidePanelHidden(false);
+  router.push({
+    name: "instanceResponses",
+    params: { id: instanceId.value },
+    query: { path: label },
+  });
 };
 
 const estimateLogSize = (index: number) => {
@@ -137,7 +142,6 @@ const exitLogOnEscape = (event: KeyboardEvent) => {
         <InstanceData
           v-if="instance && !isLoadingInstance"
           :instance="instance"
-          :requested-response="requestedResponse"
           @hide-panel="setSidePanelHidden(true)"
         />
 

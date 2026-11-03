@@ -1,11 +1,11 @@
 import { useConfirm } from "primevue/useconfirm";
-import { GUEST_OWNER_ID, type Instance } from "shared";
+import type { Instance } from "shared";
 import { computed, ref, type Ref } from "vue";
 import { useRouter } from "vue-router";
 import { storeToRefs } from "pinia";
 import { useTimeAgo } from "@vueuse/core";
 import dayjs from "dayjs";
-import { useNotify } from "@/composables";
+import { useCanManageInstance, useNotify } from "@/composables";
 import { config } from "@/config";
 import {
   useClearLogs,
@@ -17,7 +17,6 @@ import {
   useSetInstancePublic,
 } from "@/queries/domains/useInstances";
 import { useAuthStore } from "@/stores/auth";
-import { useGuestInstancesStore } from "@/stores/guestInstances";
 import { isAbsent, isPresent } from "@/utils/types";
 import { useInstanceEditor } from "./useInstanceEditor";
 
@@ -40,28 +39,14 @@ export const useInstanceDataLogic = (instance: Ref<Instance>) => {
     useSetInstancePublic();
 
   const authStore = useAuthStore();
-  const guestInstancesStore = useGuestInstancesStore();
   const { isGuest } = storeToRefs(authStore);
-  const { ids: guestInstanceIds } = storeToRefs(guestInstancesStore);
 
   const instanceHost = computed(() =>
     config.getInstanceHost(instance.value.id),
   );
   const isLocked = computed(() => instance.value.locked);
   const isPublic = computed(() => instance.value.public);
-  const canManageInstance = computed(() => {
-    if (instance.value.ownerId === GUEST_OWNER_ID) {
-      return (
-        isGuest.value && guestInstanceIds.value.includes(instance.value.id)
-      );
-    }
-
-    if (isGuest.value) {
-      return false;
-    }
-
-    return authStore.user?.id === instance.value.ownerId;
-  });
+  const canManageInstance = useCanManageInstance(instance);
 
   const isEditingLabel = ref(false);
   const editLabel = ref("");
@@ -117,6 +102,20 @@ export const useInstanceDataLogic = (instance: Ref<Instance>) => {
     }
     router.push({
       name: "pocBuilder",
+      params: { id: instance.value.id },
+    });
+  };
+
+  const canOpenResponses = computed(
+    () => canManageInstance.value && !isGuest.value,
+  );
+
+  const handleOpenResponses = () => {
+    if (!canOpenResponses.value) {
+      return;
+    }
+    router.push({
+      name: "instanceResponses",
       params: { id: instance.value.id },
     });
   };
@@ -329,6 +328,8 @@ export const useInstanceDataLogic = (instance: Ref<Instance>) => {
     handleTogglePublic,
     handleExtend,
     handleOpenBuilder,
+    canOpenResponses,
+    handleOpenResponses,
     startEditingLabel,
     saveLabel,
     handleLabelKeydown,

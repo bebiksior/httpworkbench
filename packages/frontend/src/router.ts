@@ -14,6 +14,10 @@ const Settings = () =>
   import("@/pages/Settings").then((module) => module.Settings);
 const PoCBuilder = () =>
   import("@/pages/PoCBuilder").then((module) => module.PoCBuilder);
+const InstanceResponses = () =>
+  import("@/pages/InstanceResponses").then(
+    (module) => module.InstanceResponses,
+  );
 
 const router = createRouter({
   history: createWebHistory(),
@@ -50,6 +54,12 @@ const router = createRouter({
           name: "pocBuilder",
           component: PoCBuilder,
           meta: { requiresSession: true },
+        },
+        {
+          path: "instances/:id/responses",
+          name: "instanceResponses",
+          component: InstanceResponses,
+          meta: { requiresUser: true },
         },
       ],
     },

@@ -110,7 +110,7 @@ describe("useInstanceEditor", () => {
     await editor.handleSave();
     expect(mocks.updateInstance).toHaveBeenCalledWith({
       id: "instance-2",
-      input: { raw: "second raw", routes: [], webhookIds: ["webhook-2"] },
+      input: { raw: "second raw", webhookIds: ["webhook-2"] },
     });
     scope.stop();
   });
@@ -145,77 +145,6 @@ describe("useInstanceEditor", () => {
 
     expect(editor.rawContent.value).toBe("second raw");
     expect(editor.selectedWebhookIds.value).toEqual(["webhook-2"]);
-    scope.stop();
-  });
-
-  test("edits path responses and keeps the selected path after saving", async () => {
-    const instance = ref(makeInstance("default raw"));
-    const scope = effectScope();
-    const editor = scope.run(() =>
-      useInstanceEditor(
-        instance,
-        computed(() => true),
-      ),
-    );
-    expect(editor).toBeDefined();
-    if (editor === undefined) return;
-
-    const key = editor.addRoute();
-    expect(key).toBeDefined();
-    if (key === undefined) return;
-    expect(editor.selectedResponse.value).toBe(key);
-    editor.setRoutePath(key, "/redirect");
-    editor.setRouteMethod(key, "GET");
-    editor.handleEditorChange("HTTP/1.1 302 Found\nLocation: /x\n\n");
-    expect(editor.rawContent.value).toBe("default raw");
-    expect(editor.isDirty.value).toBe(true);
-
-    const saved = {
-      ...instance.value,
-      routes: [
-        {
-          method: "GET" as const,
-          path: "/redirect",
-          raw: "HTTP/1.1 302 Found\r\nLocation: /x\r\n\r\n",
-        },
-      ],
-    };
-    mocks.updateInstance.mockResolvedValueOnce(saved);
-    await editor.handleSave();
-    expect(mocks.updateInstance).toHaveBeenCalledWith({
-      id: "instance-1",
-      input: {
-        raw: "default raw",
-        routes: [
-          {
-            method: "GET",
-            path: "/redirect",
-            raw: "HTTP/1.1 302 Found\nLocation: /x\n\n",
-          },
-        ],
-        webhookIds: [],
-      },
-    });
-    instance.value = saved;
-    await nextTick();
-    expect(editor.isDirty.value).toBe(false);
-    expect(editor.dirtyResponses.value.size).toBe(0);
-    expect(editor.activeRoute.value?.path).toBe("/redirect");
-
-    const routeKey = editor.selectedResponse.value;
-    editor.setRoutePath(routeKey, "bad path");
-    editor.selectResponse("default");
-    expect(Object.values(editor.routeErrors.value)).toHaveLength(1);
-    expect(editor.dirtyResponses.value.has(routeKey)).toBe(true);
-    mocks.updateInstance.mockClear();
-    await editor.handleSave();
-    expect(mocks.updateInstance).not.toHaveBeenCalled();
-    expect(editor.selectedResponse.value).toBe(routeKey);
-    expect(editor.pathFocusRequest.value).toBe(2);
-
-    editor.removeRoute(editor.selectedResponse.value);
-    expect(editor.selectedResponse.value).toBe("default");
-    expect(editor.routeDrafts.value).toEqual([]);
     scope.stop();
   });
 });

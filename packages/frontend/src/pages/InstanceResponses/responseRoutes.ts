@@ -1,5 +1,6 @@
 import {
   MAX_INSTANCE_ROUTES,
+  type Log,
   RoutePathSchema,
   routeKey,
   routeLabel as sharedRouteLabel,
@@ -23,10 +24,6 @@ const normalizeLineEndings = (value: string) => value.replace(/\r\n/g, "\n");
 export const toRouteDrafts = (routes: readonly InstanceRoute[]): RouteDraft[] =>
   routes.map((route) => ({ ...route, key: createDraftKey(), saved: route }));
 
-export const isDraftDirty = (draft: RouteDraft) =>
-  draft.saved === undefined ||
-  !routesEqual(toInstanceRoutes([draft]), [draft.saved]);
-
 export const toInstanceRoutes = (
   drafts: readonly RouteDraft[],
 ): InstanceRoute[] =>
@@ -36,9 +33,9 @@ export const toInstanceRoutes = (
     raw,
   }));
 
-export const createRouteDraft = (raw: string): RouteDraft => ({
+export const createRouteDraft = (raw: string, path = "/"): RouteDraft => ({
   key: createDraftKey(),
-  path: "/",
+  path,
   raw,
 });
 
@@ -95,29 +92,72 @@ export const routesEqual = (
 export const routeLabel = (route: Pick<RouteDraft, "method" | "path">) =>
   sharedRouteLabel({ method: route.method, path: route.path.trim() });
 
-const statusLineOf = (raw: string) => {
-  const firstLine = raw.split(/\r?\n/, 1)[0] ?? "";
-  const match = /^HTTP\/\S+\s+(\d{3})(?:\s+(.*))?$/.exec(firstLine.trim());
-  return match === null
-    ? undefined
-    : { code: match[1] ?? "", reason: match[2]?.trim() ?? "" };
+export const statusCode = (raw: string) =>
+  /^HTTP\/\S+\s+(\d{3})\b/.exec(raw.trimStart())?.[1];
+
+type RoutePattern = Pick<RouteDraft, "method" | "path">;
+
+const literalLength = (path: string) => path.replaceAll("*", "").length;
+
+const compareRoutePriority = (a: RoutePattern, b: RoutePattern) => {
+  const pathA = a.path.trim();
+  const pathB = b.path.trim();
+  const wildA = pathA.includes("*");
+  const wildB = pathB.includes("*");
+  if (wildA !== wildB) return wildA ? 1 : -1;
+  if (wildA) {
+    const difference = literalLength(pathB) - literalLength(pathA);
+    if (difference !== 0) return difference;
+  }
+  return (
+    pathA.localeCompare(pathB) ||
+    Number(a.method === undefined) - Number(b.method === undefined) ||
+    (a.method ?? "").localeCompare(b.method ?? "")
+  );
 };
 
-export const responseSummary = (raw: string) => {
-  const status = statusLineOf(raw);
-  if (status === undefined) {
-    return { code: "Invalid", detail: "Invalid status line" };
+export const priorityOrder = (drafts: readonly RouteDraft[]) =>
+  [...drafts].sort(compareRoutePriority).map((draft) => draft.key);
+
+export const arrangeByOrder = (
+  drafts: readonly RouteDraft[],
+  order: readonly string[],
+) => {
+  const byKey = new Map(drafts.map((draft) => [draft.key, draft]));
+  const listed = order.flatMap((key) => byKey.get(key) ?? []);
+  const placed = new Set(order);
+  return [...listed, ...drafts.filter((draft) => !placed.has(draft.key))];
+};
+
+export const adjacentKey = (
+  keys: readonly string[],
+  current: string,
+  step: 1 | -1,
+) => {
+  const index = keys.indexOf(current);
+  if (index === -1) return keys[0] ?? current;
+  return keys[index + step] ?? current;
+};
+
+export const routeUrl = (baseUrl: string, path: string | undefined) => {
+  const trimmed = path?.trim() ?? "";
+  if (!trimmed.startsWith("/")) return `${baseUrl}/`;
+  const wildcard = trimmed.indexOf("*");
+  return `${baseUrl}${wildcard === -1 ? trimmed : trimmed.slice(0, wildcard)}`;
+};
+
+export const servedStats = (
+  logs: readonly Log[],
+  label: string | undefined,
+) => {
+  let count = 0;
+  let lastAt: number | undefined;
+  for (const log of logs) {
+    if (log.type !== "http" || log.route !== label) continue;
+    count += 1;
+    if (lastAt === undefined || log.timestamp > lastAt) {
+      lastAt = log.timestamp;
+    }
   }
-  const location = status.code.startsWith("3")
-    ? /^location:[ \t]*(.+)$/im.exec(raw.split(/\r?\n\r?\n/, 1)[0] ?? "")?.[1]
-    : undefined;
-  const detail = `${status.code} ${status.reason}`.trim();
-  if (location === undefined) {
-    return { code: status.code, detail };
-  }
-  const target = location.trim();
-  return {
-    code: `${status.code} → ${target.replace(/^https?:\/\//i, "")}`,
-    detail: `${detail} → ${target}`,
-  };
+  return { count, lastAt };
 };

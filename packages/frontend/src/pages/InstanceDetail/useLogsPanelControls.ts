@@ -12,7 +12,8 @@ export const useLogsPanelControls = (
   const route = useRoute();
   const preferences = useInstanceDetailPreferencesStore();
   const { selectedLogTypes: selectedTypes } = storeToRefs(preferences);
-  const searchQuery = ref("");
+  const searchParam = route.query.search;
+  const searchQuery = ref(typeof searchParam === "string" ? searchParam : "");
 
   const viewQuery = computed(() => {
     const raw = route.query.view;
@@ -34,7 +35,7 @@ export const useLogsPanelControls = (
       return cached;
     }
     const searchableText =
-      `${log.type}\n${log.address}\n${log.raw}`.toLowerCase();
+      `${log.type}\n${log.address}\n${log.route ?? ""}\n${log.raw}`.toLowerCase();
     searchableTextCache.set(log, searchableText);
     return searchableText;
   };
