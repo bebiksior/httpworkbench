@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { useVirtualizer } from "@tanstack/vue-virtual";
 import Button from "primevue/button";
 import Divider from "primevue/divider";
 import IconField from "primevue/iconfield";
@@ -7,14 +6,16 @@ import InputIcon from "primevue/inputicon";
 import InputText from "primevue/inputtext";
 import Message from "primevue/message";
 import Skeleton from "primevue/skeleton";
-import { useMediaQuery, useResizeObserver } from "@vueuse/core";
-import { computed, nextTick, ref, watch } from "vue";
+import { useMediaQuery } from "@vueuse/core";
+import { computed, ref, watch } from "vue";
 import { storeToRefs } from "pinia";
 import { config } from "@/config";
 import { useAuthStore } from "@/stores/auth";
 import { EmptyState } from "./Empty";
 import { InstanceItem } from "./InstanceItem";
+import { Pager } from "./Pager";
 import { useHomeLogic } from "./useLogic";
+import { usePagination } from "./usePagination";
 
 const {
   searchQuery,
@@ -38,66 +39,27 @@ const showInstanceLimit = computed(
   () => config.isHosted === true && instanceLimit.value !== undefined,
 );
 
+const countText = computed(() => {
+  const total = `${instanceCount.value.toLocaleString()} ${instanceCount.value === 1 ? "instance" : "instances"}`;
+  if (isLoading.value) return "Loading instances…";
+  if (!hasSearchQuery.value) return total;
+  return `${filteredInstances.value.length.toLocaleString()} of ${total}`;
+});
+
 const authStore = useAuthStore();
 const { isGuest } = storeToRefs(authStore);
 const isDesktopViewport = useMediaQuery("(min-width: 640px)");
 
+const { page, pageCount, pageSlice, rangeText, goTo } = usePagination({
+  items: filteredInstances,
+  pageSize: 10,
+  isReady: () => !isLoading.value && instances.value !== undefined,
+  resetOn: searchQuery,
+});
+const showPager = computed(() => !isLoading.value && pageCount.value > 1);
+
 const scrollerRef = ref<HTMLElement | null>(null);
-const instancesListRef = ref<HTMLElement | null>(null);
-const listScrollMargin = ref(0);
-const instanceKeys = computed(() =>
-  filteredInstances.value.map((instance) => instance.id),
-);
-
-const instanceVirtualizer = useVirtualizer(
-  computed(() => ({
-    count: instanceKeys.value.length,
-    getScrollElement: () => scrollerRef.value,
-    estimateSize: () => (isDesktopViewport.value ? 100 : 116),
-    overscan: 8,
-    scrollMargin: listScrollMargin.value,
-    getItemKey: (index: number) => instanceKeys.value[index] ?? index,
-  })),
-);
-
-const virtualInstances = computed(() =>
-  instanceVirtualizer.value.getVirtualItems(),
-);
-const virtualInstancesHeight = computed(
-  () => instanceVirtualizer.value.getTotalSize() + 32,
-);
-
-const updateListScrollMargin = () => {
-  const scroller = scrollerRef.value;
-  const list = instancesListRef.value;
-  if (scroller === null || list === null) {
-    return;
-  }
-
-  listScrollMargin.value =
-    list.getBoundingClientRect().top -
-    scroller.getBoundingClientRect().top +
-    scroller.scrollTop;
-};
-
-const measureInstance = (element: unknown) => {
-  if (element instanceof Element) {
-    instanceVirtualizer.value.measureElement(element);
-  }
-};
-
-useResizeObserver(scrollerRef, updateListScrollMargin);
-useResizeObserver(instancesListRef, updateListScrollMargin);
-
-watch(
-  [instancesListRef, instanceKeys, isDesktopViewport],
-  async () => {
-    await nextTick();
-    updateListScrollMargin();
-    instanceVirtualizer.value.measure();
-  },
-  { flush: "post" },
-);
+watch(page, () => scrollerRef.value?.scrollTo({ top: 0 }));
 </script>
 
 <template>
@@ -130,7 +92,7 @@ watch(
             </span>
           </div>
           <p class="text-sm text-surface-400 sm:text-base">
-            All owned instances
+            {{ countText }}
           </p>
         </div>
       </div>
@@ -141,7 +103,7 @@ watch(
 
     <Divider v-if="isDesktopViewport" class="mb-6" />
 
-    <div class="mx-auto max-w-7xl px-3 pt-4 sm:px-6 sm:pt-2">
+    <div class="mx-auto max-w-7xl px-3 pt-4 pb-8 sm:px-6 sm:pt-2">
       <div
         class="mb-4 flex flex-col gap-3 sm:mb-6 sm:flex-row sm:items-center sm:justify-between sm:gap-4"
       >
@@ -153,7 +115,31 @@ watch(
             class="w-full"
           />
         </IconField>
-        <div class="flex gap-2">
+        <div class="flex flex-wrap items-center gap-2">
+          <div
+            v-if="showPager"
+            class="flex w-full items-center gap-2 sm:mr-2 sm:w-auto"
+          >
+            <span class="mr-auto text-sm text-surface-400 tabular-nums sm:mr-1">
+              {{ rangeText }}
+            </span>
+            <Button
+              icon="pi pi-chevron-left"
+              severity="secondary"
+              outlined
+              :disabled="page <= 1"
+              aria-label="Previous page"
+              @click="goTo(page - 1)"
+            />
+            <Button
+              icon="pi pi-chevron-right"
+              severity="secondary"
+              outlined
+              :disabled="page >= pageCount"
+              aria-label="Next page"
+              @click="goTo(page + 1)"
+            />
+          </div>
           <Button
             label="Delete All"
             icon="pi pi-trash"
@@ -194,7 +180,7 @@ watch(
 
       <div
         v-if="isLoading"
-        class="space-y-3 pb-8 sm:space-y-4"
+        class="space-y-3 sm:space-y-4"
         aria-label="Loading instances"
         aria-busy="true"
       >
@@ -244,28 +230,20 @@ watch(
         </article>
       </div>
 
-      <div
-        v-else-if="filteredInstances.length > 0"
-        ref="instancesListRef"
-        class="relative w-full"
-        :style="{ height: `${virtualInstancesHeight}px` }"
-        role="list"
-        aria-label="Instances"
-      >
+      <template v-else-if="filteredInstances.length > 0">
+        <ul class="space-y-3 sm:space-y-4" aria-label="Instances">
+          <li v-for="instance in pageSlice" :key="instance.id">
+            <InstanceItem :instance="instance" />
+          </li>
+        </ul>
         <div
-          v-for="virtualInstance in virtualInstances"
-          :key="String(virtualInstance.key)"
-          :ref="measureInstance"
-          :data-index="virtualInstance.index"
-          class="absolute left-0 top-0 w-full pb-3 sm:pb-4"
-          :style="{
-            transform: `translateY(${virtualInstance.start - listScrollMargin}px)`,
-          }"
-          role="listitem"
+          v-if="showPager"
+          class="mt-6 flex items-center justify-center text-sm text-surface-400 sm:justify-between"
         >
-          <InstanceItem :instance="filteredInstances[virtualInstance.index]" />
+          <span class="hidden tabular-nums sm:inline">{{ rangeText }}</span>
+          <Pager :page="page" :page-count="pageCount" @update:page="goTo" />
         </div>
-      </div>
+      </template>
       <EmptyState v-else :has-search-query="hasSearchQuery" />
     </div>
   </div>
