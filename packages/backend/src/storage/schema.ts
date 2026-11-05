@@ -2,6 +2,7 @@ import type {
   ApiKeyScope,
   InstanceRoute,
   LogType,
+  MailDirection,
   UserNoticeKind,
 } from "shared";
 import {
@@ -190,6 +191,60 @@ export const userNotices = sqliteTable(
   ],
 );
 
+export const mailboxes = sqliteTable(
+  "mailboxes",
+  {
+    id: text("id").primaryKey(),
+    ownerId: text("ownerId").notNull(),
+    localPart: text("localPart").notNull(),
+    label: text("label"),
+    createdAt: integer("createdAt", { mode: "number" }).notNull(),
+    expiresAt: integer("expiresAt", { mode: "number" }),
+  },
+  (table) => [
+    index("mailboxes_by_owner").on(table.ownerId),
+    index("mailboxes_by_expiration").on(table.expiresAt),
+  ],
+);
+
+export const mailMessages = sqliteTable(
+  "mailMessages",
+  {
+    seq: integer("seq").primaryKey({ autoIncrement: true }),
+    id: text("id").notNull(),
+    mailboxId: text("mailboxId")
+      .notNull()
+      .references(() => mailboxes.id, { onDelete: "cascade" }),
+    direction: text("direction", { enum: ["inbound", "outbound"] })
+      .$type<MailDirection>()
+      .notNull(),
+    timestamp: integer("timestamp", { mode: "number" }).notNull(),
+    isRead: integer("isRead", { mode: "boolean" }).notNull(),
+    fromName: text("fromName"),
+    fromAddress: text("fromAddress"),
+    toJson: text("toJson", { mode: "json" }).$type<string[]>().notNull(),
+    subject: text("subject").notNull(),
+    preview: text("preview").notNull(),
+    attachmentCount: integer("attachmentCount", { mode: "number" }).notNull(),
+    sizeBytes: integer("sizeBytes", { mode: "number" }).notNull(),
+    messageId: text("messageId"),
+    mailFrom: text("mailFrom").notNull(),
+    rcptToJson: text("rcptToJson", { mode: "json" })
+      .$type<string[]>()
+      .notNull(),
+    clientAddress: text("clientAddress"),
+    raw: text("raw").notNull(),
+  },
+  (table) => [
+    uniqueIndex("mailMessages_id_unique").on(table.id),
+    index("mailMessages_by_mailbox_direction_seq").on(
+      table.mailboxId,
+      table.direction,
+      table.seq,
+    ),
+  ],
+);
+
 export const schema = {
   users,
   localCredentials,
@@ -200,4 +255,6 @@ export const schema = {
   logs,
   instanceModerations,
   userNotices,
+  mailboxes,
+  mailMessages,
 };

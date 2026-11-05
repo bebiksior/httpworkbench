@@ -21,6 +21,7 @@ describe("buildPublicConfig", () => {
       rawLimitBytes: 10 * 1024 * 1024,
       dnsEnabled: true,
       smtpEnabled: true,
+      smtpSendingEnabled: false,
       instancesDomain: "instances.example.com",
     });
   });
@@ -40,8 +41,19 @@ describe("buildPublicConfig", () => {
       rawLimitBytes: 10 * 1024 * 1024,
       dnsEnabled: false,
       smtpEnabled: false,
+      smtpSendingEnabled: false,
       instancesDomain: "instances.localhost",
     });
+  });
+
+  test("enables mail sending only alongside SMTP", () => {
+    expect(
+      buildPublicConfig({ SMTP_ENABLED: "true", SMTP_SENDING_ENABLED: "true" })
+        .smtpSendingEnabled,
+    ).toBe(true);
+    expect(
+      buildPublicConfig({ SMTP_SENDING_ENABLED: "true" }).smtpSendingEnabled,
+    ).toBe(false);
   });
 
   test("selects password login and rejects invalid authentication modes", () => {

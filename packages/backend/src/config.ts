@@ -135,3 +135,81 @@ const buildSmtpConfig = (
 };
 
 export const smtpConfig = buildSmtpConfig(env);
+
+export type SmtpRelay = {
+  name: string;
+  host: string;
+  port: number;
+  secure: boolean;
+  auth?: { user: string; pass: string };
+};
+
+export type MailSendingConfig = {
+  enabled: boolean;
+  relay?: SmtpRelay;
+};
+
+export const parseSmtpRelayUrl = (value: string | undefined) => {
+  const source = value?.trim();
+  if (source === undefined || source === "") {
+    return undefined;
+  }
+  const url = new URL(source);
+  if (url.protocol !== "smtp:" && url.protocol !== "smtps:") {
+    throw new Error("SMTP_RELAY_URL must use smtp:// or smtps://");
+  }
+  const secure = url.protocol === "smtps:";
+  const user = decodeURIComponent(url.username);
+  return {
+    name: url.hostname,
+    host: url.hostname,
+    port: url.port === "" ? (secure ? 465 : 587) : Number(url.port),
+    secure,
+    auth:
+      user === ""
+        ? undefined
+        : { user, pass: decodeURIComponent(url.password) },
+  } satisfies SmtpRelay;
+};
+
+const smtp2goRelay = (
+  username: string | undefined,
+  password: string | undefined,
+): SmtpRelay | undefined => {
+  const user = username?.trim() ?? "";
+  const pass = password ?? "";
+  if (user === "" && pass === "") {
+    return undefined;
+  }
+  if (user === "" || pass === "") {
+    throw new Error("Set both SMTP2GO_USERNAME and SMTP2GO_PASSWORD");
+  }
+  return {
+    name: "SMTP2GO",
+    host: "mail.smtp2go.com",
+    port: 2525,
+    secure: false,
+    auth: { user, pass },
+  };
+};
+
+export const resolveMailRelay = (
+  runtimeEnv: Record<string, string | undefined>,
+): SmtpRelay | undefined => {
+  const custom = parseSmtpRelayUrl(runtimeEnv.SMTP_RELAY_URL);
+  const smtp2go = smtp2goRelay(
+    runtimeEnv.SMTP2GO_USERNAME,
+    runtimeEnv.SMTP2GO_PASSWORD,
+  );
+  if (custom !== undefined && smtp2go !== undefined) {
+    throw new Error(
+      "Set either SMTP_RELAY_URL or SMTP2GO credentials, not both",
+    );
+  }
+  return smtp2go ?? custom;
+};
+
+export const mailSendingConfig: MailSendingConfig = {
+  enabled: appConfig.smtpSendingEnabled,
+  relay: resolveMailRelay(env),
+};

@@ -6,3 +6,4 @@ export * from "./notices";
 export * from "./users";
 export * from "./webhooks";
 export * from "./localCredentials";
+export * from "./mailboxes";

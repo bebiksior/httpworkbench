@@ -35,3 +35,10 @@ export const createConcurrentWatchLimiter = ({
     },
   };
 };
+
+export const mcpWatchTimeoutMs = 20_000;
+
+export const mcpWatchLimiter = createConcurrentWatchLimiter({
+  maxPerKey: 4,
+  maxGlobal: 100,
+});

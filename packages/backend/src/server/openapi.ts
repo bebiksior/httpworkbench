@@ -11,7 +11,7 @@ const resolveServerUrl = (): string => {
 };
 
 const description = [
-  "Programmatic access to HTTP Workbench instances and their recorded HTTP/DNS/SMTP interaction logs.",
+  "Programmatic access to HTTP Workbench instances, their recorded HTTP/DNS/SMTP interaction logs, and temporary mailboxes.",
   "",
   "## Authentication",
   "",
@@ -31,8 +31,12 @@ const description = [
   "| `instances:write` | Create, replace, rename, lock, publish, extend, clear logs |",
   "| `instances:delete` | Delete instances |",
   "| `logs:read` | Read instance logs |",
+  "| `logs:stream` | Stream live logs |",
+  "| `mailboxes:read` | List mailboxes and read their messages |",
+  "| `mailboxes:write` | Create, update, extend and delete mailboxes and messages |",
+  "| `mailboxes:send` | Send email from a mailbox |",
   "",
-  "A key only acts on instances owned by its user; others return `404`.",
+  "A key only acts on instances and mailboxes owned by its user; others return `404`.",
 ].join("\n");
 
 export const openApiPlugin = () =>
@@ -58,6 +62,10 @@ export const openApiPlugin = () =>
           name: "Logs",
           description:
             "Read and clear recorded HTTP/DNS/SMTP interaction logs.",
+        },
+        {
+          name: "Mailboxes",
+          description: "Temporary mailboxes that receive and send email.",
         },
       ],
       components: {

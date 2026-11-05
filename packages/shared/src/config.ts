@@ -15,6 +15,7 @@ export type PublicConfigEnv = {
   ALLOW_GUEST?: string;
   DNS_ENABLED?: string;
   SMTP_ENABLED?: string;
+  SMTP_SENDING_ENABLED?: string;
   DOMAIN?: string;
   INSTANCES_DOMAIN?: string;
   MAX_INSTANCES_PER_OWNER?: string;
@@ -74,6 +75,7 @@ export const resolveInstancesDomain = (env: PublicConfigEnv): string => {
 
 export const buildPublicConfig = (env: PublicConfigEnv): Config => {
   const isHosted = parseBooleanEnv(env.IS_HOSTED) ?? false;
+  const smtpEnabled = parseBooleanEnv(env.SMTP_ENABLED) ?? false;
 
   return {
     authMode: AuthModeSchema.parse(resolveEnvString(env.AUTH_MODE) ?? "google"),
@@ -86,7 +88,9 @@ export const buildPublicConfig = (env: PublicConfigEnv): Config => {
       (isHosted ? hostedInstanceLimit : undefined),
     rawLimitBytes: INSTANCE_RAW_LIMIT_BYTES,
     dnsEnabled: parseBooleanEnv(env.DNS_ENABLED) ?? false,
-    smtpEnabled: parseBooleanEnv(env.SMTP_ENABLED) ?? false,
+    smtpEnabled,
+    smtpSendingEnabled:
+      smtpEnabled && (parseBooleanEnv(env.SMTP_SENDING_ENABLED) ?? false),
     instancesDomain: resolveInstancesDomain(env),
   };
 };

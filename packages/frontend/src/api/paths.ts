@@ -26,6 +26,21 @@ export const apiPaths = {
   instanceRename: (id: string) => path("/api/instances/:id/rename", { id }),
   instanceStream: (id: string) => path("/api/instances/:id/stream", { id }),
   instances: "/api/instances",
+  mailbox: (id: string) => path("/api/mailboxes/:id", { id }),
+  mailboxExtend: (id: string) => path("/api/mailboxes/:id/extend", { id }),
+  mailboxMessage: (id: string, messageId: string) =>
+    path("/api/mailboxes/:id/messages/:messageId", { id, messageId }),
+  mailboxMessageAttachment: (id: string, messageId: string, index: number) =>
+    path("/api/mailboxes/:id/messages/:messageId/attachments/:index", {
+      id,
+      messageId,
+      index,
+    }),
+  mailboxMessageSource: (id: string, messageId: string) =>
+    path("/api/mailboxes/:id/messages/:messageId/raw", { id, messageId }),
+  mailboxMessages: (id: string) => path("/api/mailboxes/:id/messages", { id }),
+  mailboxSend: (id: string) => path("/api/mailboxes/:id/send", { id }),
+  mailboxes: "/api/mailboxes",
   userNotices: "/api/user/notices",
   userNoticesAck: "/api/user/notices/ack",
   webhook: (id: string) => path("/api/webhooks/:id", { id }),

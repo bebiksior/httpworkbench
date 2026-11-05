@@ -20,6 +20,9 @@ export const API_KEY_SCOPES = [
   "instances:delete",
   "logs:read",
   "logs:stream",
+  "mailboxes:read",
+  "mailboxes:write",
+  "mailboxes:send",
 ] as const satisfies ApiKeyScope[];
 
 export type ApiKeyAuthContext = {

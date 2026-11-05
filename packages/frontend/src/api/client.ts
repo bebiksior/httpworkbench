@@ -5,7 +5,7 @@ import {
   UnauthorizedError,
 } from "./errors";
 
-async function handleResponse<T>(response: Response): Promise<T> {
+async function throwIfFailed(response: Response): Promise<void> {
   if (!response.ok) {
     let errorMessage: string | undefined;
 
@@ -31,6 +31,10 @@ async function handleResponse<T>(response: Response): Promise<T> {
       response.statusText,
     );
   }
+}
+
+async function handleResponse<T>(response: Response): Promise<T> {
+  await throwIfFailed(response);
 
   if (response.status === 204) {
     return undefined as T;
@@ -64,6 +68,11 @@ const request = async <T>(url: string, options: RequestOptions = {}) => {
 
 export const apiClient = {
   get: <T>(url: string, headers?: HeadersInit) => request<T>(url, { headers }),
+  getText: async (url: string) => {
+    const response = await fetch(url, { credentials: "include" });
+    await throwIfFailed(response);
+    return response.text();
+  },
   post: <T>(
     url: string,
     body?: unknown,

@@ -2,7 +2,7 @@
 import Button from "primevue/button";
 import Menu from "primevue/menu";
 import { computed, ref } from "vue";
-import { useRouter } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
 import { useAuthStore } from "../../stores/auth";
 import { useThemeStore } from "../../stores/theme";
 import { CommandPalette } from "@/components/CommandPalette";
@@ -13,7 +13,24 @@ import { config } from "@/config";
 const authStore = useAuthStore();
 const themeStore = useThemeStore();
 const router = useRouter();
+const route = useRoute();
 const menu = ref();
+
+const sections = [
+  {
+    label: "Instances",
+    to: "/",
+    match: (path: string) => !path.startsWith("/mail"),
+  },
+  {
+    label: "Mail",
+    to: "/mail",
+    match: (path: string) => path.startsWith("/mail"),
+  },
+];
+const showSections = computed(
+  () => config.smtpEnabled && authStore.isAuthenticated,
+);
 const shortcutsVisible = ref(false);
 
 const goSettings = async () => {
@@ -127,14 +144,33 @@ const goLogin = async () => {
                 <polyline points="4 17 10 11 4 5" />
                 <line x1="12" x2="20" y1="19" y2="19" />
               </svg>
-              <span class="min-w-0 truncate">httpworkbench</span>
               <span
-                class="ml-0.5 shrink-0 whitespace-nowrap rounded bg-primary/20 px-1 py-0.5 text-[10px] font-semibold uppercase leading-none tracking-wide text-primary sm:ml-2 sm:px-1.5"
-                :title="`Beta v${config.version}`"
+                class="min-w-0 truncate"
+                :class="{ 'max-sm:hidden': showSections }"
+                >httpworkbench</span
               >
-                <span class="hidden sm:inline">beta </span>v{{ config.version }}
-              </span>
             </button>
+            <div
+              v-if="showSections"
+              class="ml-2 flex shrink-0 items-center gap-0.5 sm:ml-6"
+              aria-label="Sections"
+            >
+              <RouterLink
+                v-for="section in sections"
+                :key="section.to"
+                :to="section.to"
+                draggable="false"
+                :aria-current="section.match(route.path) ? 'page' : undefined"
+                class="rounded-md px-2.5 py-1.5 text-sm font-medium transition-colors duration-150 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary sm:px-3"
+                :class="
+                  section.match(route.path)
+                    ? 'bg-surface-100 text-surface-900 dark:bg-surface-700/70 dark:text-surface-0'
+                    : 'text-surface-500 hover:bg-surface-100/70 hover:text-surface-900 dark:text-surface-400 dark:hover:bg-surface-700/40 dark:hover:text-surface-0'
+                "
+              >
+                {{ section.label }}
+              </RouterLink>
+            </div>
           </div>
 
           <div class="flex shrink-0 items-center gap-1">

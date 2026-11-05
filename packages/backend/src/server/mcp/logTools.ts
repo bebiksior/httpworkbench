@@ -16,7 +16,7 @@ import {
   requireScope,
   toolError,
 } from "./context";
-import { createConcurrentWatchLimiter } from "./watchLimit";
+import { mcpWatchLimiter, mcpWatchTimeoutMs } from "./watchLimit";
 
 const readLogsPage = (input: {
   auth: ApiKeyAuthContext;
@@ -59,12 +59,6 @@ const logsInputSchema = z.object({
   cursor: z.string().optional(),
   type: z.enum(["http", "dns", "smtp"]).optional(),
   sinceTimestamp: z.number().optional(),
-});
-
-const mcpLogWatchTimeoutMs = 20_000;
-const mcpLogWatchLimiter = createConcurrentWatchLimiter({
-  maxPerKey: 4,
-  maxGlobal: 100,
 });
 
 export const registerLogTools = (server: McpServer) => {
@@ -126,14 +120,14 @@ export const registerLogTools = (server: McpServer) => {
       const auth = getAuthContext(extra);
       requireScope(auth, "logs:stream");
       requireOwnedInstance(input.instanceId, auth);
-      const release = mcpLogWatchLimiter.acquire(auth.apiKey.id);
+      const release = mcpWatchLimiter.acquire(auth.apiKey.id);
       if (release === undefined) {
         return toolError("Too many concurrent log watches");
       }
 
       const waiter = waitForInstanceLog(
         input.instanceId,
-        mcpLogWatchTimeoutMs,
+        mcpWatchTimeoutMs,
         extra.mcpReq.signal,
       );
       try {

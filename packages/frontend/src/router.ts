@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory } from "vue-router";
+import { config } from "@/config";
 import { loadInstanceDetailPage } from "@/pages/InstanceDetail/load";
 import { useAuthStore } from "@/stores/auth";
 
@@ -18,6 +19,11 @@ const InstanceResponses = () =>
   import("@/pages/InstanceResponses").then(
     (module) => module.InstanceResponses,
   );
+
+const Mailboxes = () =>
+  import("@/pages/Mailboxes").then((module) => module.Mailboxes);
+const Mailbox = () =>
+  import("@/pages/Mailbox").then((module) => module.Mailbox);
 
 const router = createRouter({
   history: createWebHistory(),
@@ -56,6 +62,18 @@ const router = createRouter({
           meta: { requiresSession: true },
         },
         {
+          path: "mail",
+          name: "mailboxes",
+          component: Mailboxes,
+          meta: { requiresUser: true, requiresMail: true },
+        },
+        {
+          path: "mail/:id",
+          name: "mailbox",
+          component: Mailbox,
+          meta: { requiresUser: true, requiresMail: true },
+        },
+        {
           path: "instances/:id/responses",
           name: "instanceResponses",
           component: InstanceResponses,
@@ -84,6 +102,13 @@ router.beforeEach(async (to) => {
   const requiresUser = to.matched.some(
     (record) => record.meta?.requiresUser === true,
   );
+  if (
+    !config.smtpEnabled &&
+    to.matched.some((record) => record.meta?.requiresMail === true)
+  ) {
+    return { name: "home" };
+  }
+
   const requiresGuest = to.matched.some(
     (record) => record.meta?.requiresGuest === true,
   );

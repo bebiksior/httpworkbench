@@ -29,8 +29,20 @@ const smtpLogRateLimit = createBoundedProtocolRateLimiter({
   maxEntries: maxSmtpLogRateLimitEntries,
 });
 
+type SmtpRecipientKind = "instance" | "mailbox";
+
+export type InboundMailboxMessage = {
+  mailboxId: string;
+  raw: string;
+  mailFrom: string;
+  rcptTo: string[];
+  clientAddress: string;
+  timestamp: number;
+};
+
 export type SmtpServerDependencies = {
-  hasActiveInstance: (id: string) => Promise<boolean>;
+  findRecipient: (id: string) => Promise<SmtpRecipientKind | undefined>;
+  storeMailboxMessage: (message: InboundMailboxMessage) => Promise<void>;
   addLog: (log: Log) => Log | AddLogOutcome | Promise<Log | AddLogOutcome>;
   broadcastLog: (log: Log) => void;
   createId: () => string;
@@ -48,8 +60,9 @@ type SmtpLineResult = {
 };
 
 type AcceptedRecipient = {
-  raw: string;
-  instanceId: string;
+  addresses: string[];
+  targetId: string;
+  kind: SmtpRecipientKind;
 };
 
 const toRuntimeSmtpConfig = (config: SmtpConfig): SmtpRuntimeConfig => {
@@ -124,20 +137,46 @@ export const createSmtpSession = ({
     const timestamp = deps.now();
     const message = dataChunks.join("");
 
+    let mailboxDeferred = false;
+
     for (const recipient of recipients) {
-      if (
-        !shouldPersistSmtpLog({
-          instanceId: recipient.instanceId,
-          clientAddress,
-          now: timestamp,
-        })
-      ) {
+      const withinRateLimit = shouldPersistSmtpLog({
+        instanceId: recipient.targetId,
+        clientAddress,
+        now: timestamp,
+      });
+
+      if (recipient.kind === "mailbox") {
+        if (dataTruncated) {
+          continue;
+        }
+        if (!withinRateLimit) {
+          mailboxDeferred = true;
+          continue;
+        }
+        try {
+          await deps.storeMailboxMessage({
+            mailboxId: recipient.targetId,
+            raw: message,
+            mailFrom: mailFrom ?? "",
+            rcptTo: recipient.addresses,
+            clientAddress,
+            timestamp,
+          });
+        } catch (error) {
+          console.error("Failed to store mailbox message", error);
+          mailboxDeferred = true;
+        }
+        continue;
+      }
+
+      if (!withinRateLimit) {
         continue;
       }
 
       const log = {
         id: deps.createId(),
-        instanceId: recipient.instanceId,
+        instanceId: recipient.targetId,
         type: "smtp",
         timestamp,
         address: clientAddress,
@@ -146,7 +185,7 @@ export const createSmtpSession = ({
           clientAddress,
           ehloName,
           mailFrom: mailFrom ?? "",
-          rcptTo: recipient.raw,
+          rcptTo: recipient.addresses[0] ?? "",
           sizeBytes: dataBytes,
           truncated: dataTruncated,
           instancesDomain: config.instancesDomain,
@@ -172,8 +211,11 @@ export const createSmtpSession = ({
       }
     }
 
-    return dataTruncated
-      ? ["552 5.3.4 Message size exceeds fixed limit\r\n"]
+    if (dataTruncated) {
+      return ["552 5.3.4 Message size exceeds fixed limit\r\n"];
+    }
+    return mailboxDeferred
+      ? ["451 4.3.0 Mailbox temporarily unavailable, try again later\r\n"]
       : ["250 2.0.0 OK: queued\r\n"];
   };
 
@@ -267,16 +309,22 @@ export const createSmtpSession = ({
           return reply("550 5.1.1 No such instance");
         }
 
-        if (!(await deps.hasActiveInstance(resolution.instanceId))) {
+        const kind = await deps.findRecipient(resolution.instanceId);
+        if (kind === undefined) {
           return reply("550 5.1.1 No such instance");
         }
 
-        if (
-          !recipients.some(
-            (entry) => entry.instanceId === resolution.instanceId,
-          )
-        ) {
-          recipients.push({ raw: to, instanceId: resolution.instanceId });
+        const existing = recipients.find(
+          (entry) => entry.targetId === resolution.instanceId,
+        );
+        if (existing === undefined) {
+          recipients.push({
+            addresses: [to],
+            targetId: resolution.instanceId,
+            kind,
+          });
+        } else if (!existing.addresses.includes(to)) {
+          existing.addresses.push(to);
         }
 
         return reply("250 2.1.5 OK");

@@ -33,13 +33,13 @@ const dynamicSpread = computed(() => {
 const shimmerStyle = computed(() => ({
   "--spread": `${dynamicSpread.value}px`,
   "--duration": `${duration}s`,
-  backgroundImage: `var(--bg), linear-gradient(#acacac, #acacac)`,
+  backgroundImage: `var(--bg), linear-gradient(var(--shimmer-base), var(--shimmer-base))`,
 }));
 </script>
 
 <template>
   <span
-    class="relative inline-block bg-[length:250%_100%,auto] bg-clip-text text-transparent [--bg:linear-gradient(90deg,#0000_calc(50%-var(--spread)),#ffffff,#0000_calc(50%+var(--spread)))] [background-repeat:no-repeat,padding-box] animate-shimmer"
+    class="relative inline-block bg-[length:250%_100%,auto] bg-clip-text text-transparent [--shimmer-base:#a1a1aa] [--shimmer-highlight:#18181b] dark:[--shimmer-base:#acacac] dark:[--shimmer-highlight:#ffffff] [--bg:linear-gradient(90deg,#0000_calc(50%-var(--spread)),var(--shimmer-highlight),#0000_calc(50%+var(--spread)))] [background-repeat:no-repeat,padding-box] animate-shimmer"
     :style="shimmerStyle"
   >
     <slot />

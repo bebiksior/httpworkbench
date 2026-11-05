@@ -90,6 +90,8 @@ describe("storage db migrations", () => {
       { name: "instances" },
       { name: "localCredentials" },
       { name: "logs" },
+      { name: "mailMessages" },
+      { name: "mailboxes" },
       { name: "sqlite_sequence" },
       { name: "userNotices" },
       { name: "users" },

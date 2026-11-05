@@ -37,6 +37,7 @@ const dnsLogRateLimit = createBoundedProtocolRateLimiter({
 
 export type DnsServerDependencies = {
   hasActiveInstance: (id: string) => Promise<boolean>;
+  hasActiveMailbox: (id: string) => Promise<boolean>;
   addLog: (log: Log) => Log | AddLogOutcome | Promise<Log | AddLogOutcome>;
   broadcastLog: (log: Log) => void;
   createId: () => string;
@@ -199,7 +200,10 @@ export const handleDnsRequest = async ({
         const instanceExists = await deps.hasActiveInstance(
           resolution.instanceId,
         );
-        if (!instanceExists) {
+        const hostExists =
+          instanceExists ||
+          (await deps.hasActiveMailbox(resolution.instanceId));
+        if (!hostExists) {
           const response = buildDnsResponse({
             request,
             code: DNS_RCODE.NXDOMAIN,
@@ -213,6 +217,10 @@ export const handleDnsRequest = async ({
           code: DNS_RCODE.NOERROR,
           answers: buildDnsInstanceAnswers(question, config).answers,
         });
+
+        if (!instanceExists) {
+          return encodeDnsResponse(transport, response);
+        }
 
         const timestamp = deps.now();
         if (

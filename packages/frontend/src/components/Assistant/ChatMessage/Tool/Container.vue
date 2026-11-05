@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { toRefs } from "vue";
-import TextShimmer from "@/components/Assistant/TextShimmer.vue";
+import { TextShimmer } from "@/components/TextShimmer";
 import { useToolMessage } from "./useMessage";
 import type { MessageState } from "@/agent/types";
 

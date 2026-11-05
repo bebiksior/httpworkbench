@@ -1,8 +1,9 @@
 import { createMcpHandler, McpServer } from "@modelcontextprotocol/server";
-import { dnsConfig } from "../config";
+import { dnsConfig, mailSendingConfig, smtpConfig } from "../config";
 import { authenticateApiKeyRequest } from "./apiKeyAuth";
 import { registerInstanceTools } from "./mcp/instanceTools";
 import { registerLogTools } from "./mcp/logTools";
+import { registerMailboxTools } from "./mcp/mailboxTools";
 import { createFixedWindowRateLimiter } from "./rateLimit";
 
 const mcpRateLimitWindowMs = 60_000;
@@ -16,6 +17,11 @@ const unauthMcpRateLimiter = createFixedWindowRateLimiter({
 });
 
 const instancesDomain = dnsConfig.instancesDomain;
+
+const mailboxInstructions = smtpConfig.smtpEnabled
+  ? `
+Mailboxes are temporary email inboxes at <id>.${instancesDomain}, separate from instances. Any address at the mailbox host lands in its inbox, so use one mailbox per target and tell signups apart by local part, e.g. admin+reset@<id>.${instancesDomain}. Wait for mail with watch_mailbox and read it with read_message, which lists the links it contains.${mailSendingConfig.enabled ? " Send mail from a mailbox with send_email." : ""}`
+  : "";
 
 const mcpServerInstructions = `
 HTTP Workbench hosts proof-of-concept HTTP responses and captures HTTP, DNS and SMTP interactions for authorized security testing.
@@ -32,7 +38,7 @@ Instances created here expire after 72 hours unless extended with extend_instanc
 Raw responses need a status line, headers, a blank line and a body. Line endings are normalized and Content-Length is set automatically.
 
 When the user is waiting for interactions, call watch_instance_logs again with resumeCursor after pollAfterMs.
-`.trim();
+${mailboxInstructions}`.trim();
 
 const frontendUrl = Bun.env.FRONTEND_URL;
 const configuredDomain = Bun.env.DOMAIN;
@@ -74,6 +80,7 @@ const createMcpServer = () => {
   );
   registerInstanceTools(server);
   registerLogTools(server);
+  registerMailboxTools(server);
   return server;
 };
 

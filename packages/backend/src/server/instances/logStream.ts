@@ -1,4 +1,5 @@
 import type { Log } from "shared";
+import { createKeyedWaiters } from "../waiters";
 
 interface LogStreamSocket {
   send(data: string): unknown;
@@ -8,7 +9,7 @@ interface LogStreamSocket {
 }
 
 const listeners = new Map<string, Set<LogStreamSocket>>();
-const logWaiters = new Map<string, Set<() => void>>();
+const logWaiters = createKeyedWaiters();
 const maxSocketBufferedBytes = 1024 * 1024;
 const streamEncoder = new TextEncoder();
 
@@ -20,49 +21,7 @@ const closeSlowSocket = (socket: LogStreamSocket): void => {
   }
 };
 
-export const waitForInstanceLog = (
-  instanceId: string,
-  timeoutMs: number,
-  signal?: AbortSignal,
-) => {
-  let waiters = logWaiters.get(instanceId);
-  if (waiters === undefined) {
-    waiters = new Set();
-    logWaiters.set(instanceId, waiters);
-  }
-
-  let settled = false;
-  let resolvePromise: () => void = () => undefined;
-  const promise = new Promise<void>((resolve) => {
-    resolvePromise = resolve;
-  });
-  let timeout: ReturnType<typeof setTimeout> | undefined;
-
-  const settle = () => {
-    if (settled) {
-      return;
-    }
-    settled = true;
-    if (timeout !== undefined) {
-      clearTimeout(timeout);
-    }
-    signal?.removeEventListener("abort", settle);
-    waiters.delete(settle);
-    if (waiters.size === 0) {
-      logWaiters.delete(instanceId);
-    }
-    resolvePromise();
-  };
-  timeout = setTimeout(settle, timeoutMs);
-  waiters.add(settle);
-  if (signal?.aborted === true) {
-    settle();
-  } else {
-    signal?.addEventListener("abort", settle, { once: true });
-  }
-
-  return { promise, cancel: settle };
-};
+export const waitForInstanceLog = logWaiters.wait;
 
 export const subscribeToLogStream = (
   instanceId: string,
@@ -91,12 +50,7 @@ export const unsubscribeFromLogStream = (
 };
 
 export const broadcastLog = (log: Log) => {
-  const waiters = logWaiters.get(log.instanceId);
-  if (waiters !== undefined) {
-    for (const settle of [...waiters]) {
-      settle();
-    }
-  }
+  logWaiters.notify(log.instanceId);
 
   const sockets = listeners.get(log.instanceId);
   if (sockets === undefined) {

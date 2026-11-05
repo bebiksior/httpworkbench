@@ -14,6 +14,7 @@ import {
   useCreateApiKey,
   useRevokeApiKey,
 } from "@/queries/domains/useApiKeys";
+import { config } from "@/config";
 
 const scopeOptions: Array<{ value: ApiKeyScope; label: string }> = [
   { value: "instances:read", label: "Read instances" },
@@ -21,6 +22,15 @@ const scopeOptions: Array<{ value: ApiKeyScope; label: string }> = [
   { value: "instances:delete", label: "Delete instances" },
   { value: "logs:read", label: "Read logs" },
   { value: "logs:stream", label: "Watch logs" },
+  ...(config.smtpEnabled
+    ? ([
+        { value: "mailboxes:read", label: "Read mail" },
+        { value: "mailboxes:write", label: "Manage mailboxes" },
+      ] as const)
+    : []),
+  ...(config.smtpSendingEnabled
+    ? ([{ value: "mailboxes:send", label: "Send mail" }] as const)
+    : []),
 ];
 
 const {

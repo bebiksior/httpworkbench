@@ -15,6 +15,14 @@ export const queryKeys = {
   apiKeys: {
     all: ["api-keys"] as const,
   },
+  mailboxes: {
+    all: ["mailboxes"] as const,
+    detail: (id: string) => ["mailboxes", id] as const,
+    messages: (id: string, folder: string) =>
+      ["mailboxes", id, "messages", folder] as const,
+    message: (id: string, messageId: string) =>
+      ["mailboxes", id, "message", messageId] as const,
+  },
 } as const;
 
 export const instanceListQueryKey = (isGuest: boolean, guestKey?: string) =>

@@ -4,6 +4,7 @@ import type { Log } from "shared";
 import {
   createSmtpServer,
   createSmtpSession,
+  type InboundMailboxMessage,
   type SmtpServerDependencies,
 } from "./server";
 import { maxSmtpDataBytes } from "./utils";
@@ -13,12 +14,24 @@ const runtimeConfig = {
   smtpPort: 0,
 };
 
-const createCapturingDeps = (knownInstanceId: string) => {
+const createCapturingDeps = (
+  knownInstanceId: string,
+  knownMailboxId = "mbx",
+) => {
   const added: Log[] = [];
   const broadcasted: Log[] = [];
+  const stored: InboundMailboxMessage[] = [];
 
   const deps: SmtpServerDependencies = {
-    hasActiveInstance: async (id) => id === knownInstanceId,
+    findRecipient: async (id) =>
+      id === knownInstanceId
+        ? "instance"
+        : id === knownMailboxId
+          ? "mailbox"
+          : undefined,
+    storeMailboxMessage: async (message) => {
+      stored.push(message);
+    },
     addLog: async (log) => {
       added.push(log);
       return log;
@@ -30,7 +43,7 @@ const createCapturingDeps = (knownInstanceId: string) => {
     now: () => 1000,
   };
 
-  return { added, broadcasted, deps };
+  return { added, broadcasted, stored, deps };
 };
 
 const drive = async (
@@ -145,6 +158,85 @@ describe("createSmtpSession", () => {
     ]);
 
     expect(replies).toContain("550 5.7.1 Relaying denied\r\n");
+  });
+
+  test("stores mail for a mailbox instead of logging it", async () => {
+    const { added, stored, deps } = createCapturingDeps("abc");
+    const session = createSmtpSession({
+      clientAddress: "1.2.3.4",
+      config: runtimeConfig,
+      deps,
+    });
+
+    const replies = await drive(session, [
+      "EHLO x",
+      "MAIL FROM:<a@b.com>",
+      "RCPT TO:<signup@mbx.instances.example.com>",
+      "DATA",
+      "Subject: Hi",
+      "",
+      "Hello",
+      ".",
+    ]);
+
+    expect(replies).toContain("250 2.0.0 OK: queued\r\n");
+    expect(added).toHaveLength(0);
+    expect(stored).toEqual([
+      {
+        mailboxId: "mbx",
+        raw: "Subject: Hi\r\n\r\nHello\r\n",
+        mailFrom: "a@b.com",
+        rcptTo: ["signup@mbx.instances.example.com"],
+        clientAddress: "1.2.3.4",
+        timestamp: 1000,
+      },
+    ]);
+  });
+
+  test("keeps every alias delivered to the same mailbox", async () => {
+    const { stored, deps } = createCapturingDeps("abc");
+    const session = createSmtpSession({
+      clientAddress: "9.9.9.9",
+      config: runtimeConfig,
+      deps,
+    });
+
+    await drive(session, [
+      "EHLO x",
+      "MAIL FROM:<a@b.com>",
+      "RCPT TO:<one@mbx.instances.example.com>",
+      "RCPT TO:<two@mbx.instances.example.com>",
+      "DATA",
+      "Hi",
+      ".",
+    ]);
+
+    expect(stored.map(({ rcptTo }) => rcptTo)).toEqual([
+      ["one@mbx.instances.example.com", "two@mbx.instances.example.com"],
+    ]);
+  });
+
+  test("defers mailbox mail that could not be stored", async () => {
+    const { deps } = createCapturingDeps("abc");
+    deps.storeMailboxMessage = async () => {
+      throw new Error("disk full");
+    };
+    const session = createSmtpSession({
+      clientAddress: "5.6.7.8",
+      config: runtimeConfig,
+      deps,
+    });
+
+    const replies = await drive(session, [
+      "EHLO x",
+      "MAIL FROM:<a@b.com>",
+      "RCPT TO:<x@mbx.instances.example.com>",
+      "DATA",
+      "Hi",
+      ".",
+    ]);
+
+    expect(replies.at(-1)).toStartWith("451 ");
   });
 
   test("requires MAIL FROM before RCPT TO", async () => {

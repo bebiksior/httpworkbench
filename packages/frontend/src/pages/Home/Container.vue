@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import Button from "primevue/button";
-import Divider from "primevue/divider";
 import IconField from "primevue/iconfield";
 import InputIcon from "primevue/inputicon";
 import InputText from "primevue/inputtext";
@@ -9,9 +8,11 @@ import Skeleton from "primevue/skeleton";
 import { useElementSize, useMediaQuery, useResizeObserver } from "@vueuse/core";
 import { computed, ref } from "vue";
 import { storeToRefs } from "pinia";
+import { CardSkeleton } from "@/components/CardSkeleton";
+import { EmptyCard } from "@/components/EmptyCard";
+import { PageHeader } from "@/components/PageHeader";
 import { config } from "@/config";
 import { useAuthStore } from "@/stores/auth";
-import { EmptyState } from "./Empty";
 import { InstanceItem } from "./InstanceItem";
 import { Pager } from "./Pager";
 import { useHomeLogic } from "./useLogic";
@@ -82,41 +83,25 @@ const showPager = computed(() => !isLoading.value && pageCount.value > 1);
   <div
     class="flex h-full flex-col overflow-y-auto bg-surface-50 dark:bg-surface-900"
   >
-    <div class="mx-auto w-full max-w-7xl px-3 pt-4 pb-2 sm:px-6 sm:pt-8">
-      <div
-        class="mb-2 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4"
-      >
-        <div>
-          <div class="flex items-center gap-3">
-            <h1
-              class="text-2xl font-bold text-surface-900 dark:text-surface-0 sm:text-4xl"
-            >
-              Instances
-            </h1>
-            <Skeleton
-              v-if="isLoading && showInstanceLimit"
-              width="3.75rem"
-              height="1.25rem"
-              border-radius="0.375rem"
-            />
-            <span
-              v-else-if="showInstanceLimit"
-              class="text-base font-medium text-surface-400 sm:text-lg"
-            >
-              {{ instanceCount }}/{{ instanceLimit }}
-            </span>
-          </div>
-          <p class="text-sm text-surface-400 sm:text-base">
-            {{ countText }}
-          </p>
-        </div>
-      </div>
+    <PageHeader title="Instances" :subtitle="countText">
+      <template #title>
+        <Skeleton
+          v-if="isLoading && showInstanceLimit"
+          width="3.75rem"
+          height="1.25rem"
+          border-radius="0.375rem"
+        />
+        <span
+          v-else-if="showInstanceLimit"
+          class="text-base font-medium text-surface-400 sm:text-lg"
+        >
+          {{ instanceCount }}/{{ instanceLimit }}
+        </span>
+      </template>
       <Message v-if="isGuest" severity="info" :closable="false" class="mt-4">
         You are in the Guest mode. Some features are limited.
       </Message>
-    </div>
-
-    <Divider v-if="isDesktopViewport" class="mb-6" />
+    </PageHeader>
 
     <div
       class="mx-auto flex min-h-0 w-full max-w-7xl flex-1 flex-col px-3 pt-4 pb-6 sm:px-6 sm:pt-2"
@@ -201,50 +186,7 @@ const showPager = computed(() => !isLoading.value && pageCount.value > 1);
         aria-label="Loading instances"
         aria-busy="true"
       >
-        <article
-          v-for="index in 3"
-          :key="index"
-          class="rounded-lg border border-surface-200 bg-white p-3 dark:border-surface-700 dark:bg-surface-800 sm:p-5"
-          aria-hidden="true"
-        >
-          <div
-            class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-6"
-          >
-            <div class="min-w-0 shrink-0">
-              <div class="mb-1 flex h-6 items-center sm:h-7">
-                <div class="h-5 w-44 sm:h-6">
-                  <Skeleton
-                    width="100%"
-                    height="100%"
-                    border-radius="0.375rem"
-                  />
-                </div>
-              </div>
-              <div class="flex h-4 items-center gap-4 sm:h-5">
-                <div class="h-3 w-[10.875rem] sm:h-3.5 sm:w-[11.875rem]">
-                  <Skeleton width="100%" height="100%" />
-                </div>
-                <div class="h-3 w-10 sm:h-3.5 sm:w-11">
-                  <Skeleton width="100%" height="100%" />
-                </div>
-              </div>
-            </div>
-            <div
-              class="flex w-full min-w-0 items-center gap-1.5 sm:w-auto sm:gap-2"
-            >
-              <div class="h-10 min-w-0 flex-1 sm:w-80 sm:flex-none">
-                <Skeleton width="100%" height="100%" border-radius="0.375rem" />
-              </div>
-              <div
-                v-for="action in 3"
-                :key="action"
-                class="h-[2.1875rem] w-8 shrink-0"
-              >
-                <Skeleton width="100%" height="100%" border-radius="0.375rem" />
-              </div>
-            </div>
-          </div>
-        </article>
+        <CardSkeleton v-for="index in 3" :key="index" :actions="3" />
       </div>
 
       <template v-else-if="filteredInstances.length > 0">
@@ -267,7 +209,15 @@ const showPager = computed(() => !isLoading.value && pageCount.value > 1);
           <Pager :page="page" :page-count="pageCount" @update:page="goTo" />
         </div>
       </template>
-      <EmptyState v-else :has-search-query="hasSearchQuery" />
+      <EmptyCard
+        v-else
+        :title="hasSearchQuery ? 'No instances found' : 'No instances yet'"
+        :description="
+          hasSearchQuery
+            ? 'Try adjusting your search query'
+            : 'Create your first instance to get started'
+        "
+      />
     </div>
   </div>
 </template>

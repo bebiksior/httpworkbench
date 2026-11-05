@@ -78,6 +78,9 @@ export const ApiKeyScopeSchema = z.union([
   z.literal("instances:delete"),
   z.literal("logs:read"),
   z.literal("logs:stream"),
+  z.literal("mailboxes:read"),
+  z.literal("mailboxes:write"),
+  z.literal("mailboxes:send"),
 ]);
 
 export type ApiKeyScope = z.infer<typeof ApiKeyScopeSchema>;
@@ -140,6 +143,7 @@ export const ConfigSchema = z.object({
   rawLimitBytes: z.number(),
   dnsEnabled: z.boolean(),
   smtpEnabled: z.boolean(),
+  smtpSendingEnabled: z.boolean(),
   instancesDomain: z.string(),
 });
 

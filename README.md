@@ -67,6 +67,9 @@ curl https://httpworkbench.com/api/instances \
 | `instances:delete` | Delete instances                                               |
 | `logs:read`        | Read instance logs                                             |
 | `logs:stream`      | Stream live logs over MCP and the WebSocket endpoint           |
+| `mailboxes:read`   | List mailboxes and read their messages                         |
+| `mailboxes:write`  | Create, update, extend and delete mailboxes and messages       |
+| `mailboxes:send`   | Send email from a mailbox                                      |
 
 ### Reference
 
@@ -210,6 +213,36 @@ docker compose -f docker-compose.yml -f docker-compose.dns.yml -f docker-compose
 ```
 
 No extra DNS records are required. Sending mail servers fall back to a host's `A` record when it has no `MX` record (RFC 5321 "implicit MX"), and instance hostnames already resolve to your server. The only requirements are that instance `A` records point at the real origin IP (a Cloudflare-proxied/orange-cloud record will not work for SMTP) and that public TCP port `25` reaches the backend. The server accepts plaintext on port 25 and does not advertise STARTTLS, so senders deliver over plaintext.
+
+### Mailboxes
+
+With SMTP enabled, the **Mail** view creates temporary mailboxes, separate from instances. A mailbox lives at `<id>.instances.yourdomain.com` and receives mail sent to any address at that host, so one mailbox can tell several signups apart by local part (`admin+reset@<id>.instances.yourdomain.com`). Mailboxes are also available over the API and MCP (`create_mailbox`, `watch_mailbox`, `read_message`, `send_email`, ...).
+
+Sending is off by default. Enable it with `SMTP_SENDING_ENABLED=true` and pick how mail leaves the server. Mail is sent from the mailbox address.
+
+#### SMTP2GO (recommended)
+
+1. In [SMTP2GO](https://www.smtp2go.com/), add your main domain (`yourdomain.com`) under **Sending → Verified Senders** and create the DNS records it shows. Verifying the main domain also covers every mailbox host under `instances.yourdomain.com`.
+2. Create a user under **Sending → SMTP Users**.
+3. Set its credentials:
+
+```bash
+SMTP_SENDING_ENABLED=true
+SMTP2GO_USERNAME=your-smtp-user
+SMTP2GO_PASSWORD=your-smtp-password
+```
+
+Mail goes through `mail.smtp2go.com` on port 2525 with STARTTLS, which hosting providers rarely block.
+
+#### Other SMTP relay
+
+Set `SMTP_RELAY_URL` to `smtp://user:pass@smtp.example.com:587` for STARTTLS or `smtps://user:pass@smtp.example.com:465` for implicit TLS. The provider must allow sending from subdomains of a verified domain, because every mailbox has its own host.
+
+#### Direct delivery
+
+Without a relay, mail is delivered straight to each recipient's MX server over port 25. Many hosts block outbound port 25, and large providers reject unauthenticated mail, so this mostly suits testing. Mail servers that resolve to private addresses are refused.
+
+Mail to other mailboxes and instances on the same server is delivered locally. Each user can send 30 messages per hour.
 
 ### Database migration backups
 

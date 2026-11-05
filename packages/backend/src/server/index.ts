@@ -5,13 +5,15 @@ import {
   flushPendingWebhookNotifications,
   getInstanceAccessMetadata,
   hasActiveInstance,
+  hasActiveMailbox,
 } from "../storage";
-import { dnsConfig, smtpConfig } from "../config";
+import { dnsConfig, mailSendingConfig, smtpConfig } from "../config";
 import {
   aiRoutes,
   apiKeysRoutes,
   guestInstancesRoutes,
   instancesRoutes,
+  mailboxesRoutes,
   oauthRoutes,
   userRoutes,
   webhooksRoutes,
@@ -41,6 +43,7 @@ import {
 } from "./instances";
 import { createDnsServer } from "./dns";
 import { createSmtpServer } from "./smtp";
+import { storeInboundMail } from "./mailboxes";
 import { createBoundedProtocolRateLimiter } from "./protocolRateLimit";
 import { isAllowedBrowserOrigin } from "./webSocketOrigin";
 import { version } from "../version";
@@ -90,6 +93,7 @@ export const buildApiServer = (port: number) => {
     .use(guestInstancesRoutes)
     .use(webhooksRoutes)
     .use(apiKeysRoutes)
+    .use(mailboxesRoutes)
     .ws("/api/instances/:id/stream", {
       async beforeHandle({ params, request, set, cookie }) {
         if (!isAllowedBrowserOrigin(request)) {
@@ -165,6 +169,7 @@ export const initServer = async () => {
         config: dnsConfig,
         deps: {
           hasActiveInstance: async (id) => hasActiveInstance(id),
+          hasActiveMailbox: async (id) => hasActiveMailbox(id),
           addLog: addLogWithOutcome,
           broadcastLog,
           createId: () => crypto.randomUUID(),
@@ -177,7 +182,13 @@ export const initServer = async () => {
     ? await createSmtpServer({
         config: smtpConfig,
         deps: {
-          hasActiveInstance: async (id) => hasActiveInstance(id),
+          findRecipient: async (id) =>
+            hasActiveMailbox(id)
+              ? "mailbox"
+              : hasActiveInstance(id)
+                ? "instance"
+                : undefined,
+          storeMailboxMessage: storeInboundMail,
           addLog: addLogWithOutcome,
           broadcastLog,
           createId: () => crypto.randomUUID(),
@@ -185,6 +196,12 @@ export const initServer = async () => {
         },
       })
     : undefined;
+
+  if (smtpServer !== undefined && mailSendingConfig.enabled) {
+    console.log(
+      `Mail sending enabled via ${mailSendingConfig.relay?.name ?? "direct MX delivery"}`,
+    );
+  }
 
   const runCleanup = () => {
     try {

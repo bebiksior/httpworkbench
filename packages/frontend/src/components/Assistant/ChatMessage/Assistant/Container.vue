@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { getToolName, isToolUIPart } from "ai";
 import { computed, toRefs } from "vue";
-import TextShimmer from "@/components/Assistant/TextShimmer.vue";
+import { TextShimmer } from "@/components/TextShimmer";
 import { ChatMessageTool } from "../Tool";
 import { Markdown } from "./Markdown";
 import { Reasoning } from "./Reasoning";

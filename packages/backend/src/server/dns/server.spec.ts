@@ -11,6 +11,7 @@ import {
 } from "./server";
 
 const createBaseDeps = () => ({
+  hasActiveMailbox: async (id: string) => id === "mailbox",
   broadcastLog: () => {},
   createId: () => "log-id",
   now: () => 123,
@@ -772,6 +773,33 @@ describe("handleDnsRequest", () => {
     expect(decoded.answers).toEqual([]);
     expect(consoleError).not.toHaveBeenCalled();
     consoleError.mockRestore();
+  });
+
+  test("answers mailbox hosts without creating a log", async () => {
+    const logs: string[] = [];
+
+    const response = await handleDnsRequest({
+      payload: dnsPacket.encode({
+        type: "query",
+        id: 25,
+        questions: [{ name: "mailbox.instances.example.com", type: "MX" }],
+      }),
+      transport: "udp",
+      clientAddress: "127.0.0.1",
+      config: createRuntimeDnsConfig(),
+      deps: {
+        ...deps,
+        addLog: async (log) => {
+          logs.push(log.id);
+          return log;
+        },
+      },
+    });
+
+    const decoded = dnsPacket.decode(Buffer.from(response ?? []));
+    expect((decoded.flags ?? 0) & 0x000f).toBe(0);
+    expect(decoded.answers?.[0]?.type).toBe("MX");
+    expect(logs).toHaveLength(0);
   });
 
   test("marks TCP source addresses as verified", async () => {
