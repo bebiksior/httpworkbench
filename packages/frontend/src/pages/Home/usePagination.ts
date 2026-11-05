@@ -4,7 +4,7 @@ import { clampPage, parsePage } from "./pagination";
 
 type Options<T> = {
   items: MaybeRefOrGetter<T[]>;
-  pageSize: number;
+  pageSize: MaybeRefOrGetter<number>;
   isReady: MaybeRefOrGetter<boolean>;
   resetOn: MaybeRefOrGetter<unknown>;
 };
@@ -18,20 +18,24 @@ export const usePagination = <T>({
   const route = useRoute();
   const router = useRouter();
 
+  const size = computed(() => Math.max(1, toValue(pageSize)));
   const total = computed(() => toValue(items).length);
   const pageCount = computed(() =>
-    Math.max(1, Math.ceil(total.value / pageSize)),
+    Math.max(1, Math.ceil(total.value / size.value)),
   );
   const page = computed(() =>
     clampPage(parsePage(route.query.page), pageCount.value),
   );
   const pageSlice = computed(() =>
-    toValue(items).slice((page.value - 1) * pageSize, page.value * pageSize),
+    toValue(items).slice(
+      (page.value - 1) * size.value,
+      page.value * size.value,
+    ),
   );
 
   const rangeText = computed(() => {
-    const from = total.value === 0 ? 0 : (page.value - 1) * pageSize + 1;
-    const to = Math.min(total.value, page.value * pageSize);
+    const from = total.value === 0 ? 0 : (page.value - 1) * size.value + 1;
+    const to = Math.min(total.value, page.value * size.value);
     return `${from.toLocaleString()}–${to.toLocaleString()} of ${total.value.toLocaleString()}`;
   });
 

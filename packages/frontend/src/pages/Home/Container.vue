@@ -6,8 +6,8 @@ import InputIcon from "primevue/inputicon";
 import InputText from "primevue/inputtext";
 import Message from "primevue/message";
 import Skeleton from "primevue/skeleton";
-import { useMediaQuery } from "@vueuse/core";
-import { computed, ref, watch } from "vue";
+import { useElementSize, useMediaQuery } from "@vueuse/core";
+import { computed, ref } from "vue";
 import { storeToRefs } from "pinia";
 import { config } from "@/config";
 import { useAuthStore } from "@/stores/auth";
@@ -50,24 +50,38 @@ const authStore = useAuthStore();
 const { isGuest } = storeToRefs(authStore);
 const isDesktopViewport = useMediaQuery("(min-width: 640px)");
 
+const listRef = ref<HTMLElement | null>(null);
+const firstCardRef = ref<HTMLElement | null>(null);
+const { height: listHeight } = useElementSize(listRef);
+const { height: cardHeight } = useElementSize(firstCardRef, undefined, {
+  box: "border-box",
+});
+const cardGap = computed(() => (isDesktopViewport.value ? 16 : 12));
+const pageSize = computed(() => {
+  const card = cardHeight.value || (isDesktopViewport.value ? 100 : 116);
+  return Math.floor(
+    (listHeight.value + cardGap.value) / (card + cardGap.value),
+  );
+});
+const setFirstCard = (index: number) => (el: unknown) => {
+  if (index === 0) firstCardRef.value = el instanceof HTMLElement ? el : null;
+};
+
 const { page, pageCount, pageSlice, rangeText, goTo } = usePagination({
   items: filteredInstances,
-  pageSize: 10,
-  isReady: () => !isLoading.value && instances.value !== undefined,
+  pageSize,
+  isReady: () =>
+    !isLoading.value && instances.value !== undefined && listHeight.value > 0,
   resetOn: searchQuery,
 });
 const showPager = computed(() => !isLoading.value && pageCount.value > 1);
-
-const scrollerRef = ref<HTMLElement | null>(null);
-watch(page, () => scrollerRef.value?.scrollTo({ top: 0 }));
 </script>
 
 <template>
   <div
-    ref="scrollerRef"
-    class="h-full overflow-y-auto bg-surface-50 dark:bg-surface-900"
+    class="flex h-full flex-col overflow-y-auto bg-surface-50 dark:bg-surface-900"
   >
-    <div class="mx-auto max-w-7xl px-3 pt-4 pb-2 sm:px-6 sm:pt-8">
+    <div class="mx-auto w-full max-w-7xl px-3 pt-4 pb-2 sm:px-6 sm:pt-8">
       <div
         class="mb-2 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4"
       >
@@ -103,7 +117,9 @@ watch(page, () => scrollerRef.value?.scrollTo({ top: 0 }));
 
     <Divider v-if="isDesktopViewport" class="mb-6" />
 
-    <div class="mx-auto max-w-7xl px-3 pt-4 pb-8 sm:px-6 sm:pt-2">
+    <div
+      class="mx-auto flex min-h-0 w-full max-w-7xl flex-1 flex-col px-3 pt-4 pb-6 sm:px-6 sm:pt-2"
+    >
       <div
         class="mb-4 flex flex-col gap-3 sm:mb-6 sm:flex-row sm:items-center sm:justify-between sm:gap-4"
       >
@@ -180,7 +196,7 @@ watch(page, () => scrollerRef.value?.scrollTo({ top: 0 }));
 
       <div
         v-if="isLoading"
-        class="space-y-3 sm:space-y-4"
+        class="min-h-0 flex-1 space-y-3 overflow-hidden sm:space-y-4"
         aria-label="Loading instances"
         aria-busy="true"
       >
@@ -231,14 +247,20 @@ watch(page, () => scrollerRef.value?.scrollTo({ top: 0 }));
       </div>
 
       <template v-else-if="filteredInstances.length > 0">
-        <ul class="space-y-3 sm:space-y-4" aria-label="Instances">
-          <li v-for="instance in pageSlice" :key="instance.id">
-            <InstanceItem :instance="instance" />
-          </li>
-        </ul>
+        <div ref="listRef" class="min-h-0 flex-1 overflow-hidden">
+          <ul class="space-y-3 sm:space-y-4" aria-label="Instances">
+            <li
+              v-for="(instance, index) in pageSlice"
+              :key="instance.id"
+              :ref="setFirstCard(index)"
+            >
+              <InstanceItem :instance="instance" />
+            </li>
+          </ul>
+        </div>
         <div
           v-if="showPager"
-          class="mt-6 flex items-center justify-center text-sm text-surface-400 sm:justify-between"
+          class="mt-4 flex items-center justify-center text-sm text-surface-400 sm:justify-between"
         >
           <span class="hidden tabular-nums sm:inline">{{ rangeText }}</span>
           <Pager :page="page" :page-count="pageCount" @update:page="goTo" />
