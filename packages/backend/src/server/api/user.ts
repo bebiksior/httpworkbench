@@ -1,5 +1,9 @@
 import { Elysia, status } from "elysia";
-import { acknowledgeUserNotice, getPendingNoticesForUser } from "../../storage";
+import {
+  acknowledgeAllUserNotices,
+  acknowledgeUserNotice,
+  getPendingNoticesForUser,
+} from "../../storage";
 import { authPlugin } from "../auth";
 
 export const userRoutes = new Elysia({ name: "routes/user" })
@@ -9,6 +13,11 @@ export const userRoutes = new Elysia({ name: "routes/user" })
   .get(
     "/api/user/notices",
     ({ user }) => ({ notices: getPendingNoticesForUser(user.id) }),
+    { session: true },
+  )
+  .post(
+    "/api/user/notices/ack",
+    ({ user }) => ({ acknowledged: acknowledgeAllUserNotices(user.id) }),
     { session: true },
   )
   .post(

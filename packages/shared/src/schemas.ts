@@ -117,6 +117,8 @@ export const UserNoticeSchema = z.object({
   userId: z.string(),
   kind: UserNoticeKindSchema,
   instanceId: z.string(),
+  instanceLabel: z.string().optional(),
+  requestsInWindow15m: z.number().optional(),
   createdAt: z.number(),
   acknowledgedAt: z.number().optional(),
 });

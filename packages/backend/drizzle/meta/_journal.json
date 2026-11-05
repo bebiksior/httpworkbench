@@ -64,6 +64,13 @@
       "when": 1793577985738,
       "tag": "0008_instance_routes",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1793894215607,
+      "tag": "0009_notice_instance_details",
+      "breakpoints": true
     }
   ]
 }

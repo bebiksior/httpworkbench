@@ -27,7 +27,7 @@ export const apiPaths = {
   instanceStream: (id: string) => path("/api/instances/:id/stream", { id }),
   instances: "/api/instances",
   userNotices: "/api/user/notices",
-  userNoticeAck: (id: string) => path("/api/user/notices/:id/ack", { id }),
+  userNoticesAck: "/api/user/notices/ack",
   webhook: (id: string) => path("/api/webhooks/:id", { id }),
   webhookTest: "/api/webhooks/test",
   webhooks: "/api/webhooks",

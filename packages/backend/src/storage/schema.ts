@@ -180,6 +180,8 @@ export const userNotices = sqliteTable(
       .$type<UserNoticeKind>()
       .notNull(),
     instanceId: text("instanceId").notNull(),
+    instanceLabel: text("instanceLabel"),
+    requestsInWindow15m: integer("requestsInWindow15m", { mode: "number" }),
     createdAt: integer("createdAt", { mode: "number" }).notNull(),
     acknowledgedAt: integer("acknowledgedAt", { mode: "number" }),
   },

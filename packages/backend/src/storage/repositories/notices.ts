@@ -46,3 +46,31 @@ export function acknowledgeUserNotice(
 
   return updated;
 }
+
+export function acknowledgeAllUserNotices(userId: string): number {
+  return getDb()
+    .update(userNotices)
+    .set({ acknowledgedAt: Date.now() })
+    .where(
+      and(eq(userNotices.userId, userId), isNull(userNotices.acknowledgedAt)),
+    )
+    .returning({ id: userNotices.id })
+    .all().length;
+}
+
+export function getRemovalNoticeForInstance(
+  instanceId: string,
+  userId: string,
+): UserNotice | undefined {
+  const row = getDb()
+    .select()
+    .from(userNotices)
+    .where(
+      and(
+        eq(userNotices.instanceId, instanceId),
+        eq(userNotices.userId, userId),
+      ),
+    )
+    .get();
+  return row === undefined ? undefined : toDomainUserNotice(row);
+}

@@ -138,6 +138,8 @@ export const toDomainUserNotice = (row: UserNoticeRow): UserNotice => {
     userId: row.userId,
     kind: row.kind,
     instanceId: row.instanceId,
+    instanceLabel: row.instanceLabel ?? undefined,
+    requestsInWindow15m: row.requestsInWindow15m ?? undefined,
     createdAt: row.createdAt,
     acknowledgedAt: row.acknowledgedAt ?? undefined,
   });
@@ -150,6 +152,8 @@ export const toUserNoticeRow = (notice: UserNotice): UserNoticeInsertRow => {
     userId: parsed.userId,
     kind: parsed.kind,
     instanceId: parsed.instanceId,
+    instanceLabel: parsed.instanceLabel ?? null,
+    requestsInWindow15m: parsed.requestsInWindow15m ?? null,
     createdAt: parsed.createdAt,
     acknowledgedAt: parsed.acknowledgedAt ?? null,
   };

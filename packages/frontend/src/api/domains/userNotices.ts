@@ -9,7 +9,7 @@ export const userNoticesApi = {
     return parseResponse(UserNoticesListResponseSchema, data, "user notices")
       .notices;
   },
-  acknowledge: async (noticeId: string): Promise<void> => {
-    await apiClient.post<unknown>(apiPaths.userNoticeAck(noticeId), {});
+  acknowledgeAll: async (): Promise<void> => {
+    await apiClient.post<unknown>(apiPaths.userNoticesAck, {});
   },
 };

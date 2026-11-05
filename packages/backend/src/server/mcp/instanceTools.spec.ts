@@ -18,9 +18,11 @@ import {
   addUser,
   closeDb,
   getInstanceById,
+  getDb,
   getInstanceSummariesByOwner,
   initDb,
 } from "../../storage";
+import { userNotices } from "../../storage/schema";
 
 process.env.JWT_SECRET = "mcp-instance-tools-test-secret";
 process.env.INSTANCES_DOMAIN = "instances.example.com";
@@ -160,6 +162,36 @@ describe("MCP instance tools", () => {
       }
     },
   );
+
+  test("explains why an instance removed for excessive traffic is gone", async () => {
+    getDb()
+      .insert(userNotices)
+      .values({
+        id: "notice-1",
+        userId: "owner-1",
+        kind: "instance_removed_noise",
+        instanceId: "removed-1",
+        createdAt: 1,
+      })
+      .run();
+    const { client } = await connectClient(apiKey);
+    try {
+      const removed = await client.callTool({
+        name: "set_instance_public",
+        arguments: { instanceId: "removed-1", public: true },
+      });
+      expect(removed.isError).toBe(true);
+      expect(JSON.stringify(removed.content)).toContain("abuse protection");
+
+      const missing = await client.callTool({
+        name: "set_instance_public",
+        arguments: { instanceId: "never-existed", public: true },
+      });
+      expect(JSON.stringify(missing.content)).toContain("Instance not found");
+    } finally {
+      await client.close();
+    }
+  });
 
   test("manages per-path responses", async () => {
     const { client } = await connectClient(apiKey);

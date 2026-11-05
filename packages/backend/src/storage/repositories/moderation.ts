@@ -5,7 +5,7 @@ import {
 } from "shared";
 import { InstanceModerationSchema } from "shared";
 import { eq } from "drizzle-orm";
-import { abusePolicy } from "../../config/abuse";
+import { abusePolicy, instanceRemoval } from "../../config/abuse";
 import { getDb } from "../db";
 import {
   toDomainModeration,
@@ -60,6 +60,8 @@ const getActiveInstanceState = (
     .select({
       ownerId: instances.ownerId,
       expiresAt: instances.expiresAt,
+      label: instances.label,
+      isLocked: instances.isLocked,
     })
     .from(instances)
     .where(eq(instances.id, instanceId))
@@ -179,13 +181,15 @@ export const recordRequestAndMaybeTombstoneInTransaction = (
     shouldTombstone = true;
   }
 
-  if (shouldTombstone) {
+  if (shouldTombstone && instanceRemoval.enabled && !instance.isLocked) {
     if (instance.ownerId !== GUEST_OWNER_ID) {
       const notice = UserNoticeSchema.parse({
         id: crypto.randomUUID(),
         userId: instance.ownerId,
         kind: "instance_removed_noise",
         instanceId,
+        instanceLabel: instance.label ?? undefined,
+        requestsInWindow15m: moderation.requestsInWindow15m,
         createdAt: now,
       });
       tx.insert(userNotices).values(toUserNoticeRow(notice)).run();

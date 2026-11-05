@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { count, eq } from "drizzle-orm";
 import type { Instance, Log, Webhook } from "shared";
+import { abusePolicy, instanceRemoval } from "../../config/abuse";
 import { closeDb, getDb, initDb } from "../db";
 import { toDomainModeration, toModerationRow, toWebhookRow } from "../records";
 import {
@@ -27,12 +28,18 @@ import {
   countActiveInstancesByOwner,
   deleteInstance,
   getInstanceAccessMetadata,
+  getInstanceById,
   getInstanceSummariesByOwner,
   getServableInstanceById,
   getWebhookIdsForInstance,
   hasActiveInstance,
   removeExpiredInstances,
 } from "./instances";
+import {
+  acknowledgeAllUserNotices,
+  getPendingNoticesForUser,
+  getRemovalNoticeForInstance,
+} from "./notices";
 
 const createInstance = (overrides?: Partial<Instance>): Instance => ({
   id: "inst-1",
@@ -128,9 +135,11 @@ describe("addLog", () => {
     if (result.kind === "error") {
       throw result.error;
     }
+    instanceRemoval.enabled = true;
   });
 
   afterEach(() => {
+    instanceRemoval.enabled = false;
     globalThis.fetch = originalFetch;
     closeDb();
     rmSync(dataDir, { recursive: true, force: true });
@@ -164,23 +173,39 @@ describe("addLog", () => {
     expect(getLogsForInstance("inst-1")).toEqual([log]);
   });
 
-  test("tombstones noisy instances immediately in memory", () => {
+  const seedNoisyInstance = (instance: Instance) =>
     seedStorage({
-      instances: [createInstance()],
+      instances: [instance],
       instanceModerations: [
         {
-          instanceId: "inst-1",
+          instanceId: instance.id,
           window5mStartMs: 1_000,
-          requestsInWindow5m: 349,
+          requestsInWindow5m: abusePolicy.immediateTombstoneRequests5m - 1,
           strikeCommittedForWindow: false,
           strikeTimestampsMs: [],
           window15mStartMs: 1_000,
-          requestsInWindow15m: 299,
+          requestsInWindow15m: abusePolicy.immediateTombstoneRequests5m - 1,
           lastMinuteBucketStartMs: 1_000,
           requestsInCurrentMinute: 0,
         },
       ],
     });
+
+  test("keeps noisy instances while removal is disabled", () => {
+    instanceRemoval.enabled = false;
+    seedNoisyInstance(createInstance());
+
+    addLog(createLog());
+
+    expect(getInstanceById("inst-1")).toBeDefined();
+    expect(getModerationForInstance("inst-1")?.requestsInWindow5m).toBe(
+      abusePolicy.immediateTombstoneRequests5m,
+    );
+    expect(getUserNoticeCount()).toBe(0);
+  });
+
+  test("tombstones noisy instances immediately when removal is enabled", () => {
+    seedNoisyInstance(createInstance({ label: "ssrf probe" }));
 
     addLog(createLog());
 
@@ -189,7 +214,30 @@ describe("addLog", () => {
     );
     expect(getLogsForInstance("inst-1")).toEqual([]);
     expect(getModerationForInstance("inst-1")).toBeUndefined();
-    expect(getUserNoticeCount()).toBe(1);
+    expect(getRemovalNoticeForInstance("inst-1", "user-1")).toMatchObject({
+      instanceLabel: "ssrf probe",
+      requestsInWindow15m: abusePolicy.immediateTombstoneRequests5m,
+    });
+  });
+
+  test("never removes locked instances", () => {
+    seedNoisyInstance(createInstance({ locked: true }));
+
+    addLog(createLog());
+
+    expect(getInstanceById("inst-1")).toBeDefined();
+    expect(getUserNoticeCount()).toBe(0);
+  });
+
+  test("acknowledges every pending notice at once", () => {
+    seedNoisyInstance(createInstance());
+    addLog(createLog());
+    seedNoisyInstance(createInstance({ id: "inst-2" }));
+    addLog(createLog({ id: "log-2", instanceId: "inst-2" }));
+
+    expect(getPendingNoticesForUser("user-1")).toHaveLength(2);
+    expect(acknowledgeAllUserNotices("user-1")).toBe(2);
+    expect(getPendingNoticesForUser("user-1")).toEqual([]);
   });
 
   test("triggers webhook delivery without blocking addLog", async () => {

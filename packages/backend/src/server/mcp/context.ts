@@ -9,6 +9,7 @@ import type { ApiKeyAuthContext } from "../apiKeyAuth";
 import { dnsConfig } from "../../config";
 import { hasApiKeyScope } from "../apiKeyAuth";
 import { getOwnedInstance } from "../instances/service";
+import { getRemovalNoticeForInstance } from "../../storage";
 
 export const jsonToolResult = (value: Record<string, unknown>) => ({
   content: [{ type: "text" as const, text: JSON.stringify(value) }],
@@ -40,6 +41,12 @@ export const requireOwnedInstance = (
 ) => {
   const result = getOwnedInstance(instanceId, auth.user.id);
   if (!result.ok) {
+    const removal = getRemovalNoticeForInstance(instanceId, auth.user.id);
+    if (removal !== undefined) {
+      throw new Error(
+        `Instance was removed automatically by abuse protection at ${new Date(removal.createdAt).toISOString()} after excessive traffic. Create a new instance; lock instances that must not be removed.`,
+      );
+    }
     throw new Error("Instance not found");
   }
   return result.value;
