@@ -6,7 +6,7 @@ import InputIcon from "primevue/inputicon";
 import InputText from "primevue/inputtext";
 import Message from "primevue/message";
 import Skeleton from "primevue/skeleton";
-import { useElementSize, useMediaQuery } from "@vueuse/core";
+import { useElementSize, useMediaQuery, useResizeObserver } from "@vueuse/core";
 import { computed, ref } from "vue";
 import { storeToRefs } from "pinia";
 import { config } from "@/config";
@@ -51,10 +51,14 @@ const { isGuest } = storeToRefs(authStore);
 const isDesktopViewport = useMediaQuery("(min-width: 640px)");
 
 const listRef = ref<HTMLElement | null>(null);
-const firstCardRef = ref<HTMLElement | null>(null);
+const cardsRef = ref<HTMLElement | null>(null);
 const { height: listHeight } = useElementSize(listRef);
-const { height: cardHeight } = useElementSize(firstCardRef, undefined, {
-  box: "border-box",
+const cardHeight = ref(0);
+// Read from the list, not a ref on the first card: paging swaps that card out and would reset it.
+useResizeObserver(cardsRef, () => {
+  const height =
+    cardsRef.value?.firstElementChild?.getBoundingClientRect().height;
+  if (height !== undefined && height > 0) cardHeight.value = height;
 });
 const cardGap = computed(() => (isDesktopViewport.value ? 16 : 12));
 const pageSize = computed(() => {
@@ -63,9 +67,6 @@ const pageSize = computed(() => {
     (listHeight.value + cardGap.value) / (card + cardGap.value),
   );
 });
-const setFirstCard = (index: number) => (el: unknown) => {
-  if (index === 0) firstCardRef.value = el instanceof HTMLElement ? el : null;
-};
 
 const { page, pageCount, pageSlice, rangeText, goTo } = usePagination({
   items: filteredInstances,
@@ -248,12 +249,12 @@ const showPager = computed(() => !isLoading.value && pageCount.value > 1);
 
       <template v-else-if="filteredInstances.length > 0">
         <div ref="listRef" class="min-h-0 flex-1 overflow-hidden">
-          <ul class="space-y-3 sm:space-y-4" aria-label="Instances">
-            <li
-              v-for="(instance, index) in pageSlice"
-              :key="instance.id"
-              :ref="setFirstCard(index)"
-            >
+          <ul
+            ref="cardsRef"
+            class="space-y-3 sm:space-y-4"
+            aria-label="Instances"
+          >
+            <li v-for="instance in pageSlice" :key="instance.id">
               <InstanceItem :instance="instance" />
             </li>
           </ul>
