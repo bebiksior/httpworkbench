@@ -1,10 +1,11 @@
+import { MAIL_SIZE_LIMIT_BYTES } from "shared";
 import {
   normalizeHostname,
   resolveInstanceName,
   type InstanceNameResolution,
 } from "../nameResolution";
 
-export const maxSmtpDataBytes = 1024 * 1024;
+export const maxSmtpDataBytes = MAIL_SIZE_LIMIT_BYTES;
 
 export type SmtpRuntimeConfig = {
   instancesDomain: string;

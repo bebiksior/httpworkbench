@@ -50,6 +50,50 @@ describe("composeMessage", () => {
   });
 });
 
+describe("composeMessage attachments", () => {
+  test("round-trips filenames and content", async () => {
+    const raw = composeMessage({
+      from: "inbox@abc.instances.example.com",
+      to: ["a@example.org"],
+      subject: "Files",
+      text: "See attached",
+      html: "<p>See attached</p>",
+      attachments: [
+        {
+          filename: 'a "b"\\c.txt',
+          contentType: "text/plain",
+          content: Buffer.from("hello").toString("base64"),
+        },
+        {
+          filename: "zażółć (1)'.bin\r\nX-Injected: 1",
+          content: Buffer.alloc(200, 1).toString("base64"),
+        },
+      ],
+      messageId: "<id@abc.instances.example.com>",
+      date: new Date("2026-01-01T00:00:00Z"),
+    });
+
+    const email = await parseEmail(raw);
+    expect(email.text).toBe("See attached");
+    expect(email.html).toBe("<p>See attached</p>");
+    expect(email.headers.some(({ key }) => key === "x-injected")).toBe(false);
+    expect(
+      email.attachments.map(({ filename, mimeType, content }) => ({
+        filename,
+        mimeType,
+        size: (content as ArrayBuffer).byteLength,
+      })),
+    ).toEqual([
+      { filename: 'a "b"\\c.txt', mimeType: "text/plain", size: 5 },
+      {
+        filename: "zażółć (1)'.bin X-Injected: 1",
+        mimeType: "application/octet-stream",
+        size: 200,
+      },
+    ]);
+  });
+});
+
 describe("inlineImages", () => {
   test("replaces cid references with data URLs", async () => {
     const email = await parseEmail(

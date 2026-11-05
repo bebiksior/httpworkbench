@@ -4,6 +4,7 @@ import {
   CreateMailboxSchema,
   MailFolderSchema,
   SendMailSchema,
+  SendRawMailSchema,
   SetMailMessageReadSchema,
   UpdateMailboxSchema,
   folderDirection,
@@ -26,6 +27,7 @@ import {
   readMailAttachment,
   readMailMessage,
   sendMailFromMailbox,
+  sendRawMailFromMailbox,
   updateOwnedMailbox,
   type MailboxServiceError,
   type MailboxServiceResult,
@@ -229,7 +231,27 @@ const routes = new Elysia({ name: "routes/mailboxes" })
         tags: ["Mailboxes"],
         summary: "Send an email",
         description:
-          "Send a message from the mailbox address. inReplyTo is the id of a message in this mailbox to reply to.",
+          "Send a message from the mailbox address. inReplyTo is the id of a message in this mailbox to reply to. Attachments are base64-encoded.",
+      },
+    },
+  )
+  .post(
+    "/api/mailboxes/:id/send-raw",
+    async ({ params, body, user }) => {
+      const owned = getOwnedMailbox(params.id, user.id);
+      if (!owned.ok) {
+        return errorResponse(owned.error);
+      }
+      return respond(await sendRawMailFromMailbox(owned.value, body), true);
+    },
+    {
+      scope: "mailboxes:send",
+      body: SendRawMailSchema,
+      detail: {
+        tags: ["Mailboxes"],
+        summary: "Send a raw MIME message",
+        description:
+          "Send a complete RFC 5322 message unchanged, for testing MIME and attachment parsing. The From header must be an address at the mailbox host. Line endings are normalized to CRLF.",
       },
     },
   )

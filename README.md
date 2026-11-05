@@ -218,7 +218,7 @@ No extra DNS records are required. Sending mail servers fall back to a host's `A
 
 With SMTP enabled, the **Mail** view creates temporary mailboxes, separate from instances. A mailbox lives at `<id>.instances.yourdomain.com` and receives mail sent to any address at that host, so one mailbox can tell several signups apart by local part (`admin+reset@<id>.instances.yourdomain.com`). Mailboxes are also available over the API and MCP (`create_mailbox`, `watch_mailbox`, `read_message`, `send_email`, ...).
 
-Sending is off by default. Enable it with `SMTP_SENDING_ENABLED=true` and pick how mail leaves the server. Mail is sent from the mailbox address.
+Sending is off by default. Enable it with `SMTP_SENDING_ENABLED=true` and pick how mail leaves the server. Mail is sent from the mailbox address and can carry attachments (1 MB per message). For MIME and filename parser testing, `POST /api/mailboxes/:id/send-raw` and the `send_raw_email` MCP tool send a hand-built message unchanged, as long as its `From` header is an address at the mailbox host.
 
 #### SMTP2GO (recommended)
 

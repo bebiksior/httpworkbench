@@ -8,6 +8,10 @@ export const MAIL_RECIPIENT_PATTERN =
 
 export const MAX_MAIL_RECIPIENTS = 10;
 export const MAIL_BODY_LIMIT_CHARS = 100_000;
+export const MAIL_SIZE_LIMIT_BYTES = 1024 * 1024;
+export const MAX_MAIL_ATTACHMENTS = 10;
+
+export const MAIL_CONTENT_TYPE_PATTERN = /^[\w!#$&^.+-]+\/[\w!#$&^.+-]+$/;
 
 export const MailboxLocalPartSchema = z
   .string()
@@ -136,17 +140,59 @@ export const MailRecipientSchema = z
 
 const MailBodySchema = z.string().max(MAIL_BODY_LIMIT_CHARS);
 
+const MailRecipientsSchema = z
+  .array(MailRecipientSchema)
+  .min(1)
+  .max(MAX_MAIL_RECIPIENTS);
+
+export const MailAttachmentInputSchema = z
+  .object({
+    filename: z.string().min(1).max(255),
+    contentType: z
+      .string()
+      .max(127)
+      .regex(MAIL_CONTENT_TYPE_PATTERN, "Invalid content type")
+      .optional()
+      .describe("Defaults to application/octet-stream"),
+    content: z
+      .base64()
+      .max(Math.ceil(MAIL_SIZE_LIMIT_BYTES / 3) * 4)
+      .describe("Base64-encoded file content"),
+  })
+  .strict();
+
+export type MailAttachmentInput = z.infer<typeof MailAttachmentInputSchema>;
+
 export const SendMailSchema = z
   .object({
-    to: z.array(MailRecipientSchema).min(1).max(MAX_MAIL_RECIPIENTS),
+    to: MailRecipientsSchema,
     subject: z.string().max(998),
     text: MailBodySchema,
     html: MailBodySchema.optional(),
     inReplyTo: z.string().min(1).max(100).optional(),
+    attachments: z
+      .array(MailAttachmentInputSchema)
+      .max(MAX_MAIL_ATTACHMENTS)
+      .optional(),
   })
   .strict();
 
 export type SendMailInput = z.infer<typeof SendMailSchema>;
+
+export const SendRawMailSchema = z
+  .object({
+    to: MailRecipientsSchema,
+    raw: z
+      .string()
+      .min(1)
+      .max(MAIL_SIZE_LIMIT_BYTES)
+      .describe(
+        "Complete RFC 5322 message with headers and MIME body, sent as is. Its From header must be an address at the mailbox host.",
+      ),
+  })
+  .strict();
+
+export type SendRawMailInput = z.infer<typeof SendRawMailSchema>;
 
 export const MailRejectionSchema = z.object({
   address: z.string(),

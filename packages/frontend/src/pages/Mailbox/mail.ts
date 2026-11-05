@@ -1,5 +1,11 @@
 import dayjs from "dayjs";
-import type { EmailAddress, MailMessage, MailMessageSummary } from "shared";
+import {
+  MAIL_SIZE_LIMIT_BYTES,
+  MAX_MAIL_ATTACHMENTS,
+  type EmailAddress,
+  type MailMessage,
+  type MailMessageSummary,
+} from "shared";
 
 export type ComposeDraft = {
   to: string;
@@ -63,6 +69,28 @@ export const formatSize = (bytes: number) => {
     return `${Math.round(bytes / 1024)} KB`;
   }
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+};
+
+export const MAX_ATTACHMENT_BYTES =
+  Math.floor((MAIL_SIZE_LIMIT_BYTES * 3) / 4) - 64 * 1024;
+
+export const addAttachments = <T extends { size: number }>(
+  current: T[],
+  added: T[],
+) => {
+  const files = [...current];
+  let total = files.reduce((sum, file) => sum + file.size, 0);
+  for (const file of added) {
+    if (
+      files.length >= MAX_MAIL_ATTACHMENTS ||
+      total + file.size > MAX_ATTACHMENT_BYTES
+    ) {
+      break;
+    }
+    files.push(file);
+    total += file.size;
+  }
+  return { files, skipped: current.length + added.length - files.length };
 };
 
 export const parseRecipients = (value: string) =>

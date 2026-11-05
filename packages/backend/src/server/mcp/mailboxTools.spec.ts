@@ -151,6 +151,86 @@ describe("MCP mailbox tools", () => {
     }
   });
 
+  test("sends attachments and raw MIME", async () => {
+    const { client, call } = await connectClient(apiKey);
+    try {
+      const created = await call("create_mailbox", {});
+      const { id } = created.structuredContent?.mailbox as { id: string };
+      const host = `${id}.instances.example.com`;
+
+      const withAttachment = await call("send_email", {
+        mailboxId: id,
+        to: [`a@${host}`],
+        subject: "Invoice",
+        text: "Attached",
+        attachments: [
+          {
+            filename: 'fak"tura ✓.pdf',
+            contentType: "application/pdf",
+            content: Buffer.from("%PDF-1.4").toString("base64"),
+          },
+        ],
+      });
+      expect(withAttachment.isError).not.toBe(true);
+
+      const raw = await call("send_raw_email", {
+        mailboxId: id,
+        to: [`b@${host}`],
+        raw: [
+          `From: Tester <admin+raw@${host}>`,
+          "To: b@example.org",
+          "Subject: Raw",
+          'Content-Type: multipart/mixed; boundary="x"',
+          "",
+          "--x",
+          "Content-Type: text/plain",
+          "",
+          "Body",
+          "--x",
+          'Content-Disposition: attachment; filename="../../etc/passwd"',
+          "",
+          "root",
+          "--x--",
+        ].join("\n"),
+      });
+      expect(raw.isError).not.toBe(true);
+
+      const spoofed = await call("send_raw_email", {
+        mailboxId: id,
+        to: [`b@${host}`],
+        raw: "From: ceo@example.org\nSubject: x\n\nx",
+      });
+      expect(spoofed.isError).toBe(true);
+
+      const inbox = await call("list_messages", { mailboxId: id });
+      const messages = inbox.structuredContent?.messages as {
+        id: string;
+        subject: string;
+      }[];
+      const readAttachments = async (subject: string) => {
+        const read = await call("read_message", {
+          mailboxId: id,
+          messageId: messages.find((message) => message.subject === subject)
+            ?.id,
+        });
+        return (read.structuredContent?.message as { attachments: unknown })
+          .attachments;
+      };
+      expect(await readAttachments("Invoice")).toMatchObject([
+        {
+          filename: 'fak"tura ✓.pdf',
+          mimeType: "application/pdf",
+          sizeBytes: 8,
+        },
+      ]);
+      expect(await readAttachments("Raw")).toMatchObject([
+        { filename: "../../etc/passwd" },
+      ]);
+    } finally {
+      await client.close();
+    }
+  });
+
   test("requires the send scope to send mail", async () => {
     const limitedKey = createApiKeyForUser({
       userId: "owner-1",

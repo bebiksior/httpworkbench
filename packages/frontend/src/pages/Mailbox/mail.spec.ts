@@ -1,6 +1,8 @@
 import { describe, expect, test } from "vitest";
 import type { MailMessage } from "shared";
 import {
+  MAX_ATTACHMENT_BYTES,
+  addAttachments,
   correspondentLabel,
   emailDocument,
   emptyDraft,
@@ -70,6 +72,16 @@ describe("mail helpers", () => {
       "d@e.f",
       "g@h.i",
     ]);
+  });
+
+  test("caps attachments by count and total size", () => {
+    const half = { size: MAX_ATTACHMENT_BYTES / 2 };
+    expect(addAttachments([half], [half, { size: 1 }])).toEqual({
+      files: [half, half],
+      skipped: 1,
+    });
+    const tiny = Array.from({ length: 12 }, () => ({ size: 1 }));
+    expect(addAttachments([], tiny).files).toHaveLength(10);
   });
 
   test("an empty draft clears reply threading", () => {

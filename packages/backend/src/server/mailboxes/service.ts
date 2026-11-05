@@ -1,10 +1,12 @@
 import {
+  MAIL_SIZE_LIMIT_BYTES,
   mailboxAddress,
   type Mailbox,
   type MailboxSummary,
   type MailMessage,
   type MailMessageSummary,
   type SendMailInput,
+  type SendRawMailInput,
   type UpdateMailboxInput,
 } from "shared";
 import { instancePolicies, mailSendingConfig, smtpConfig } from "../../config";
@@ -273,16 +275,29 @@ const replyHeaders = async (
   };
 };
 
-export const sendMailFromMailbox = async (
+type SendResult = MailboxServiceResult<{
+  message: MailMessageSummary;
+  rejected: { address: string; error: string }[];
+}>;
+
+const mailboxHost = (mailbox: Mailbox) => `${mailbox.id}.${instancesDomain}`;
+
+const localSmtpPort = mailSendingConfig.enabled
+  ? smtpConfig.smtpPort
+  : undefined;
+
+const deliverFromMailbox = async (
   mailbox: Mailbox,
-  input: SendMailInput,
-): Promise<
-  MailboxServiceResult<{
-    message: MailMessageSummary;
-    rejected: { address: string; error: string }[];
-  }>
-> => {
-  if (!mailSendingConfig.enabled || smtpConfig.smtpPort === undefined) {
+  to: string[],
+  raw: string,
+): Promise<SendResult> => {
+  if (byteLength(raw) > MAIL_SIZE_LIMIT_BYTES) {
+    return fail(
+      `Message exceeds ${MAIL_SIZE_LIMIT_BYTES / (1024 * 1024)} MB`,
+      413,
+    );
+  }
+  if (localSmtpPort === undefined) {
     return fail("Sending mail is disabled on this server", 403);
   }
   if (!sendRateLimiter.check(mailbox.ownerId)) {
@@ -290,25 +305,10 @@ export const sendMailFromMailbox = async (
   }
 
   const from = mailbox.address;
-  const to = [...new Set(input.to)];
-  const raw = composeMessage({
-    from,
-    to,
-    subject: input.subject,
-    text:
-      input.text === "" && input.html !== undefined
-        ? htmlToText(input.html)
-        : input.text,
-    html: input.html,
-    messageId: `<${crypto.randomUUID()}@${mailbox.id}.${instancesDomain}>`,
-    date: new Date(),
-    ...(await replyHeaders(mailbox.id, input.inReplyTo)),
-  });
-
   const result = await deliverMail(
     {
       instancesDomain,
-      localSmtpPort: smtpConfig.smtpPort,
+      localSmtpPort,
       heloName: instancesDomain,
       relay: mailSendingConfig.relay,
     },
@@ -323,7 +323,9 @@ export const sendMailFromMailbox = async (
     );
   }
 
-  const summary = await parseEmail(raw).then(summarizeEmail);
+  const summary = await parseEmail(raw)
+    .then(summarizeEmail)
+    .catch(() => undefined);
   const id = crypto.randomUUID();
   addMailMessage({
     id,
@@ -331,14 +333,14 @@ export const sendMailFromMailbox = async (
     direction: "outbound",
     timestamp: Date.now(),
     isRead: true,
-    fromName: null,
-    fromAddress: from,
+    fromName: summary?.from?.name ?? null,
+    fromAddress: summary?.from?.address ?? from,
     toJson: to,
-    subject: summary.subject,
-    preview: summary.preview,
-    attachmentCount: 0,
+    subject: summary?.subject ?? "",
+    preview: summary?.preview ?? "",
+    attachmentCount: summary?.attachmentCount ?? 0,
     sizeBytes: byteLength(raw),
-    messageId: summary.messageId ?? null,
+    messageId: summary?.messageId ?? null,
     mailFrom: from,
     rcptToJson: result.accepted,
     clientAddress: null,
@@ -352,4 +354,46 @@ export const sendMailFromMailbox = async (
     ok: true,
     value: { message: stored.summary, rejected: result.rejected },
   };
+};
+
+export const sendMailFromMailbox = async (
+  mailbox: Mailbox,
+  input: SendMailInput,
+): Promise<SendResult> => {
+  const to = [...new Set(input.to)];
+  const raw = composeMessage({
+    from: mailbox.address,
+    to,
+    subject: input.subject,
+    text:
+      input.text === "" && input.html !== undefined
+        ? htmlToText(input.html)
+        : input.text,
+    html: input.html,
+    attachments: input.attachments,
+    messageId: `<${crypto.randomUUID()}@${mailboxHost(mailbox)}>`,
+    date: new Date(),
+    ...(await replyHeaders(mailbox.id, input.inReplyTo)),
+  });
+  return deliverFromMailbox(mailbox, to, raw);
+};
+
+export const sendRawMailFromMailbox = async (
+  mailbox: Mailbox,
+  input: SendRawMailInput,
+): Promise<SendResult> => {
+  const raw = input.raw.replace(/\r?\n/g, "\r\n");
+  const email = await parseEmail(raw).catch(() => undefined);
+  const senders = flattenAddresses(email?.from);
+  const host = mailboxHost(mailbox);
+  if (
+    senders.length === 0 ||
+    !senders.every(
+      ({ address }) =>
+        address.slice(address.lastIndexOf("@") + 1).toLowerCase() === host,
+    )
+  ) {
+    return fail(`The From header must be an address at ${host}`, 400);
+  }
+  return deliverFromMailbox(mailbox, [...new Set(input.to)], raw);
 };

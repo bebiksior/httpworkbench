@@ -4,6 +4,7 @@ import {
   MailboxLocalPartSchema,
   MailFolderSchema,
   SendMailSchema,
+  SendRawMailSchema,
   type MailboxSummary,
 } from "shared";
 import * as z from "zod/v4";
@@ -24,6 +25,7 @@ import {
   listOwnedMailboxes,
   readMailMessage,
   sendMailFromMailbox,
+  sendRawMailFromMailbox,
   updateOwnedMailbox,
   waitForMailboxMessage,
   type MailboxServiceResult,
@@ -82,6 +84,19 @@ const decodeCursor = (cursor: string | undefined) => {
 };
 
 const mailboxIdInput = z.string().min(1);
+
+const sendToolResult = (
+  result: MailboxServiceResult<{
+    message: { id: string };
+    rejected: { address: string; error: string }[];
+  }>,
+) =>
+  result.ok
+    ? jsonToolResult({
+        messageId: result.value.message.id,
+        rejected: result.value.rejected,
+      })
+    : toolError(result.error.message);
 
 export const registerMailboxTools = (server: McpServer) => {
   if (!smtpConfig.smtpEnabled) {
@@ -415,7 +430,7 @@ export const registerMailboxTools = (server: McpServer) => {
     {
       title: "Send Email",
       description:
-        "Send a plain text email, with an optional HTML alternative, from a mailbox's address. Set inReplyTo to a message id from the mailbox to reply in its thread.",
+        "Send a plain text email, with an optional HTML alternative and base64 attachments, from a mailbox's address. Set inReplyTo to a message id from the mailbox to reply in its thread. Use send_raw_email for full control over headers and MIME structure.",
       inputSchema: z.object({
         mailboxId: mailboxIdInput,
         ...SendMailSchema.shape,
@@ -431,13 +446,32 @@ export const registerMailboxTools = (server: McpServer) => {
       const auth = getAuthContext(extra);
       requireScope(auth, "mailboxes:send");
       const mailbox = requireOwnedMailbox(mailboxId, auth);
-      const result = await sendMailFromMailbox(mailbox, input);
-      return result.ok
-        ? jsonToolResult({
-            messageId: result.value.message.id,
-            rejected: result.value.rejected,
-          })
-        : toolError(result.error.message);
+      return sendToolResult(await sendMailFromMailbox(mailbox, input));
+    },
+  );
+
+  server.registerTool(
+    "send_raw_email",
+    {
+      title: "Send Raw Email",
+      description:
+        "Send a complete RFC 5322 message unchanged from a mailbox, for testing MIME, filename and attachment parsing. The From header must be an address at the mailbox host; envelope recipients come from to, not from the message headers.",
+      inputSchema: z.object({
+        mailboxId: mailboxIdInput,
+        ...SendRawMailSchema.shape,
+      }),
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: false,
+        openWorldHint: true,
+      },
+    },
+    async ({ mailboxId, ...input }, extra) => {
+      const auth = getAuthContext(extra);
+      requireScope(auth, "mailboxes:send");
+      const mailbox = requireOwnedMailbox(mailboxId, auth);
+      return sendToolResult(await sendRawMailFromMailbox(mailbox, input));
     },
   );
 };
