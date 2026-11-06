@@ -4,11 +4,16 @@ import IconField from "primevue/iconfield";
 import InputIcon from "primevue/inputicon";
 import InputText from "primevue/inputtext";
 import Message from "primevue/message";
-import { computed, ref } from "vue";
+import { computed, ref, useTemplateRef } from "vue";
 import { useRouter } from "vue-router";
 import { CardSkeleton } from "@/components/CardSkeleton";
 import { EmptyCard } from "@/components/EmptyCard";
 import { PageHeader } from "@/components/PageHeader";
+import {
+  PagerFooter,
+  PagerSteps,
+  usePagination,
+} from "@/components/Pagination";
 import { useNotify } from "@/composables";
 import { useCreateMailbox, useMailboxes } from "@/queries/domains/useMailboxes";
 import { MailboxItem } from "./MailboxItem";
@@ -41,6 +46,15 @@ const countText = computed(() => {
   return `${filtered.value.length.toLocaleString()} of ${totalText}`;
 });
 
+const { page, pageCount, pageSlice, rangeText, showPager, goTo } =
+  usePagination({
+    list: useTemplateRef<HTMLElement>("list"),
+    cards: useTemplateRef<HTMLElement>("cards"),
+    items: filtered,
+    isReady: () => !isLoading.value && mailboxes.value !== undefined,
+    resetOn: searchQuery,
+  });
+
 const createMailbox = () => {
   createMutation.mutate(undefined, {
     onSuccess: (mailbox) => router.push(`/mail/${mailbox.id}`),
@@ -70,6 +84,13 @@ const createMailbox = () => {
           />
         </IconField>
         <div class="flex flex-wrap items-center gap-2">
+          <PagerSteps
+            v-if="showPager"
+            :page="page"
+            :page-count="pageCount"
+            :range-text="rangeText"
+            @update:page="goTo"
+          />
           <Button
             label="Create Mailbox"
             icon="pi pi-plus"
@@ -98,21 +119,28 @@ const createMailbox = () => {
 
       <div
         v-if="isLoading"
-        class="space-y-3 sm:space-y-4"
+        class="min-h-0 flex-1 space-y-3 overflow-hidden sm:space-y-4"
         aria-label="Loading mailboxes"
         aria-busy="true"
       >
         <CardSkeleton v-for="index in 3" :key="index" :actions="2" />
       </div>
-      <ul
-        v-else-if="filtered.length > 0"
-        class="space-y-3 sm:space-y-4"
-        aria-label="Mailboxes"
-      >
-        <li v-for="mailbox in filtered" :key="mailbox.id">
-          <MailboxItem :mailbox="mailbox" />
-        </li>
-      </ul>
+      <template v-else-if="filtered.length > 0">
+        <div ref="list" class="min-h-0 flex-1 overflow-hidden">
+          <ul ref="cards" class="space-y-3 sm:space-y-4" aria-label="Mailboxes">
+            <li v-for="mailbox in pageSlice" :key="mailbox.id">
+              <MailboxItem :mailbox="mailbox" />
+            </li>
+          </ul>
+        </div>
+        <PagerFooter
+          v-if="showPager"
+          :page="page"
+          :page-count="pageCount"
+          :range-text="rangeText"
+          @update:page="goTo"
+        />
+      </template>
       <EmptyCard
         v-else
         :title="hasSearchQuery ? 'No mailboxes found' : 'No mailboxes yet'"

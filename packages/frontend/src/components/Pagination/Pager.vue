@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { pageItems } from "../pagination";
+import { pageItems } from "./pagination";
 
 const props = defineProps<{ page: number; pageCount: number }>();
 const emit = defineEmits<{ "update:page": [page: number] }>();

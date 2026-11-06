@@ -5,18 +5,20 @@ import InputIcon from "primevue/inputicon";
 import InputText from "primevue/inputtext";
 import Message from "primevue/message";
 import Skeleton from "primevue/skeleton";
-import { useElementSize, useMediaQuery, useResizeObserver } from "@vueuse/core";
-import { computed, ref } from "vue";
+import { computed, useTemplateRef } from "vue";
 import { storeToRefs } from "pinia";
 import { CardSkeleton } from "@/components/CardSkeleton";
 import { EmptyCard } from "@/components/EmptyCard";
 import { PageHeader } from "@/components/PageHeader";
+import {
+  PagerFooter,
+  PagerSteps,
+  usePagination,
+} from "@/components/Pagination";
 import { config } from "@/config";
 import { useAuthStore } from "@/stores/auth";
 import { InstanceItem } from "./InstanceItem";
-import { Pager } from "./Pager";
 import { useHomeLogic } from "./useLogic";
-import { usePagination } from "./usePagination";
 
 const {
   searchQuery,
@@ -49,34 +51,15 @@ const countText = computed(() => {
 
 const authStore = useAuthStore();
 const { isGuest } = storeToRefs(authStore);
-const isDesktopViewport = useMediaQuery("(min-width: 640px)");
 
-const listRef = ref<HTMLElement | null>(null);
-const cardsRef = ref<HTMLElement | null>(null);
-const { height: listHeight } = useElementSize(listRef);
-const cardHeight = ref(0);
-// Read from the list, not a ref on the first card: paging swaps that card out and would reset it.
-useResizeObserver(cardsRef, () => {
-  const height =
-    cardsRef.value?.firstElementChild?.getBoundingClientRect().height;
-  if (height !== undefined && height > 0) cardHeight.value = height;
-});
-const cardGap = computed(() => (isDesktopViewport.value ? 16 : 12));
-const pageSize = computed(() => {
-  const card = cardHeight.value || (isDesktopViewport.value ? 100 : 116);
-  return Math.floor(
-    (listHeight.value + cardGap.value) / (card + cardGap.value),
-  );
-});
-
-const { page, pageCount, pageSlice, rangeText, goTo } = usePagination({
-  items: filteredInstances,
-  pageSize,
-  isReady: () =>
-    !isLoading.value && instances.value !== undefined && listHeight.value > 0,
-  resetOn: searchQuery,
-});
-const showPager = computed(() => !isLoading.value && pageCount.value > 1);
+const { page, pageCount, pageSlice, rangeText, showPager, goTo } =
+  usePagination({
+    list: useTemplateRef<HTMLElement>("list"),
+    cards: useTemplateRef<HTMLElement>("cards"),
+    items: filteredInstances,
+    isReady: () => !isLoading.value && instances.value !== undefined,
+    resetOn: searchQuery,
+  });
 </script>
 
 <template>
@@ -118,30 +101,13 @@ const showPager = computed(() => !isLoading.value && pageCount.value > 1);
           />
         </IconField>
         <div class="flex flex-wrap items-center gap-2">
-          <div
+          <PagerSteps
             v-if="showPager"
-            class="flex w-full items-center gap-2 sm:mr-2 sm:w-auto"
-          >
-            <span class="mr-auto text-sm text-surface-400 tabular-nums sm:mr-1">
-              {{ rangeText }}
-            </span>
-            <Button
-              icon="pi pi-chevron-left"
-              severity="secondary"
-              outlined
-              :disabled="page <= 1"
-              aria-label="Previous page"
-              @click="goTo(page - 1)"
-            />
-            <Button
-              icon="pi pi-chevron-right"
-              severity="secondary"
-              outlined
-              :disabled="page >= pageCount"
-              aria-label="Next page"
-              @click="goTo(page + 1)"
-            />
-          </div>
+            :page="page"
+            :page-count="pageCount"
+            :range-text="rangeText"
+            @update:page="goTo"
+          />
           <Button
             label="Delete All"
             icon="pi pi-trash"
@@ -190,24 +156,20 @@ const showPager = computed(() => !isLoading.value && pageCount.value > 1);
       </div>
 
       <template v-else-if="filteredInstances.length > 0">
-        <div ref="listRef" class="min-h-0 flex-1 overflow-hidden">
-          <ul
-            ref="cardsRef"
-            class="space-y-3 sm:space-y-4"
-            aria-label="Instances"
-          >
+        <div ref="list" class="min-h-0 flex-1 overflow-hidden">
+          <ul ref="cards" class="space-y-3 sm:space-y-4" aria-label="Instances">
             <li v-for="instance in pageSlice" :key="instance.id">
               <InstanceItem :instance="instance" />
             </li>
           </ul>
         </div>
-        <div
+        <PagerFooter
           v-if="showPager"
-          class="mt-4 flex items-center justify-center text-sm text-surface-400 sm:justify-between"
-        >
-          <span class="hidden tabular-nums sm:inline">{{ rangeText }}</span>
-          <Pager :page="page" :page-count="pageCount" @update:page="goTo" />
-        </div>
+          :page="page"
+          :page-count="pageCount"
+          :range-text="rangeText"
+          @update:page="goTo"
+        />
       </template>
       <EmptyCard
         v-else
