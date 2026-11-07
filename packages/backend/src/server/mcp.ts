@@ -26,10 +26,10 @@ Mailboxes are temporary email inboxes at <id>.${instancesDomain}, separate from 
 const mcpServerInstructions = `
 HTTP Workbench hosts proof-of-concept HTTP responses and captures HTTP, DNS and SMTP interactions for authorized security testing.
 
-An instance is the hostname <id>.${instancesDomain}. It serves a raw HTTP response and logs every request to it and to any name under it: <anything>.<id>.${instancesDomain} for HTTP and DNS, user@<anything>.<id>.${instancesDomain} for SMTP (when enabled).
+An instance is the hostname <id>.${instancesDomain}. It serves a raw HTTP response over HTTP and HTTPS and logs every request to it and to any name under it: <anything>.<id>.${instancesDomain} for plain HTTP and DNS, user@<anything>.<id>.${instancesDomain} for SMTP (when enabled). HTTPS works only on <id>.${instancesDomain} itself, because its TLS certificate does not cover deeper names.
 
 Reuse instances instead of creating one per probe:
-- Tell probes apart with a unique label or path, e.g. avatar-ssrf.<id>.${instancesDomain} or /avatar-ssrf.
+- Tell probes apart with a unique label or path, e.g. avatar-ssrf.<id>.${instancesDomain} over HTTP or DNS, or https://<id>.${instancesDomain}/avatar-ssrf when the probe needs HTTPS.
 - Serve different responses per path with set_instance_route. The instance's raw response is the fallback.
 - Look for an instance to reuse with list_instances before creating one, and label new ones with the target and purpose.
 

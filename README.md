@@ -186,7 +186,7 @@ To make that work:
 docker compose -f docker-compose.yml -f docker-compose.dns.yml up -d --build
 ```
 
-The main app certificate still uses Cloudflare DNS challenge. Instance subdomains under the delegated interaction zone are issued directly with on-demand TLS by Caddy the first time they are requested, stored in Caddy's persistent data volume, and renewed automatically.
+The main app certificate still uses Cloudflare DNS challenge. Instances share one wildcard certificate for `*.instances.yourdomain.com`, issued by DNS challenge through the `INSTANCES_ACME_CHALLENGE_DOMAIN` alias that the app's DNS server answers. A wildcard covers a single label, so `abc.instances.yourdomain.com` works over HTTPS while deeper names such as `probe.abc.instances.yourdomain.com` are logged over plain HTTP and DNS only.
 
 Because the delegated interaction zone is `DNS only`, HTTP interactions reach
 Caddy directly and are logged and rate-limited by the connection's source

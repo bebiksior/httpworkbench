@@ -157,7 +157,7 @@ type CreateInstanceInput = {
 };
 
 const instanceLimitMessage = (limit: number) =>
-  `Instance limit reached (${limit} active). Reuse an existing instance instead: tell probes apart with <token>.<id>.${dnsConfig.instancesDomain} hostnames or URL paths, serve different responses per path, and delete unused instances.`;
+  `Instance limit reached (${limit} active). Reuse an existing instance instead: tell probes apart with <token>.<id>.${dnsConfig.instancesDomain} hostnames (plain HTTP and DNS) or URL paths (also HTTPS), serve different responses per path, and delete unused instances.`;
 
 export const createInstance = (
   input: CreateInstanceInput,

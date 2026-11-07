@@ -64,13 +64,7 @@ http://{$DOMAIN}, https://{$DOMAIN} {
 	}
 }
 
-http://*.{$INSTANCES_DOMAIN}, https://*.{$INSTANCES_DOMAIN} {
-	tls {
-		dns cloudflare {env.CLOUDFLARE_API_TOKEN}
-		dns_challenge_override_domain {$INSTANCES_ACME_CHALLENGE_DOMAIN}
-		resolvers 1.1.1.1 1.0.0.1
-	}
-
+(instances_proxy) {
 	reverse_proxy backend:8082 {
 		header_up X-Internal-Real-IP {client_ip}
 		header_up -CF-Connecting-IP
@@ -78,5 +72,22 @@ http://*.{$INSTANCES_DOMAIN}, https://*.{$INSTANCES_DOMAIN} {
 		header_up -X-Forwarded-Host
 		header_up -X-Forwarded-Proto
 		header_up -Via
+	}
+}
+
+http://*.{$INSTANCES_DOMAIN}, https://*.{$INSTANCES_DOMAIN} {
+	tls {
+		dns cloudflare {env.CLOUDFLARE_API_TOKEN}
+		dns_challenge_override_domain {$INSTANCES_ACME_CHALLENGE_DOMAIN}
+		resolvers 1.1.1.1 1.0.0.1
+	}
+
+	import instances_proxy
+}
+
+http:// {
+	@instances vars_regexp {host} (?i)\.{$INSTANCES_DOMAIN}\.?$
+	handle @instances {
+		import instances_proxy
 	}
 }
