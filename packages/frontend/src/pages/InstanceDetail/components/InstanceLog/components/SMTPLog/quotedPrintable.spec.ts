@@ -1,8 +1,5 @@
 import { describe, expect, test } from "vitest";
-import {
-  decodeQuotedPrintable,
-  decodeSmtpLogQuotedPrintable,
-} from "./quotedPrintable";
+import { decodeQuotedPrintable } from "./quotedPrintable";
 
 describe("decodeQuotedPrintable", () => {
   test("decodes uppercase and lowercase hexadecimal octets", () => {
@@ -31,55 +28,5 @@ describe("decodeQuotedPrintable", () => {
     expect(decodeQuotedPrintable("a=xy b= c= q=\rstill")).toBe(
       "a=xy b= c= q=\rstill",
     );
-  });
-});
-
-describe("decodeSmtpLogQuotedPrintable", () => {
-  test("decodes the captured SMTP message while keeping the envelope raw", () => {
-    const raw = [
-      "CLIENT: 198.51.100.10",
-      "MAIL FROM: <qp=40example.test>",
-      "",
-      "Subject: hi",
-      "",
-      "hello=20world",
-    ].join("\n");
-
-    expect(decodeSmtpLogQuotedPrintable(raw)).toBe(
-      [
-        "CLIENT: 198.51.100.10",
-        "MAIL FROM: <qp=40example.test>",
-        "",
-        "Subject: hi",
-        "",
-        "hello world",
-      ].join("\n"),
-    );
-  });
-
-  test("decodes CRLF-delimited SMTP logs", () => {
-    const raw = [
-      "CLIENT: 198.51.100.10",
-      "EHLO: mailer.test",
-      "",
-      "Content-Transfer-Encoding: quoted-printable",
-      "",
-      "hello=09world=0D=0Aagain",
-    ].join("\r\n");
-
-    expect(decodeSmtpLogQuotedPrintable(raw)).toBe(
-      [
-        "CLIENT: 198.51.100.10",
-        "EHLO: mailer.test",
-        "",
-        "Content-Transfer-Encoding: quoted-printable",
-        "",
-        "hello\tworld\r\nagain",
-      ].join("\r\n"),
-    );
-  });
-
-  test("decodes the whole value when no log envelope separator exists", () => {
-    expect(decodeSmtpLogQuotedPrintable("hello=20world")).toBe("hello world");
   });
 });

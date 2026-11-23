@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { emailDocument } from "../../mail";
-import type { SanitizedEmail } from "../../sanitizeEmail";
+import { emailDocument } from "./emailDocument";
+import type { SanitizedEmail } from "./sanitizeEmail";
 
 const props = defineProps<{
   email: SanitizedEmail;

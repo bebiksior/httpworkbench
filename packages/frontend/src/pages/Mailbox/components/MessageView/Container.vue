@@ -12,12 +12,14 @@ import {
   useMailMessage,
   useMessageSource,
 } from "@/queries/domains/useMailboxes";
-import { EmailFrame } from "../EmailFrame";
-import { sanitizeEmailHtml } from "../../sanitizeEmail";
+import {
+  EmailFrame,
+  hasRemoteContent,
+  sanitizeEmailHtml,
+} from "@/components/EmailFrame";
 import {
   addressLabel,
   formatSize,
-  hasRemoteContent,
   linkifyText,
   replyDraft,
   type ComposeDraft,

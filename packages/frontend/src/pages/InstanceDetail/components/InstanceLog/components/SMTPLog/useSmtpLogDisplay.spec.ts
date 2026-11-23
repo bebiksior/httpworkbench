@@ -1,42 +1,35 @@
 import { describe, expect, test } from "vitest";
 import { ref } from "vue";
-import {
-  getNextSmtpLogDisplayMode,
-  useSmtpLogDisplay,
-} from "./useSmtpLogDisplay";
+import { useSmtpLogDisplay } from "./useSmtpLogDisplay";
 
-describe("getNextSmtpLogDisplayMode", () => {
-  test("toggles between decoded and raw", () => {
-    expect(getNextSmtpLogDisplayMode("decoded")).toBe("raw");
-    expect(getNextSmtpLogDisplayMode("raw")).toBe("decoded");
-  });
-});
+const qp = (body: string) =>
+  `CLIENT: 198.51.100.10\n\nContent-Transfer-Encoding: quoted-printable\r\n\r\n${body}`;
 
 describe("useSmtpLogDisplay", () => {
   test("uses decoded content by default", () => {
-    const raw = ref("hello=20world");
+    const raw = ref(qp("hello=20world"));
     const display = useSmtpLogDisplay(raw);
 
     expect(display.displayMode.value).toBe("decoded");
-    expect(display.displayedRaw.value).toBe("hello world");
+    expect(display.displayedRaw.value).toBe(qp("hello world"));
   });
 
   test("can switch back to raw content", () => {
-    const raw = ref("hello=20world");
+    const raw = ref(qp("hello=20world"));
     const display = useSmtpLogDisplay(raw);
 
     display.setDisplayMode("raw");
 
     expect(display.displayMode.value).toBe("raw");
-    expect(display.displayedRaw.value).toBe("hello=20world");
+    expect(display.displayedRaw.value).toBe(qp("hello=20world"));
   });
 
   test("updates displayed content when the log changes", () => {
-    const raw = ref("hello=20world");
+    const raw = ref(qp("hello=20world"));
     const display = useSmtpLogDisplay(raw);
 
-    raw.value = "second=20message";
+    raw.value = qp("second=20message");
 
-    expect(display.displayedRaw.value).toBe("second message");
+    expect(display.displayedRaw.value).toBe(qp("second message"));
   });
 });

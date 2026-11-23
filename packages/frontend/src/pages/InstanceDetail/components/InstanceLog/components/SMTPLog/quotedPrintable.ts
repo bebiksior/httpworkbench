@@ -7,7 +7,7 @@ const appendTextBytes = (bytes: number[], value: string): void => {
   bytes.push(...textEncoder.encode(value));
 };
 
-export const decodeQuotedPrintable = (value: string): string => {
+export const quotedPrintableBytes = (value: string): Uint8Array => {
   const bytes: number[] = [];
 
   for (let index = 0; index < value.length; index += 1) {
@@ -52,31 +52,8 @@ export const decodeQuotedPrintable = (value: string): string => {
     appendTextBytes(bytes, character);
   }
 
-  return textDecoder.decode(new Uint8Array(bytes));
+  return new Uint8Array(bytes);
 };
 
-const findMessageSeparator = (raw: string) => {
-  const separators = ["\r\n\r\n", "\n\n"]
-    .map((separator) => ({
-      index: raw.indexOf(separator),
-      separator,
-    }))
-    .filter((entry) => entry.index !== -1)
-    .sort((left, right) => left.index - right.index);
-
-  return separators[0];
-};
-
-export const decodeSmtpLogQuotedPrintable = (raw: string): string => {
-  const messageSeparator = findMessageSeparator(raw);
-  if (messageSeparator === undefined) {
-    return decodeQuotedPrintable(raw);
-  }
-
-  const messageStart =
-    messageSeparator.index + messageSeparator.separator.length;
-  const envelope = raw.slice(0, messageStart);
-  const message = raw.slice(messageStart);
-
-  return `${envelope}${decodeQuotedPrintable(message)}`;
-};
+export const decodeQuotedPrintable = (value: string): string =>
+  textDecoder.decode(quotedPrintableBytes(value));

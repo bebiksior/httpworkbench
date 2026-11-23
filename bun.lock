@@ -83,6 +83,7 @@
         "dompurify": "3.4.17",
         "markdown-it": "^14.3.0",
         "pinia": "^3.0.4",
+        "postal-mime": "^4.2.0",
         "primeicons": "^7.0.0",
         "primevue": "^4.5.4",
         "shared": "workspace:*",
