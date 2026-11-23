@@ -18,7 +18,7 @@ export const smtpLogDisplayModes: {
 ];
 
 const smtpDisplayModePreferenceKey = "httpworkbench.smtp.displayMode";
-const defaultDisplayMode: SmtpLogDisplayMode = "decoded";
+const defaultDisplayMode: SmtpLogDisplayMode = "html";
 
 const isSmtpLogDisplayMode = (
   value: string | null,

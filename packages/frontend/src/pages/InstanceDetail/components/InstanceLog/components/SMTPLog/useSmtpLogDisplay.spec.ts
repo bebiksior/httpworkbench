@@ -6,11 +6,18 @@ const qp = (body: string) =>
   `CLIENT: 198.51.100.10\n\nContent-Transfer-Encoding: quoted-printable\r\n\r\n${body}`;
 
 describe("useSmtpLogDisplay", () => {
-  test("uses decoded content by default", () => {
+  test("renders HTML by default", () => {
+    const display = useSmtpLogDisplay(ref(qp("hello=20world")));
+
+    expect(display.displayMode.value).toBe("html");
+  });
+
+  test("decodes content in decoded mode", () => {
     const raw = ref(qp("hello=20world"));
     const display = useSmtpLogDisplay(raw);
 
-    expect(display.displayMode.value).toBe("decoded");
+    display.setDisplayMode("decoded");
+
     expect(display.displayedRaw.value).toBe(qp("hello world"));
   });
 
