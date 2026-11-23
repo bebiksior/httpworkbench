@@ -1,5 +1,6 @@
 import type {
   CreateMailboxInput,
+  ExtendMailboxInput,
   Mailbox,
   MailboxSummary,
   MailFolder,
@@ -49,11 +50,21 @@ export const mailboxesApi = {
       "update mailbox",
     ),
 
-  extend: async (id: string): Promise<Mailbox> =>
+  extend: async (
+    id: string,
+    input: ExtendMailboxInput = {},
+  ): Promise<Mailbox> =>
     parseResponse(
       MailboxSchema,
-      await apiClient.post<unknown>(apiPaths.mailboxExtend(id), {}),
+      await apiClient.post<unknown>(apiPaths.mailboxExtend(id), input),
       "extend mailbox",
+    ),
+
+  setLocked: async (id: string, locked: boolean): Promise<Mailbox> =>
+    parseResponse(
+      MailboxSchema,
+      await apiClient.post<unknown>(apiPaths.mailboxLock(id), { locked }),
+      "lock mailbox",
     ),
 
   delete: async (id: string): Promise<void> => {

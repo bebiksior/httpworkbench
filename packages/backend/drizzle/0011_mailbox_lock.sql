@@ -1,0 +1,1 @@
+ALTER TABLE `mailboxes` ADD `isLocked` integer DEFAULT false NOT NULL;

@@ -30,6 +30,7 @@ export const MailboxSchema = z.object({
   label: z.string().optional(),
   createdAt: z.number(),
   expiresAt: z.number().optional(),
+  locked: z.boolean(),
 });
 
 export type Mailbox = z.infer<typeof MailboxSchema>;
@@ -130,6 +131,23 @@ export const UpdateMailboxSchema = z
   .strict();
 
 export type UpdateMailboxInput = z.infer<typeof UpdateMailboxSchema>;
+
+export const SetMailboxLockedSchema = z
+  .object({ locked: z.boolean() })
+  .strict();
+
+export type SetMailboxLockedInput = z.infer<typeof SetMailboxLockedSchema>;
+
+export const ExtendMailboxSchema = z
+  .object({
+    forever: z
+      .boolean()
+      .optional()
+      .describe("Remove the expiration. Only allowed on self-hosted servers."),
+  })
+  .strict();
+
+export type ExtendMailboxInput = z.infer<typeof ExtendMailboxSchema>;
 
 export const MailRecipientSchema = z
   .string()

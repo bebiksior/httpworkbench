@@ -7,6 +7,7 @@ import {
 } from "@tanstack/vue-query";
 import { computed, toValue, type MaybeRefOrGetter } from "vue";
 import type {
+  ExtendMailboxInput,
   MailFolder,
   MailMessagesPage,
   SendMailInput,
@@ -121,7 +122,17 @@ export const useUpdateMailbox = () => {
 export const useExtendMailbox = () => {
   const invalidate = useInvalidateMailboxes();
   return useMutation({
-    mutationFn: (id: string) => mailboxesApi.extend(id),
+    mutationFn: ({ id, input }: { id: string; input?: ExtendMailboxInput }) =>
+      mailboxesApi.extend(id, input),
+    onSuccess: invalidate,
+  });
+};
+
+export const useSetMailboxLocked = () => {
+  const invalidate = useInvalidateMailboxes();
+  return useMutation({
+    mutationFn: ({ id, locked }: { id: string; locked: boolean }) =>
+      mailboxesApi.setLocked(id, locked),
     onSuccess: invalidate,
   });
 };

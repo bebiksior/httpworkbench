@@ -17,6 +17,8 @@ const emit = defineEmits<{
   compose: [];
   edit: [];
   extend: [];
+  keepForever: [];
+  toggleLock: [];
   clear: [];
   delete: [];
 }>();
@@ -35,7 +37,21 @@ const menuItems = computed(() => [
     ? []
     : [
         { label: "Extend", icon: "pi pi-clock", command: () => emit("extend") },
+        ...(config.isHosted
+          ? []
+          : [
+              {
+                label: "Keep forever",
+                icon: "pi pi-bookmark",
+                command: () => emit("keepForever"),
+              },
+            ]),
       ]),
+  {
+    label: props.mailbox.locked ? "Unlock" : "Lock",
+    icon: props.mailbox.locked ? "pi pi-lock-open" : "pi pi-lock",
+    command: () => emit("toggleLock"),
+  },
   {
     label: props.folder === "sent" ? "Clear sent" : "Clear inbox",
     icon: "pi pi-eraser",
@@ -43,9 +59,10 @@ const menuItems = computed(() => [
   },
   { separator: true },
   {
-    label: "Delete mailbox",
+    label: props.mailbox.locked ? "Unlock to delete" : "Delete mailbox",
     icon: "pi pi-trash",
     class: "mailbox-menu-danger",
+    disabled: props.mailbox.locked,
     command: () => emit("delete"),
   },
 ]);
@@ -71,9 +88,14 @@ const copyAddress = async () => {
     />
     <div class="min-w-0 flex-1">
       <p
-        class="truncate text-[15px] font-semibold leading-tight text-surface-900 dark:text-surface-0"
+        class="flex items-center gap-1.5 text-[15px] font-semibold leading-tight text-surface-900 dark:text-surface-0"
       >
-        {{ title }}
+        <span class="truncate">{{ title }}</span>
+        <i
+          v-if="mailbox.locked"
+          class="pi pi-lock shrink-0 text-xs text-surface-400"
+          aria-label="Locked"
+        />
       </p>
       <button
         type="button"

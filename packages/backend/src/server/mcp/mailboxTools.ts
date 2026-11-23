@@ -10,7 +10,6 @@ import {
 import * as z from "zod/v4";
 import { instancePolicies, mailSendingConfig, smtpConfig } from "../../config";
 import {
-  deleteMailbox,
   deleteMailMessage,
   latestMailMessageSeq,
   listMailMessages,
@@ -20,12 +19,14 @@ import {
 import type { ApiKeyAuthContext } from "../apiKeyAuth";
 import {
   createMailbox,
+  deleteOwnedMailbox,
   extendOwnedMailbox,
   getOwnedMailbox,
   listOwnedMailboxes,
   readMailMessage,
   sendMailFromMailbox,
   sendRawMailFromMailbox,
+  setOwnedMailboxLocked,
   updateOwnedMailbox,
   waitForMailboxMessage,
   type MailboxServiceResult,
@@ -55,7 +56,7 @@ const requireOwnedMailbox = (mailboxId: string, auth: ApiKeyAuthContext) => {
 const serializeMailbox = (
   mailbox: Pick<
     MailboxSummary,
-    "id" | "address" | "label" | "createdAt" | "expiresAt"
+    "id" | "address" | "label" | "createdAt" | "expiresAt" | "locked"
   >,
 ) => ({
   id: mailbox.id,
@@ -63,6 +64,7 @@ const serializeMailbox = (
   label: mailbox.label,
   createdAt: mailbox.createdAt,
   expiresAt: mailbox.expiresAt,
+  locked: mailbox.locked,
 });
 
 const mailboxResult = <T extends Parameters<typeof serializeMailbox>[0]>(
@@ -84,6 +86,24 @@ const decodeCursor = (cursor: string | undefined) => {
 };
 
 const mailboxIdInput = z.string().min(1);
+
+const ttlDaysInput = z.number().int().min(1).max(maxTtlDays);
+
+const selfHostedExtendInputSchema = z.object({
+  mailboxId: mailboxIdInput,
+  ttlDays: ttlDaysInput.optional(),
+  forever: z
+    .boolean()
+    .optional()
+    .describe("Keep the mailbox until it is deleted."),
+});
+
+// Hosted servers never offer forever, so its schema is a strict subset.
+const extendInputSchema = (
+  instancePolicies.isHosted
+    ? z.object({ mailboxId: mailboxIdInput, ttlDays: ttlDaysInput })
+    : selfHostedExtendInputSchema
+) as typeof selfHostedExtendInputSchema;
 
 const sendToolResult = (
   result: MailboxServiceResult<{
@@ -204,11 +224,38 @@ export const registerMailboxTools = (server: McpServer) => {
     "extend_mailbox",
     {
       title: "Extend Mailbox",
-      description:
-        "Move an owned mailbox's expiry to ttlDays from now. Never shortens it.",
+      description: instancePolicies.isHosted
+        ? "Move an owned mailbox's expiry to ttlDays from now. Never shortens it."
+        : "Move an owned mailbox's expiry to ttlDays from now, or remove it with forever. Never shortens it.",
+      inputSchema: extendInputSchema,
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+    },
+    async (input, extra) => {
+      const auth = getAuthContext(extra);
+      requireScope(auth, "mailboxes:write");
+      return mailboxResult(
+        extendOwnedMailbox(input.mailboxId, auth.user.id, {
+          ttlMs:
+            input.ttlDays === undefined ? undefined : input.ttlDays * dayMs,
+          forever: input.forever,
+        }),
+      );
+    },
+  );
+
+  server.registerTool(
+    "set_mailbox_locked",
+    {
+      title: "Lock Mailbox",
+      description: `Lock or unlock an owned mailbox. Locked mailboxes cannot be deleted, and locking extends an expiring one to ${maxTtlDays} days. Lock mailboxes that hold evidence for a report.`,
       inputSchema: z.object({
         mailboxId: mailboxIdInput,
-        ttlDays: z.number().int().min(1).max(maxTtlDays),
+        locked: z.boolean(),
       }),
       annotations: {
         readOnlyHint: false,
@@ -217,11 +264,11 @@ export const registerMailboxTools = (server: McpServer) => {
         openWorldHint: false,
       },
     },
-    async ({ mailboxId, ttlDays }, extra) => {
+    async ({ mailboxId, locked }, extra) => {
       const auth = getAuthContext(extra);
       requireScope(auth, "mailboxes:write");
       return mailboxResult(
-        extendOwnedMailbox(mailboxId, auth.user.id, ttlDays * dayMs),
+        setOwnedMailboxLocked(mailboxId, auth.user.id, locked),
       );
     },
   );
@@ -230,7 +277,8 @@ export const registerMailboxTools = (server: McpServer) => {
     "delete_mailbox",
     {
       title: "Delete Mailbox",
-      description: "Delete an owned mailbox and all of its messages.",
+      description:
+        "Delete an owned mailbox and all of its messages. Locked mailboxes must be unlocked first.",
       inputSchema: z.object({ mailboxId: mailboxIdInput }),
       annotations: {
         readOnlyHint: false,
@@ -242,9 +290,14 @@ export const registerMailboxTools = (server: McpServer) => {
     async ({ mailboxId }, extra) => {
       const auth = getAuthContext(extra);
       requireScope(auth, "mailboxes:write");
-      requireOwnedMailbox(mailboxId, auth);
-      deleteMailbox(mailboxId);
-      return jsonToolResult({ deleted: true });
+      const deleted = deleteOwnedMailbox(mailboxId, auth.user.id);
+      return deleted.ok
+        ? jsonToolResult({ deleted: true })
+        : toolError(
+            deleted.error.status === 409
+              ? "Mailbox is locked. Unlock it with set_mailbox_locked before deleting."
+              : deleted.error.message,
+          );
     },
   );
 

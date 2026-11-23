@@ -200,6 +200,7 @@ export const mailboxes = sqliteTable(
     label: text("label"),
     createdAt: integer("createdAt", { mode: "number" }).notNull(),
     expiresAt: integer("expiresAt", { mode: "number" }),
+    isLocked: integer("isLocked", { mode: "boolean" }).notNull().default(false),
   },
   (table) => [
     index("mailboxes_by_owner").on(table.ownerId),

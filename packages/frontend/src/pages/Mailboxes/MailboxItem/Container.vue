@@ -31,6 +31,10 @@ const copyAddress = async () => {
 };
 
 const deleteMailbox = () => {
+  if (props.mailbox.locked) {
+    notify.error("Mailbox is locked");
+    return;
+  }
   deleteMutation.mutate(props.mailbox.id, {
     onSuccess: () => notify.success("Mailbox deleted"),
     onError: (err) => notify.error("Failed to delete mailbox", err),
@@ -58,6 +62,11 @@ const deleteMailbox = () => {
           >
             {{ displayName }}
           </h2>
+          <i
+            v-if="mailbox.locked"
+            class="pi pi-lock shrink-0 text-surface-400"
+            aria-label="Locked"
+          />
           <span
             v-if="mailbox.unreadCount > 0"
             class="min-w-6 shrink-0 rounded-full bg-primary px-1.5 py-0.5 text-center text-xs font-semibold tabular-nums text-primary-contrast"
@@ -118,8 +127,10 @@ const deleteMailbox = () => {
           size="small"
           class="shrink-0"
           aria-label="Delete mailbox"
-          v-tooltip.top="'Delete mailbox'"
-          :disabled="deleteMutation.isPending.value"
+          v-tooltip.top="
+            mailbox.locked ? 'Unlock mailbox to delete' : 'Delete mailbox'
+          "
+          :disabled="mailbox.locked || deleteMutation.isPending.value"
           @click="deleteMailbox"
         />
       </div>

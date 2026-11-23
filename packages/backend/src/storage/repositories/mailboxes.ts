@@ -41,6 +41,7 @@ const toMailbox = (row: MailboxRow): MailboxRecord => ({
   label: row.label ?? undefined,
   createdAt: row.createdAt,
   expiresAt: row.expiresAt ?? undefined,
+  locked: row.isLocked,
 });
 
 const summaryColumns = {
@@ -86,7 +87,9 @@ export type StoredMailMessage = {
   raw: string;
 };
 
-export function addMailbox(mailbox: MailboxRecord): MailboxRecord {
+export function addMailbox(
+  mailbox: Omit<MailboxRecord, "locked"> & { locked?: boolean },
+): MailboxRecord {
   const row = getDb()
     .insert(mailboxes)
     .values({
@@ -96,6 +99,7 @@ export function addMailbox(mailbox: MailboxRecord): MailboxRecord {
       label: mailbox.label ?? null,
       createdAt: mailbox.createdAt,
       expiresAt: mailbox.expiresAt ?? null,
+      isLocked: mailbox.locked ?? false,
     })
     .returning()
     .get();
@@ -170,12 +174,15 @@ export function getMailboxSummariesByOwner(
 
 export function updateMailbox(
   id: string,
-  patch: Partial<Pick<MailboxRecord, "localPart" | "label" | "expiresAt">>,
+  patch: Partial<
+    Pick<MailboxRecord, "localPart" | "label" | "expiresAt" | "locked">
+  >,
 ): MailboxRecord | undefined {
   const values = {
     ...(patch.localPart === undefined ? {} : { localPart: patch.localPart }),
     ...("label" in patch ? { label: patch.label ?? null } : {}),
     ...("expiresAt" in patch ? { expiresAt: patch.expiresAt ?? null } : {}),
+    ...(patch.locked === undefined ? {} : { isLocked: patch.locked }),
   };
   if (Object.keys(values).length > 0) {
     getDb()

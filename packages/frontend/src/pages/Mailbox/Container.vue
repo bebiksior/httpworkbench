@@ -12,6 +12,7 @@ import {
   useExtendMailbox,
   useMailboxes,
   usePrefetchMailMessage,
+  useSetMailboxLocked,
 } from "@/queries/domains/useMailboxes";
 import { ComposeDialog } from "./components/ComposeDialog";
 import { EditDialog } from "./components/EditDialog";
@@ -71,14 +72,39 @@ const openCompose = (draft: ComposeDraft = emptyDraft()) => {
 };
 
 const extendMutation = useExtendMailbox();
+const lockMutation = useSetMailboxLocked();
 const deleteMutation = useDeleteMailbox();
 const clearMutation = useClearMessages(mailboxId);
 
 const extend = () =>
-  extendMutation.mutate(mailboxId.value, {
-    onSuccess: () => notify.success("Mailbox extended"),
-    onError: (err) => notify.error("Failed to extend mailbox", err),
-  });
+  extendMutation.mutate(
+    { id: mailboxId.value },
+    {
+      onSuccess: () => notify.success("Mailbox extended"),
+      onError: (err) => notify.error("Failed to extend mailbox", err),
+    },
+  );
+
+const keepForever = () =>
+  extendMutation.mutate(
+    { id: mailboxId.value, input: { forever: true } },
+    {
+      onSuccess: () => notify.success("Mailbox will no longer expire"),
+      onError: (err) => notify.error("Failed to update mailbox", err),
+    },
+  );
+
+const toggleLock = () => {
+  const locked = !(mailbox.value?.locked ?? false);
+  lockMutation.mutate(
+    { id: mailboxId.value, locked },
+    {
+      onSuccess: () =>
+        notify.success(locked ? "Mailbox locked" : "Mailbox unlocked"),
+      onError: (err) => notify.error("Failed to update lock", err),
+    },
+  );
+};
 
 const clearFolder = () => {
   const target = folder.value;
@@ -139,6 +165,8 @@ const deleteMailbox = () =>
       @compose="openCompose()"
       @edit="editVisible = true"
       @extend="extend"
+      @keep-forever="keepForever"
+      @toggle-lock="toggleLock"
       @clear="clearFolder"
       @delete="deleteMailbox"
     />

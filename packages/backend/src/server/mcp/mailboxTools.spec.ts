@@ -151,6 +151,55 @@ describe("MCP mailbox tools", () => {
     }
   });
 
+  test("keeps locked mailboxes from deletion and can drop their expiry", async () => {
+    const { client, call } = await connectClient(apiKey);
+    try {
+      const created = await call("create_mailbox", { ttlHours: 1 });
+      const mailbox = created.structuredContent?.mailbox as {
+        id: string;
+        expiresAt: number;
+        locked: boolean;
+      };
+      expect(mailbox.locked).toBe(false);
+
+      const locked = await call("set_mailbox_locked", {
+        mailboxId: mailbox.id,
+        locked: true,
+      });
+      const lockedMailbox = locked.structuredContent?.mailbox as {
+        expiresAt: number;
+        locked: boolean;
+      };
+      expect(lockedMailbox.locked).toBe(true);
+      expect(lockedMailbox.expiresAt).toBeGreaterThan(mailbox.expiresAt);
+
+      const refused = await call("delete_mailbox", { mailboxId: mailbox.id });
+      expect(refused.isError).toBe(true);
+      expect(hasActiveMailbox(mailbox.id)).toBe(true);
+
+      const forever = await call("extend_mailbox", {
+        mailboxId: mailbox.id,
+        forever: true,
+      });
+      const permanent = forever.structuredContent?.mailbox as {
+        expiresAt?: number;
+        locked: boolean;
+      };
+      expect(permanent.locked).toBe(true);
+      expect(permanent.expiresAt).toBeUndefined();
+
+      await call("set_mailbox_locked", {
+        mailboxId: mailbox.id,
+        locked: false,
+      });
+      const deleted = await call("delete_mailbox", { mailboxId: mailbox.id });
+      expect(deleted.isError).not.toBe(true);
+      expect(hasActiveMailbox(mailbox.id)).toBe(false);
+    } finally {
+      await client.close();
+    }
+  });
+
   test("sends attachments and raw MIME", async () => {
     const { client, call } = await connectClient(apiKey);
     try {

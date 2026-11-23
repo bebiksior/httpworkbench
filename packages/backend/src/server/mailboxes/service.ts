@@ -14,6 +14,7 @@ import {
   addMailbox,
   addMailMessage,
   countActiveMailboxesByOwner,
+  deleteMailbox,
   getMailboxById,
   getMailboxSummariesByOwner,
   getMailMessage,
@@ -147,11 +148,19 @@ export const updateOwnedMailbox = (
   );
 };
 
+const extendedExpiration = (expiresAt: number | undefined, ttlMs: number) =>
+  expiresAt === undefined
+    ? undefined
+    : Math.max(expiresAt, expiresAfter(ttlMs, Date.now()) ?? expiresAt);
+
 export const extendOwnedMailbox = (
   mailboxId: string,
   ownerId: string,
-  ttlMs = instancePolicies.maxTtlMs,
+  options: { ttlMs?: number; forever?: boolean } = {},
 ): MailboxServiceResult<Mailbox> => {
+  if (options.forever === true && instancePolicies.isHosted) {
+    return fail("Mailboxes cannot live forever on this server", 403);
+  }
   const owned = getOwnedMailbox(mailboxId, ownerId);
   if (!owned.ok) {
     return owned;
@@ -162,12 +171,54 @@ export const extendOwnedMailbox = (
   }
   return found(
     updateMailbox(mailboxId, {
-      expiresAt: Math.max(
-        expiresAt,
-        expiresAfter(ttlMs, Date.now()) ?? expiresAt,
-      ),
+      expiresAt:
+        options.forever === true
+          ? undefined
+          : extendedExpiration(
+              expiresAt,
+              options.ttlMs ?? instancePolicies.maxTtlMs,
+            ),
     }),
   );
+};
+
+export const setOwnedMailboxLocked = (
+  mailboxId: string,
+  ownerId: string,
+  locked: boolean,
+): MailboxServiceResult<Mailbox> => {
+  const owned = getOwnedMailbox(mailboxId, ownerId);
+  if (!owned.ok) {
+    return owned;
+  }
+  return found(
+    updateMailbox(mailboxId, {
+      locked,
+      ...(locked
+        ? {
+            expiresAt: extendedExpiration(
+              owned.value.expiresAt,
+              instancePolicies.maxTtlMs,
+            ),
+          }
+        : {}),
+    }),
+  );
+};
+
+export const deleteOwnedMailbox = (
+  mailboxId: string,
+  ownerId: string,
+): MailboxServiceResult<Mailbox> => {
+  const owned = getOwnedMailbox(mailboxId, ownerId);
+  if (!owned.ok) {
+    return owned;
+  }
+  if (owned.value.locked) {
+    return fail("Mailbox is locked. Unlock it before deleting.", 409);
+  }
+  deleteMailbox(mailboxId);
+  return owned;
 };
 
 const byteLength = (value: string) => Buffer.byteLength(value, "utf8");

@@ -2,17 +2,18 @@ import { Elysia, status } from "elysia";
 import { z } from "zod";
 import {
   CreateMailboxSchema,
+  ExtendMailboxSchema,
   MailFolderSchema,
   SendMailSchema,
   SendRawMailSchema,
+  SetMailboxLockedSchema,
   SetMailMessageReadSchema,
   UpdateMailboxSchema,
   folderDirection,
 } from "shared";
-import { smtpConfig } from "../../config";
+import { instancePolicies, smtpConfig } from "../../config";
 import {
   clearMailMessages,
-  deleteMailbox,
   deleteMailMessage,
   getMailMessage,
   listMailMessages,
@@ -21,6 +22,7 @@ import {
 import { authPlugin } from "../auth";
 import {
   createMailbox,
+  deleteOwnedMailbox,
   extendOwnedMailbox,
   getOwnedMailbox,
   listOwnedMailboxes,
@@ -28,6 +30,7 @@ import {
   readMailMessage,
   sendMailFromMailbox,
   sendRawMailFromMailbox,
+  setOwnedMailboxLocked,
   updateOwnedMailbox,
   type MailboxServiceError,
   type MailboxServiceResult,
@@ -125,32 +128,49 @@ const routes = new Elysia({ name: "routes/mailboxes" })
   .delete(
     "/api/mailboxes/:id",
     ({ params, user }) => {
-      const owned = getOwnedMailbox(params.id, user.id);
-      if (!owned.ok) {
-        return errorResponse(owned.error);
-      }
-      deleteMailbox(params.id);
-      return { message: "Deleted" };
+      const deleted = deleteOwnedMailbox(params.id, user.id);
+      return deleted.ok ? { message: "Deleted" } : errorResponse(deleted.error);
     },
     {
       scope: "mailboxes:write",
       detail: {
         tags: ["Mailboxes"],
         summary: "Delete a mailbox",
-        description: "Delete a mailbox and all of its messages.",
+        description:
+          "Delete an unlocked mailbox and all of its messages. Locked mailboxes return 409.",
       },
     },
   )
   .post(
     "/api/mailboxes/:id/extend",
-    ({ params, user }) => respond(extendOwnedMailbox(params.id, user.id)),
+    ({ params, body, user }) =>
+      respond(
+        extendOwnedMailbox(params.id, user.id, { forever: body?.forever }),
+      ),
     {
       scope: "mailboxes:write",
+      body: ExtendMailboxSchema.optional(),
       detail: {
         tags: ["Mailboxes"],
         summary: "Extend mailbox expiration",
+        description: instancePolicies.isHosted
+          ? "Extend an expiring mailbox to the maximum lifetime from now."
+          : "Extend an expiring mailbox to the maximum lifetime from now, or remove its expiration with forever=true.",
+      },
+    },
+  )
+  .post(
+    "/api/mailboxes/:id/lock",
+    ({ params, body, user }) =>
+      respond(setOwnedMailboxLocked(params.id, user.id, body.locked)),
+    {
+      scope: "mailboxes:write",
+      body: SetMailboxLockedSchema,
+      detail: {
+        tags: ["Mailboxes"],
+        summary: "Lock or unlock a mailbox",
         description:
-          "Extend an expiring mailbox to the maximum lifetime from now.",
+          "Locked mailboxes cannot be deleted. Locking an expiring mailbox extends it to the maximum lifetime. It does not block other changes.",
       },
     },
   )
