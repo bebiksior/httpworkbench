@@ -51,6 +51,13 @@ describe("mailbox routes", () => {
     rmSync(dataDir, { recursive: true, force: true });
   });
 
+  test("creates mailboxes that expire", async () => {
+    const created = await call("/api/mailboxes", "POST", {});
+    expect(created.status).toBe(201);
+    const { expiresAt } = (await created.json()) as { expiresAt?: number };
+    expect(expiresAt).toBeGreaterThan(Date.now());
+  });
+
   test("refuses to delete a locked mailbox", async () => {
     const locked = await call("/api/mailboxes/mbx00001/lock", "POST", {
       locked: true,

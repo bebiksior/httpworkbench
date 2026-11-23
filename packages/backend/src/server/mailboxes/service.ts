@@ -53,6 +53,7 @@ const fail = (
 const instancesDomain = smtpConfig.instancesDomain;
 const maxMailboxesPerOwner = 100;
 const defaultLocalPart = "inbox";
+const defaultMailboxTtlMs = 14 * 24 * 60 * 60 * 1000;
 const sendsPerHour = 30;
 
 const sendRateLimiter = createFixedWindowRateLimiter({
@@ -96,10 +97,8 @@ const generateMailboxId = () => {
   }
 };
 
-const expiresAfter = (ttlMs: number | undefined, now: number) =>
-  ttlMs === undefined
-    ? undefined
-    : now + Math.min(ttlMs, instancePolicies.maxTtlMs);
+const expiresAfter = (ttlMs: number, now: number) =>
+  now + Math.min(ttlMs, instancePolicies.maxTtlMs);
 
 export const createMailbox = (input: {
   ownerId: string;
@@ -121,10 +120,7 @@ export const createMailbox = (input: {
       localPart: input.localPart ?? defaultLocalPart,
       label: input.label === "" ? undefined : input.label,
       createdAt: now,
-      expiresAt: expiresAfter(
-        input.ttlMs ?? instancePolicies.defaultTtlMs,
-        now,
-      ),
+      expiresAt: expiresAfter(input.ttlMs ?? defaultMailboxTtlMs, now),
     }),
   );
 };
@@ -151,7 +147,7 @@ export const updateOwnedMailbox = (
 const extendedExpiration = (expiresAt: number | undefined, ttlMs: number) =>
   expiresAt === undefined
     ? undefined
-    : Math.max(expiresAt, expiresAfter(ttlMs, Date.now()) ?? expiresAt);
+    : Math.max(expiresAt, expiresAfter(ttlMs, Date.now()));
 
 export const extendOwnedMailbox = (
   mailboxId: string,
