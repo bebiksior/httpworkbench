@@ -47,6 +47,7 @@ const {
   fileInputRef,
   triggerFileUpload,
   handleCopy,
+  hostCopied,
   selectedWebhookIds,
   handleWebhookChange,
   showExpirationNotice,
@@ -243,7 +244,7 @@ const isWebhooksDialogVisible = ref(false);
             class="min-w-0 w-full bg-surface-50 font-mono text-sm dark:bg-surface-800"
           />
           <Button
-            icon="pi pi-copy"
+            :icon="hostCopied ? 'pi pi-check' : 'pi pi-copy'"
             severity="secondary"
             outlined
             size="small"

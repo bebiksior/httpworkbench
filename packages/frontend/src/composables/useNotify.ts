@@ -19,12 +19,5 @@ export const useNotify = () => {
     warn: (summary: string, detail?: string) => {
       toast.add({ severity: "warn", summary, detail, life: 5000 });
     },
-    copied: () => {
-      toast.add({
-        severity: "success",
-        summary: "Copied to clipboard",
-        life: 3000,
-      });
-    },
   };
 };

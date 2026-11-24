@@ -1,10 +1,10 @@
 <script setup lang="ts">
+import { useClipboard } from "@vueuse/core";
 import Button from "primevue/button";
 import Skeleton from "primevue/skeleton";
 import { TextShimmer } from "@/components/TextShimmer";
 import type { MailFolder, MailMessageSummary } from "shared";
 import { computed } from "vue";
-import { useNotify } from "@/composables";
 import { correspondentLabel, formatMailTime } from "../../mail";
 
 const props = defineProps<{
@@ -25,13 +25,10 @@ const emit = defineEmits<{
   loadMore: [];
 }>();
 
-const notify = useNotify();
 const host = computed(() => props.address.split("@")[1] ?? "");
 
-const copyAddress = async () => {
-  await navigator.clipboard.writeText(props.address);
-  notify.copied();
-};
+const { copy, copied } = useClipboard({ copiedDuring: 1200, legacy: true });
+const copyAddress = () => copy(props.address);
 
 const folders: { id: MailFolder; label: string }[] = [
   { id: "inbox", label: "Inbox" },
@@ -93,6 +90,11 @@ const folders: { id: MailFolder; label: string }[] = [
           @click="copyAddress"
         >
           *@{{ host }}
+          <i
+            class="pi ml-1.5 text-[10px]"
+            :class="copied ? 'pi-check' : 'pi-copy opacity-60'"
+            aria-hidden="true"
+          />
         </button>
       </template>
       <p v-else class="text-sm text-surface-500 dark:text-surface-400">

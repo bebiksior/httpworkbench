@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useClipboard } from "@vueuse/core";
 import Button from "primevue/button";
 import type { RouteMethod } from "shared";
 import { ref } from "vue";
@@ -29,13 +30,13 @@ const { processFile } = useFileUpload();
 const fields = ref<InstanceType<typeof RouteFields>>();
 const fileInput = ref<HTMLInputElement>();
 
+const { copy, copied } = useClipboard({ copiedDuring: 1200, legacy: true });
 const copyUrl = async () => {
-  await navigator.clipboard.writeText(props.url);
+  await copy(props.url);
   if (props.route !== undefined && props.route.saved === undefined) {
     notify.success("Copied. Save to make this path live");
     return;
   }
-  notify.copied();
 };
 
 const openUrl = () => {
@@ -86,7 +87,7 @@ defineExpose({ focusPath: () => fields.value?.focus() });
         {{ url }}
       </span>
       <Button
-        icon="pi pi-copy"
+        :icon="copied ? 'pi pi-check' : 'pi pi-copy'"
         severity="secondary"
         text
         size="small"

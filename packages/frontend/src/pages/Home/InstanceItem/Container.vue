@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useClipboard } from "@vueuse/core";
 import Button from "primevue/button";
 import InputText from "primevue/inputtext";
 import Tag from "primevue/tag";
@@ -42,10 +43,8 @@ const formattedDate = computed(() => {
   });
 });
 
-const handleCopyClick = async () => {
-  await navigator.clipboard.writeText(instanceHost.value);
-  notify.copied();
-};
+const { copy, copied } = useClipboard({ copiedDuring: 1200, legacy: true });
+const handleCopyClick = () => copy(instanceHost.value);
 
 const handlePrefetch = () => {
   void Promise.all([
@@ -144,12 +143,12 @@ const handleDeleteClick = (event: Event) => {
           class="min-w-0 flex-1 select-text font-mono text-xs sm:w-80 sm:text-sm"
         />
         <Button
-          icon="pi pi-copy"
+          :icon="copied ? 'pi pi-check' : 'pi pi-copy'"
           severity="secondary"
           outlined
           size="small"
           class="shrink-0"
-          aria-label="Copy instance host"
+          :aria-label="copied ? 'Copied' : 'Copy instance host'"
           v-tooltip.top="'Copy host'"
           @click="handleCopyClick"
         />

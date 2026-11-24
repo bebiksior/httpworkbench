@@ -1,9 +1,9 @@
 <script setup lang="ts">
+import { useClipboard } from "@vueuse/core";
 import Button from "primevue/button";
 import Menu from "primevue/menu";
 import type { Mailbox, MailFolder } from "shared";
 import { computed, ref } from "vue";
-import { useNotify } from "@/composables";
 import { config } from "@/config";
 import { formatExpiry } from "../../mail";
 
@@ -23,7 +23,6 @@ const emit = defineEmits<{
   delete: [];
 }>();
 
-const notify = useNotify();
 const menu = ref<InstanceType<typeof Menu>>();
 
 const title = computed(
@@ -67,10 +66,8 @@ const menuItems = computed(() => [
   },
 ]);
 
-const copyAddress = async () => {
-  await navigator.clipboard.writeText(props.mailbox.address);
-  notify.copied();
-};
+const { copy, copied } = useClipboard({ copiedDuring: 1200, legacy: true });
+const copyAddress = () => copy(props.mailbox.address);
 </script>
 
 <template>
@@ -105,7 +102,8 @@ const copyAddress = async () => {
       >
         <span class="truncate select-text">{{ mailbox.address }}</span>
         <i
-          class="pi pi-copy text-[10px] opacity-0 transition-opacity duration-150 group-hover/address:opacity-100"
+          class="pi text-[10px] transition-opacity duration-150 group-hover/address:opacity-100"
+          :class="copied ? 'pi-check opacity-100' : 'pi-copy opacity-0'"
           aria-hidden="true"
         />
       </button>

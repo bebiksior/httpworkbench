@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useClipboard } from "@vueuse/core";
 import Button from "primevue/button";
 import InputText from "primevue/inputtext";
 import type { MailboxSummary } from "shared";
@@ -26,10 +27,8 @@ const formattedDate = computed(() =>
   }),
 );
 
-const copyAddress = async () => {
-  await navigator.clipboard.writeText(props.mailbox.address);
-  notify.copied();
-};
+const { copy, copied } = useClipboard({ copiedDuring: 1200, legacy: true });
+const copyAddress = () => copy(props.mailbox.address);
 
 const deleteMailbox = (event: Event) => {
   if (props.mailbox.locked) {
@@ -116,12 +115,12 @@ const deleteMailbox = (event: Event) => {
           class="min-w-0 flex-1 select-text font-mono text-xs sm:w-80 sm:text-sm"
         />
         <Button
-          icon="pi pi-copy"
+          :icon="copied ? 'pi pi-check' : 'pi pi-copy'"
           severity="secondary"
           outlined
           size="small"
           class="shrink-0"
-          aria-label="Copy address"
+          :aria-label="copied ? 'Copied' : 'Copy address'"
           v-tooltip.top="'Copy address'"
           @click="copyAddress"
         />

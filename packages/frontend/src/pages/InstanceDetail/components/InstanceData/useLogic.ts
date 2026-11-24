@@ -3,7 +3,7 @@ import type { Instance } from "shared";
 import { computed, ref, type Ref } from "vue";
 import { useRouter } from "vue-router";
 import { storeToRefs } from "pinia";
-import { useTimeAgo } from "@vueuse/core";
+import { useClipboard, useTimeAgo } from "@vueuse/core";
 import dayjs from "dayjs";
 import {
   useCanEditResponses,
@@ -98,10 +98,11 @@ export const useInstanceDataLogic = (instance: Ref<Instance>) => {
   );
   const editor = useInstanceEditor(instance, canManageInstance);
 
-  const handleCopy = async () => {
-    await navigator.clipboard.writeText(instanceHost.value);
-    notify.copied();
-  };
+  const { copy, copied: hostCopied } = useClipboard({
+    copiedDuring: 1200,
+    legacy: true,
+  });
+  const handleCopy = () => copy(instanceHost.value);
 
   const handleOpenBuilder = () => {
     if (!canManageInstance.value) {
@@ -310,6 +311,7 @@ export const useInstanceDataLogic = (instance: Ref<Instance>) => {
     editLabel,
     labelInputRef,
     handleCopy,
+    hostCopied,
     handleDelete,
     handleClone,
     handleClearLogs,
