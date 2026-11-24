@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useRouter } from "vue-router";
 import Button from "primevue/button";
 import InputText from "primevue/inputtext";
 import Dialog from "primevue/dialog";
@@ -73,6 +74,13 @@ const {
 const { data: webhooks } = useWebhooks({
   enabled: computed(() => canManageInstance.value && !isGuest.value),
 });
+
+const router = useRouter();
+const openWebhookSettings = () =>
+  router.push({
+    name: "settings",
+    query: { section: "webhooks", create: "1" },
+  });
 
 const webhookOptions = computed(() => {
   return (webhooks.value ?? []).map((webhook) => ({
@@ -454,10 +462,28 @@ const isWebhooksDialogVisible = ref(false);
       v-model:visible="isWebhooksDialogVisible"
       modal
       header="Webhooks"
-      :style="{ width: '40rem' }"
-      :breakpoints="{ '640px': '95vw' }"
+      dismissable-mask
+      :draggable="false"
+      :style="{ width: 'min(28rem, calc(100vw - 2rem))' }"
     >
-      <div class="flex flex-col gap-3">
+      <div
+        v-if="webhooks !== undefined && webhookOptions.length === 0"
+        class="flex flex-col items-start gap-3"
+      >
+        <p class="text-sm text-surface-600 dark:text-surface-300">
+          No webhooks yet. Add a Discord webhook in Settings to get notified
+          when this instance logs a request.
+        </p>
+        <Button
+          label="Add a webhook"
+          icon="pi pi-arrow-right"
+          icon-pos="right"
+          size="small"
+          autofocus
+          @click="openWebhookSettings"
+        />
+      </div>
+      <div v-else class="flex flex-col gap-3">
         <MultiSelect
           :model-value="selectedWebhookIds"
           :options="webhookOptions"

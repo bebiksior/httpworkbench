@@ -4,9 +4,9 @@ import Divider from "primevue/divider";
 import Dialog from "primevue/dialog";
 import Message from "primevue/message";
 import { useEventListener, useMediaQuery } from "@vueuse/core";
-import { computed, defineAsyncComponent, ref } from "vue";
+import { computed, defineAsyncComponent, ref, watch } from "vue";
 import { storeToRefs } from "pinia";
-import { useRouter } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
 import type { Webhook } from "shared";
 import { useWebhooks } from "@/queries/domains/useWebhooks";
 import { useAuthStore } from "@/stores/auth";
@@ -44,7 +44,22 @@ const sections = [
   { id: "version", label: "Version", icon: "pi pi-refresh" },
 ] as const;
 type SettingsSectionId = (typeof sections)[number]["id"];
-const activeSection = ref<SettingsSectionId>("ai");
+const route = useRoute();
+const isSectionId = (value: unknown): value is SettingsSectionId =>
+  sections.some((section) => section.id === value);
+const activeSection = ref<SettingsSectionId>(
+  isSectionId(route.query.section) ? route.query.section : "ai",
+);
+if (activeSection.value === "webhooks" && route.query.create === "1") {
+  showCreateDialog.value = true;
+}
+watch(
+  activeSection,
+  (section) => {
+    void router.replace({ query: { section } });
+  },
+  { immediate: route.query.create !== undefined },
+);
 const {
   data: webhooks,
   isLoading,
