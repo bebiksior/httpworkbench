@@ -20,7 +20,7 @@ const sections = [
   {
     label: "Instances",
     to: "/",
-    match: (path: string) => !path.startsWith("/mail"),
+    match: (path: string) => path === "/" || path.startsWith("/instances"),
   },
   {
     label: "Mail",
