@@ -8,6 +8,7 @@ import dayjs from "dayjs";
 import {
   useCanEditResponses,
   useCanManageInstance,
+  useConfirmInline,
   useNotify,
 } from "@/composables";
 import { config } from "@/config";
@@ -28,6 +29,7 @@ import { useInstanceEditor } from "./useInstanceEditor";
 export const useInstanceDataLogic = (instance: Ref<Instance>) => {
   const notify = useNotify();
   const confirm = useConfirm();
+  const confirmInline = useConfirmInline();
   const router = useRouter();
   const { mutateAsync: deleteInstanceMutation, isPending: isDeleting } =
     useDeleteInstance();
@@ -129,7 +131,7 @@ export const useInstanceDataLogic = (instance: Ref<Instance>) => {
     confirm.require(unsavedResponsesDialog(open));
   };
 
-  const handleDelete = async () => {
+  const handleDelete = (event: Event) => {
     if (!canManageInstance.value) {
       return;
     }
@@ -138,23 +140,12 @@ export const useInstanceDataLogic = (instance: Ref<Instance>) => {
       notify.error("Instance is locked");
       return;
     }
-    confirm.require({
-      message: "Are you sure you want to delete this instance?",
-      header: "Delete Confirmation",
-      icon: "pi pi-exclamation-triangle",
-      rejectProps: {
-        label: "Cancel",
-        severity: "secondary",
-        outlined: true,
-      },
-      acceptProps: {
-        label: "Delete",
-        severity: "danger",
-      },
+    confirmInline(event, {
+      message: "Delete this instance and all its logs?",
+      acceptLabel: "Delete",
       accept: async () => {
         try {
           await deleteInstanceMutation(instance.value.id);
-          notify.success("Deleted");
           router.push("/");
         } catch (e) {
           notify.error("Delete failed", e);
@@ -197,28 +188,17 @@ export const useInstanceDataLogic = (instance: Ref<Instance>) => {
     }
   };
 
-  const handleClearLogs = async () => {
+  const handleClearLogs = (event: Event) => {
     if (!canManageInstance.value) {
       return;
     }
 
-    confirm.require({
-      message: "Are you sure you want to clear all logs for this instance?",
-      header: "Clear Logs Confirmation",
-      icon: "pi pi-exclamation-triangle",
-      rejectProps: {
-        label: "Cancel",
-        severity: "secondary",
-        outlined: true,
-      },
-      acceptProps: {
-        label: "Clear",
-        severity: "danger",
-      },
+    confirmInline(event, {
+      message: "Clear all logs for this instance?",
+      acceptLabel: "Clear logs",
       accept: async () => {
         try {
           await clearLogsMutation(instance.value.id);
-          notify.success("Logs cleared");
         } catch (e) {
           notify.error("Failed to clear logs", e);
         }
