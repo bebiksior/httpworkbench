@@ -214,6 +214,7 @@ const formatScopes = (scopes: ApiKeyScope[]) => {
           <InputText
             id="api-key-name"
             v-model="name"
+            autofocus
             placeholder="Claude Desktop"
             class="w-full"
           />

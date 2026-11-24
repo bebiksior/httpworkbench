@@ -64,7 +64,12 @@ const save = () => {
         <span class="text-sm font-medium text-surface-700 dark:text-surface-200"
           >Label</span
         >
-        <InputText v-model="label" maxlength="100" placeholder="Optional" />
+        <InputText
+          v-model="label"
+          maxlength="100"
+          placeholder="Optional"
+          autofocus
+        />
       </label>
       <label class="flex flex-col gap-1.5">
         <span class="text-sm font-medium text-surface-700 dark:text-surface-200"

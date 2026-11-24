@@ -181,6 +181,7 @@ const handleTest = async () => {
       <InputText
         id="webhook-name"
         v-model="name"
+        autofocus
         placeholder="Blind XSS notifications"
         class="w-full"
       />
