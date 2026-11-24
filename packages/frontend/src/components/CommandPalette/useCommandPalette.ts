@@ -3,21 +3,12 @@ import { computed, ref, watch } from "vue";
 import { useRouter } from "vue-router";
 import type { InstanceSummary } from "shared";
 import { useInstances } from "@/queries/domains/useInstances";
+import { matchesInstanceQuery } from "@/utils/instanceSearch";
 
 export const filterCommandInstances = (
   instances: readonly InstanceSummary[],
   query: string,
-) => {
-  const normalized = query.trim().toLowerCase();
-  if (normalized === "") {
-    return [...instances];
-  }
-  return instances.filter((instance) =>
-    `${instance.id}\n${instance.label ?? ""}`
-      .toLowerCase()
-      .includes(normalized),
-  );
-};
+) => instances.filter((instance) => matchesInstanceQuery(instance, query));
 
 export const moveCommandSelection = (
   current: number,

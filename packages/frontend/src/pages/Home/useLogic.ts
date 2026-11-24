@@ -3,13 +3,13 @@ import { useConfirm } from "primevue/useconfirm";
 import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
 import { useNotify } from "@/composables";
-import { config } from "@/config";
 import { loadInstanceDetailPage } from "@/pages/InstanceDetail/load";
 import {
   useCreateInstance,
   useDeleteAllInstances,
   useInstances,
 } from "@/queries/domains/useInstances";
+import { matchesInstanceQuery } from "@/utils/instanceSearch";
 import { isAbsent } from "@/utils/types";
 import { DEFAULT_HTTP_RESPONSE } from "@/utils/httpResponse";
 
@@ -82,16 +82,9 @@ export const useHomeLogic = () => {
       return sortInstances(instances.value);
     }
 
-    const filtered = instances.value.filter((instance: InstanceSummary) => {
-      const instanceId = instance.id.toLowerCase();
-      const host = config.getInstanceHost(instance.id).toLowerCase();
-      const label = instance.label?.toLowerCase() ?? "";
-      return (
-        instanceId.includes(normalizedQuery.value) ||
-        host.includes(normalizedQuery.value) ||
-        label.includes(normalizedQuery.value)
-      );
-    });
+    const filtered = instances.value.filter((instance: InstanceSummary) =>
+      matchesInstanceQuery(instance, normalizedQuery.value),
+    );
 
     return sortInstances(filtered);
   });

@@ -17,6 +17,13 @@ const setInputRef = (element: unknown) => {
   inputRef.value = element instanceof HTMLInputElement ? element : undefined;
 };
 
+watch(activeIndex, async (index) => {
+  await nextTick();
+  document
+    .getElementById(`instance-command-${index}`)
+    ?.scrollIntoView({ block: "nearest" });
+});
+
 watch(visible, async (isVisible) => {
   if (!isVisible) return;
   await nextTick();

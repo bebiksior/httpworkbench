@@ -4,6 +4,7 @@ import {
   filterCommandInstances,
   moveCommandSelection,
 } from "./useCommandPalette";
+import { config } from "@/config";
 
 const instances: InstanceSummary[] = [
   {
@@ -31,6 +32,15 @@ describe("command palette helpers", () => {
       instances[0],
     ]);
     expect(filterCommandInstances(instances, "BETA")).toEqual([instances[1]]);
+  });
+
+  test("finds an instance by its copied hostname", () => {
+    expect(
+      filterCommandInstances(
+        instances,
+        ` ${config.getInstanceHost("beta-id")} `,
+      ),
+    ).toEqual([instances[1]]);
   });
 
   test("wraps keyboard selection in both directions", () => {
