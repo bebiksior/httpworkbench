@@ -73,9 +73,12 @@ const showRemoteNotice = computed(
         Load images
       </button>
     </div>
-    <div v-if="sanitizedHtml" class="h-[600px]">
-      <EmailFrame :email="sanitizedHtml" :allow-remote="allowRemote" />
-    </div>
+    <EmailFrame
+      v-if="sanitizedHtml"
+      :email="sanitizedHtml"
+      :allow-remote="allowRemote"
+      fit-content
+    />
     <pre
       v-else-if="preview?.text"
       class="max-h-[600px] overflow-auto px-4 py-3 font-sans text-sm leading-relaxed break-words whitespace-pre-wrap text-surface-800 dark:text-surface-100"
