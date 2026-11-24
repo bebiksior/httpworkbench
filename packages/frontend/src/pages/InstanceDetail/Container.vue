@@ -8,6 +8,7 @@ import { useRoute, useRouter } from "vue-router";
 import { useInstanceDetailLogic } from "./useLogic";
 import { useLogsPanelControls } from "./useLogsPanelControls";
 import { useSidePanel } from "./useSidePanel";
+import { useLogArrivals } from "./useLogArrivals";
 import { InstanceData, InstanceDataLoading } from "./components/InstanceData";
 import { InstanceLog } from "./components/InstanceLog";
 
@@ -77,6 +78,24 @@ const rowVirtualizer = useVirtualizer(
 
 const virtualRows = computed(() => rowVirtualizer.value.getVirtualItems());
 const totalSize = computed(() => rowVirtualizer.value.getTotalSize());
+
+const { freshIds, unseenIds, onScroll, showNewest } = useLogArrivals(
+  logs,
+  filteredLogs,
+  scrollerRef,
+  (index) => {
+    rowVirtualizer.value.getVirtualItems();
+    return rowVirtualizer.value.measurementsCache[index]?.start;
+  },
+  () =>
+    [
+      instanceId.value,
+      searchQuery.value,
+      isTypeSelected("http"),
+      isTypeSelected("dns"),
+      isTypeSelected("smtp"),
+    ].join("|"),
+);
 
 const measureRow = (el: unknown) => {
   if (el instanceof Element) {
@@ -309,6 +328,7 @@ const exitLogOnEscape = (event: KeyboardEvent) => {
             v-else-if="filteredLogs.length > 0"
             ref="scrollerRef"
             class="h-full overflow-y-auto"
+            @scroll.passive="onScroll"
           >
             <div class="relative w-full" :style="{ height: `${totalSize}px` }">
               <div
@@ -317,6 +337,11 @@ const exitLogOnEscape = (event: KeyboardEvent) => {
                 :ref="measureRow"
                 :data-index="virtualRow.index"
                 class="absolute left-0 top-0 w-full pb-4"
+                :class="{
+                  'log-arrived': freshIds.has(
+                    filteredLogs[virtualRow.index]?.id ?? '',
+                  ),
+                }"
                 :style="{ transform: `translateY(${virtualRow.start}px)` }"
               >
                 <InstanceLog
@@ -327,6 +352,19 @@ const exitLogOnEscape = (event: KeyboardEvent) => {
               </div>
             </div>
           </div>
+          <Transition name="new-logs-pill">
+            <button
+              v-if="unseenIds.length > 0"
+              type="button"
+              class="absolute left-1/2 top-2 z-10 -translate-x-1/2 cursor-pointer rounded-full bg-surface-900 px-3 py-1 text-xs font-medium text-surface-0 shadow-md transition-colors hover:bg-surface-700 dark:bg-surface-0 dark:text-surface-900 dark:hover:bg-surface-200"
+              @click="showNewest"
+            >
+              <i class="pi pi-arrow-up mr-1 text-[10px]" />{{
+                unseenIds.length
+              }}
+              new
+            </button>
+          </Transition>
         </div>
       </div>
     </div>
@@ -334,6 +372,47 @@ const exitLogOnEscape = (event: KeyboardEvent) => {
 </template>
 
 <style scoped>
+.log-arrived > :deep(*) {
+  animation:
+    log-arrive 160ms ease-out,
+    log-arrive-ring 1200ms ease-out;
+}
+
+@keyframes log-arrive {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+}
+
+@keyframes log-arrive-ring {
+  from {
+    box-shadow: 0 0 0 1px var(--p-surface-400);
+  }
+  to {
+    box-shadow: 0 0 0 1px transparent;
+  }
+}
+
+.new-logs-pill-enter-active,
+.new-logs-pill-leave-active {
+  transition:
+    opacity 120ms ease-out,
+    transform 120ms ease-out;
+}
+
+.new-logs-pill-enter-from,
+.new-logs-pill-leave-to {
+  opacity: 0;
+  transform: translateY(-4px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .log-arrived > :deep(*) {
+    animation: none;
+  }
+}
+
 .instance-detail-side-panel {
   transition:
     max-width 220ms ease,
