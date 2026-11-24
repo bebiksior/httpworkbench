@@ -20,7 +20,7 @@ const instancesDomain = dnsConfig.instancesDomain;
 
 const mailboxInstructions = smtpConfig.smtpEnabled
   ? `
-Mailboxes are temporary email inboxes at <id>.${instancesDomain}, separate from instances. Any address at the mailbox host lands in its inbox, so use one mailbox per target and tell signups apart by local part, e.g. admin+reset@<id>.${instancesDomain}. Wait for mail with watch_mailbox and read it with read_message, which lists the links it contains. Lock mailboxes that hold evidence with set_mailbox_locked.${mailSendingConfig.enabled ? " Send mail from a mailbox with send_email, which takes base64 attachments, or send a hand-built MIME message with send_raw_email." : ""}`
+Mailboxes are temporary email inboxes at <id>.${instancesDomain}, separate from instances. Any address at the mailbox host lands in its inbox, so use one mailbox per target and tell signups apart by local part, e.g. admin+reset@<id>.${instancesDomain}. Wait for mail with watch_mailbox and read it with read_message, which lists the links it contains. Lock mailboxes that hold evidence with set_mailbox_locked, and share one read-only with set_mailbox_public.${mailSendingConfig.enabled ? " Send mail from a mailbox with send_email, which takes base64 attachments, or send a hand-built MIME message with send_raw_email." : ""}`
   : "";
 
 const mcpServerInstructions = `

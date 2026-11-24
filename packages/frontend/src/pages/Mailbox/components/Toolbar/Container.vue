@@ -10,6 +10,7 @@ import { formatExpiry } from "../../mail";
 const props = defineProps<{
   mailbox: Mailbox;
   folder: MailFolder;
+  isOwner: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -19,6 +20,7 @@ const emit = defineEmits<{
   extend: [];
   keepForever: [];
   toggleLock: [];
+  togglePublic: [];
   clear: [];
   delete: [];
 }>();
@@ -50,6 +52,11 @@ const menuItems = computed(() => [
     label: props.mailbox.locked ? "Unlock" : "Lock",
     icon: props.mailbox.locked ? "pi pi-lock-open" : "pi pi-lock",
     command: () => emit("toggleLock"),
+  },
+  {
+    label: props.mailbox.public ? "Make private" : "Make public",
+    icon: props.mailbox.public ? "pi pi-eye-slash" : "pi pi-globe",
+    command: () => emit("togglePublic"),
   },
   {
     label: props.folder === "sent" ? "Clear sent" : "Clear inbox",
@@ -93,6 +100,14 @@ const copyAddress = () => copy(props.mailbox.address);
           class="pi pi-lock shrink-0 text-xs text-surface-400"
           aria-label="Locked"
         />
+        <i
+          v-if="mailbox.public"
+          class="pi pi-globe shrink-0 text-xs text-surface-400"
+          aria-label="Public"
+          v-tooltip.bottom="
+            isOwner ? 'Anyone with the link can read this mailbox' : 'Read-only'
+          "
+        />
       </p>
       <button
         type="button"
@@ -109,13 +124,13 @@ const copyAddress = () => copy(props.mailbox.address);
       </button>
     </div>
     <span
-      v-if="expiry"
+      v-if="expiry && isOwner"
       class="hidden shrink-0 text-xs text-surface-400 tabular-nums md:inline"
     >
       {{ expiry }}
     </span>
     <Button
-      v-if="config.smtpSendingEnabled"
+      v-if="isOwner && config.smtpSendingEnabled"
       label="Compose"
       icon="pi pi-pen-to-square"
       size="small"
@@ -125,6 +140,7 @@ const copyAddress = () => copy(props.mailbox.address);
       @click="emit('compose')"
     />
     <Button
+      v-if="isOwner"
       icon="pi pi-ellipsis-h"
       severity="secondary"
       text
@@ -133,7 +149,7 @@ const copyAddress = () => copy(props.mailbox.address);
       aria-haspopup="true"
       @click="menu?.toggle($event)"
     />
-    <Menu ref="menu" :model="menuItems" popup />
+    <Menu v-if="isOwner" ref="menu" :model="menuItems" popup />
   </header>
 </template>
 

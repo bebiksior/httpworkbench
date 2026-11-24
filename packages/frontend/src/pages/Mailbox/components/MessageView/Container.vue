@@ -30,6 +30,7 @@ type ViewMode = "html" | "text" | "source";
 const props = defineProps<{
   mailboxId: string;
   messageId: string;
+  isOwner: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -149,7 +150,9 @@ const remove = () => {
           <div class="flex shrink-0 items-center gap-0.5">
             <Button
               v-if="
-                config.smtpSendingEnabled && message?.direction === 'inbound'
+                isOwner &&
+                config.smtpSendingEnabled &&
+                message?.direction === 'inbound'
               "
               icon="pi pi-reply"
               severity="secondary"
@@ -161,6 +164,7 @@ const remove = () => {
               @click="reply"
             />
             <Button
+              v-if="isOwner"
               icon="pi pi-trash"
               severity="secondary"
               text

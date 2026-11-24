@@ -85,6 +85,13 @@
       "when": 1795437663845,
       "tag": "0011_mailbox_lock",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1795484398526,
+      "tag": "0012_mailbox_public",
+      "breakpoints": true
     }
   ]
 }

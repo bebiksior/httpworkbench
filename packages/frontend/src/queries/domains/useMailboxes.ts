@@ -23,11 +23,12 @@ const MAILBOXES_REFETCH_INTERVAL_MS = 10_000;
 const retryUnlessMissing = (failureCount: number, error: Error) =>
   !(error instanceof NotFoundError) && failureCount < 3;
 
-export const useMailboxes = () =>
+export const useMailboxes = (enabled: MaybeRefOrGetter<boolean> = true) =>
   useQuery({
     queryKey: queryKeys.mailboxes.all,
     queryFn: mailboxesApi.getAll,
     refetchInterval: MAILBOXES_REFETCH_INTERVAL_MS,
+    enabled: computed(() => toValue(enabled)),
   });
 
 export const useMailbox = (id: MaybeRefOrGetter<string>) =>
@@ -133,6 +134,15 @@ export const useSetMailboxLocked = () => {
   return useMutation({
     mutationFn: ({ id, locked }: { id: string; locked: boolean }) =>
       mailboxesApi.setLocked(id, locked),
+    onSuccess: invalidate,
+  });
+};
+
+export const useSetMailboxPublic = () => {
+  const invalidate = useInvalidateMailboxes();
+  return useMutation({
+    mutationFn: ({ id, isPublic }: { id: string; isPublic: boolean }) =>
+      mailboxesApi.setPublic(id, isPublic),
     onSuccess: invalidate,
   });
 };

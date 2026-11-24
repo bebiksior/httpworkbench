@@ -1,0 +1,1 @@
+ALTER TABLE `mailboxes` ADD `isPublic` integer DEFAULT false NOT NULL;

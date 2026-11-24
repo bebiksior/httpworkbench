@@ -27,6 +27,7 @@ import {
   sendMailFromMailbox,
   sendRawMailFromMailbox,
   setOwnedMailboxLocked,
+  setOwnedMailboxPublic,
   updateOwnedMailbox,
   waitForMailboxMessage,
   type MailboxServiceResult,
@@ -36,6 +37,7 @@ import { decodeLogsCursor, encodeLogsCursor } from "../utils";
 import {
   getAuthContext,
   jsonToolResult,
+  publicMailboxPageUrl,
   requireScope,
   toolError,
 } from "./context";
@@ -56,7 +58,7 @@ const requireOwnedMailbox = (mailboxId: string, auth: ApiKeyAuthContext) => {
 const serializeMailbox = (
   mailbox: Pick<
     MailboxSummary,
-    "id" | "address" | "label" | "createdAt" | "expiresAt" | "locked"
+    "id" | "address" | "label" | "createdAt" | "expiresAt" | "locked" | "public"
   >,
 ) => ({
   id: mailbox.id,
@@ -65,6 +67,7 @@ const serializeMailbox = (
   createdAt: mailbox.createdAt,
   expiresAt: mailbox.expiresAt,
   locked: mailbox.locked,
+  public: mailbox.public,
 });
 
 const mailboxResult = <T extends Parameters<typeof serializeMailbox>[0]>(
@@ -269,6 +272,31 @@ export const registerMailboxTools = (server: McpServer) => {
       requireScope(auth, "mailboxes:write");
       return mailboxResult(
         setOwnedMailboxLocked(mailboxId, auth.user.id, locked),
+      );
+    },
+  );
+
+  server.registerTool(
+    "set_mailbox_public",
+    {
+      title: "Set Mailbox Visibility",
+      description: `Publish or unpublish an owned mailbox. Anyone can read a published mailbox and its messages, read-only, at ${publicMailboxPageUrl}. Only the owner can send from, change or delete it.`,
+      inputSchema: z.object({
+        mailboxId: mailboxIdInput,
+        public: z.boolean(),
+      }),
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: true,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
+    },
+    async ({ mailboxId, public: isPublic }, extra) => {
+      const auth = getAuthContext(extra);
+      requireScope(auth, "mailboxes:write");
+      return mailboxResult(
+        setOwnedMailboxPublic(mailboxId, auth.user.id, isPublic),
       );
     },
   );

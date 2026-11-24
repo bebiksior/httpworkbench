@@ -7,6 +7,7 @@ import {
   SendMailSchema,
   SendRawMailSchema,
   SetMailboxLockedSchema,
+  SetMailboxPublicSchema,
   SetMailMessageReadSchema,
   UpdateMailboxSchema,
   folderDirection,
@@ -19,18 +20,27 @@ import {
   listMailMessages,
   setMailMessageRead,
 } from "../../storage";
-import { authPlugin } from "../auth";
+import {
+  apiKeyMissingScope,
+  authPlugin,
+  enforceApiKeyRateLimit,
+  insufficientScopeResponse,
+  readSessionCookie,
+  resolveOptionalAccess,
+} from "../auth";
 import {
   createMailbox,
   deleteOwnedMailbox,
   extendOwnedMailbox,
   getOwnedMailbox,
+  getReadableMailbox,
   listOwnedMailboxes,
   readMailAttachment,
   readMailMessage,
   sendMailFromMailbox,
   sendRawMailFromMailbox,
   setOwnedMailboxLocked,
+  setOwnedMailboxPublic,
   updateOwnedMailbox,
   type MailboxServiceError,
   type MailboxServiceResult,
@@ -62,6 +72,39 @@ const respond = <T>(result: MailboxServiceResult<T>, created = false) => {
   }
   return created ? status(201, result.value) : result.value;
 };
+
+type CookieJar = Parameters<typeof readSessionCookie>[0];
+
+const loadReadableMailbox = async (
+  id: string,
+  request: Request,
+  cookie: CookieJar,
+) => {
+  const access = await resolveOptionalAccess(
+    request,
+    readSessionCookie(cookie),
+  );
+  const result = getReadableMailbox(id, access?.user.id);
+  if (!result.ok) {
+    return { ok: false as const, res: errorResponse(result.error) };
+  }
+  if (!enforceApiKeyRateLimit(access)) {
+    return {
+      ok: false as const,
+      res: status(429, { error: "Rate limit exceeded" }),
+    };
+  }
+  if (!result.value.public && apiKeyMissingScope(access, "mailboxes:read")) {
+    return {
+      ok: false as const,
+      res: insufficientScopeResponse("mailboxes:read"),
+    };
+  }
+  return { ok: true as const, mailbox: result.value };
+};
+
+const publicReadNote =
+  "Public mailboxes can be read by anyone with the ID, without authentication.";
 
 const messageNotFound = () => status(404, { error: "Message not found" });
 
@@ -104,10 +147,16 @@ const routes = new Elysia({ name: "routes/mailboxes" })
   )
   .get(
     "/api/mailboxes/:id",
-    ({ params, user }) => respond(getOwnedMailbox(params.id, user.id)),
+    async ({ params, request, cookie }) => {
+      const loaded = await loadReadableMailbox(params.id, request, cookie);
+      return loaded.ok ? loaded.mailbox : loaded.res;
+    },
     {
-      scope: "mailboxes:read",
-      detail: { tags: ["Mailboxes"], summary: "Get a mailbox" },
+      detail: {
+        tags: ["Mailboxes"],
+        summary: "Get a mailbox",
+        description: publicReadNote,
+      },
     },
   )
   .patch(
@@ -174,12 +223,27 @@ const routes = new Elysia({ name: "routes/mailboxes" })
       },
     },
   )
+  .post(
+    "/api/mailboxes/:id/public",
+    ({ params, body, user }) =>
+      respond(setOwnedMailboxPublic(params.id, user.id, body.public)),
+    {
+      scope: "mailboxes:write",
+      body: SetMailboxPublicSchema,
+      detail: {
+        tags: ["Mailboxes"],
+        summary: "Set mailbox visibility",
+        description:
+          "Anyone with the ID can read a public mailbox and its messages, read-only. Only the owner can change, send from or delete it.",
+      },
+    },
+  )
   .get(
     "/api/mailboxes/:id/messages",
-    ({ params, query, user }) => {
-      const owned = getOwnedMailbox(params.id, user.id);
-      if (!owned.ok) {
-        return errorResponse(owned.error);
+    async ({ params, query, request, cookie }) => {
+      const loaded = await loadReadableMailbox(params.id, request, cookie);
+      if (!loaded.ok) {
+        return loaded.res;
       }
       const cursor =
         query.cursor === undefined ? undefined : decodeLogsCursor(query.cursor);
@@ -201,13 +265,11 @@ const routes = new Elysia({ name: "routes/mailboxes" })
       };
     },
     {
-      scope: "mailboxes:read",
       query: MessagesQuerySchema,
       detail: {
         tags: ["Mailboxes"],
         summary: "List messages",
-        description:
-          "List inbox or sent messages, newest first. Page with nextCursor.",
+        description: `List inbox or sent messages, newest first. Page with nextCursor. ${publicReadNote}`,
       },
     },
   )
@@ -277,10 +339,10 @@ const routes = new Elysia({ name: "routes/mailboxes" })
   )
   .get(
     "/api/mailboxes/:id/messages/:messageId",
-    async ({ params, user }) => {
-      const owned = getOwnedMailbox(params.id, user.id);
-      if (!owned.ok) {
-        return errorResponse(owned.error);
+    async ({ params, request, cookie }) => {
+      const loaded = await loadReadableMailbox(params.id, request, cookie);
+      if (!loaded.ok) {
+        return loaded.res;
       }
       return (
         (await readMailMessage(params.id, params.messageId)) ??
@@ -288,12 +350,10 @@ const routes = new Elysia({ name: "routes/mailboxes" })
       );
     },
     {
-      scope: "mailboxes:read",
       detail: {
         tags: ["Mailboxes"],
         summary: "Read a message",
-        description:
-          "Read a parsed message with its text, HTML, headers and attachment list.",
+        description: `Read a parsed message with its text, HTML, headers and attachment list. ${publicReadNote}`,
       },
     },
   )
@@ -334,10 +394,10 @@ const routes = new Elysia({ name: "routes/mailboxes" })
   )
   .get(
     "/api/mailboxes/:id/messages/:messageId/raw",
-    ({ params, user }) => {
-      const owned = getOwnedMailbox(params.id, user.id);
-      if (!owned.ok) {
-        return errorResponse(owned.error);
+    async ({ params, request, cookie }) => {
+      const loaded = await loadReadableMailbox(params.id, request, cookie);
+      if (!loaded.ok) {
+        return loaded.res;
       }
       const stored = getMailMessage(params.id, params.messageId);
       if (stored === undefined) {
@@ -351,20 +411,19 @@ const routes = new Elysia({ name: "routes/mailboxes" })
       });
     },
     {
-      scope: "mailboxes:read",
       detail: {
         tags: ["Mailboxes"],
         summary: "Read message source",
-        description: "The message exactly as received or sent.",
+        description: `The message exactly as received or sent. ${publicReadNote}`,
       },
     },
   )
   .get(
     "/api/mailboxes/:id/messages/:messageId/attachments/:index",
-    async ({ params, user }) => {
-      const owned = getOwnedMailbox(params.id, user.id);
-      if (!owned.ok) {
-        return errorResponse(owned.error);
+    async ({ params, request, cookie }) => {
+      const loaded = await loadReadableMailbox(params.id, request, cookie);
+      if (!loaded.ok) {
+        return loaded.res;
       }
       const attachment = await readMailAttachment(
         params.id,
@@ -384,9 +443,12 @@ const routes = new Elysia({ name: "routes/mailboxes" })
       });
     },
     {
-      scope: "mailboxes:read",
       params: AttachmentParamsSchema,
-      detail: { tags: ["Mailboxes"], summary: "Download an attachment" },
+      detail: {
+        tags: ["Mailboxes"],
+        summary: "Download an attachment",
+        description: publicReadNote,
+      },
     },
   );
 

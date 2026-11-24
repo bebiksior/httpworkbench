@@ -2,6 +2,7 @@
 import { useClipboard } from "@vueuse/core";
 import Button from "primevue/button";
 import InputText from "primevue/inputtext";
+import Tag from "primevue/tag";
 import type { MailboxSummary } from "shared";
 import { computed } from "vue";
 import { useConfirmInline, useNotify } from "@/composables";
@@ -70,6 +71,12 @@ const deleteMailbox = (event: Event) => {
           >
             {{ displayName }}
           </h2>
+          <Tag
+            v-if="mailbox.public"
+            value="Public"
+            severity="success"
+            rounded
+          />
           <i
             v-if="mailbox.locked"
             class="pi pi-lock shrink-0 text-surface-400"

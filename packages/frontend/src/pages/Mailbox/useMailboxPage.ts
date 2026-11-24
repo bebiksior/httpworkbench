@@ -6,6 +6,7 @@ import {
   useMailMessages,
   useMarkMessageRead,
 } from "@/queries/domains/useMailboxes";
+import { useAuthStore } from "@/stores/auth";
 
 const readQuery = (value: unknown) =>
   typeof value === "string" && value !== "" ? value : undefined;
@@ -13,6 +14,7 @@ const readQuery = (value: unknown) =>
 export const useMailboxPage = (mailboxId: Ref<string>) => {
   const route = useRoute();
   const router = useRouter();
+  const authStore = useAuthStore();
 
   const folder = computed<MailFolder>(
     () => MailFolderSchema.safeParse(route.query.folder).data ?? "inbox",
@@ -22,6 +24,11 @@ export const useMailboxPage = (mailboxId: Ref<string>) => {
   const mailboxQuery = useMailbox(mailboxId);
   const messagesQuery = useMailMessages(mailboxId, folder);
   const markRead = useMarkMessageRead(mailboxId);
+  const isOwner = computed(
+    () =>
+      mailboxQuery.data.value !== undefined &&
+      mailboxQuery.data.value.ownerId === authStore.user?.id,
+  );
 
   const messages = computed(
     () =>
@@ -46,7 +53,7 @@ export const useMailboxPage = (mailboxId: Ref<string>) => {
   watch(
     () => messages.value.find((message) => message.id === selectedId.value),
     (message) => {
-      if (message !== undefined && !message.read) {
+      if (message !== undefined && !message.read && isOwner.value) {
         markRead.mutate(message.id);
       }
     },
@@ -57,6 +64,7 @@ export const useMailboxPage = (mailboxId: Ref<string>) => {
     folder,
     selectedId,
     mailbox: mailboxQuery.data,
+    isOwner,
     mailboxError: mailboxQuery.error,
     isLoadingMailbox: mailboxQuery.isLoading,
     messages,

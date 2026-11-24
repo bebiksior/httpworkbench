@@ -29,6 +29,7 @@ export const apiPaths = {
   mailbox: (id: string) => path("/api/mailboxes/:id", { id }),
   mailboxExtend: (id: string) => path("/api/mailboxes/:id/extend", { id }),
   mailboxLock: (id: string) => path("/api/mailboxes/:id/lock", { id }),
+  mailboxPublic: (id: string) => path("/api/mailboxes/:id/public", { id }),
   mailboxMessage: (id: string, messageId: string) =>
     path("/api/mailboxes/:id/messages/:messageId", { id, messageId }),
   mailboxMessageAttachment: (id: string, messageId: string, index: number) =>

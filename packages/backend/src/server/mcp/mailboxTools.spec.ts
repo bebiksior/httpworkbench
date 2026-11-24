@@ -23,7 +23,7 @@ process.env.SMTP_SENDING_ENABLED = "true";
 process.env.SMTP_PORT = String(smtpPort);
 
 const [
-  { addUser, closeDb, hasActiveMailbox, initDb },
+  { addUser, closeDb, getMailboxById, hasActiveMailbox, initDb },
   { createApiKeyForUser },
   { closeMcpHandler, handleMcpRequest },
   { createSmtpServer },
@@ -195,6 +195,29 @@ describe("MCP mailbox tools", () => {
       const deleted = await call("delete_mailbox", { mailboxId: mailbox.id });
       expect(deleted.isError).not.toBe(true);
       expect(hasActiveMailbox(mailbox.id)).toBe(false);
+    } finally {
+      await client.close();
+    }
+  });
+
+  test("publishes and unpublishes mailboxes", async () => {
+    const { client, call } = await connectClient(apiKey);
+    try {
+      const created = await call("create_mailbox", {});
+      const mailbox = created.structuredContent?.mailbox as {
+        id: string;
+        public: boolean;
+      };
+      expect(mailbox.public).toBe(false);
+
+      const published = await call("set_mailbox_public", {
+        mailboxId: mailbox.id,
+        public: true,
+      });
+      expect(published.structuredContent?.mailbox).toMatchObject({
+        public: true,
+      });
+      expect(getMailboxById(mailbox.id)?.public).toBe(true);
     } finally {
       await client.close();
     }

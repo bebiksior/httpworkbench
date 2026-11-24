@@ -71,7 +71,7 @@ const router = createRouter({
           path: "mail/:id",
           name: "mailbox",
           component: Mailbox,
-          meta: { requiresUser: true, requiresMail: true },
+          meta: { requiresMail: true },
         },
         {
           path: "instances/:id/responses",

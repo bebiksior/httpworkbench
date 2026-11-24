@@ -88,6 +88,23 @@ export const getOwnedMailbox = (
   return found(mailbox?.ownerId === ownerId ? mailbox : undefined);
 };
 
+const canReadMailbox = (
+  mailbox: Pick<Mailbox, "ownerId" | "public">,
+  userId: string | undefined,
+) => mailbox.public || mailbox.ownerId === userId;
+
+export const getReadableMailbox = (
+  mailboxId: string,
+  userId: string | undefined,
+): MailboxServiceResult<Mailbox> => {
+  const mailbox = getMailboxById(mailboxId);
+  return found(
+    mailbox !== undefined && canReadMailbox(mailbox, userId)
+      ? mailbox
+      : undefined,
+  );
+};
+
 const generateMailboxId = () => {
   for (;;) {
     const id = generateInstanceID();
@@ -200,6 +217,18 @@ export const setOwnedMailboxLocked = (
         : {}),
     }),
   );
+};
+
+export const setOwnedMailboxPublic = (
+  mailboxId: string,
+  ownerId: string,
+  isPublic: boolean,
+): MailboxServiceResult<Mailbox> => {
+  const owned = getOwnedMailbox(mailboxId, ownerId);
+  if (!owned.ok) {
+    return owned;
+  }
+  return found(updateMailbox(mailboxId, { public: isPublic }));
 };
 
 export const deleteOwnedMailbox = (

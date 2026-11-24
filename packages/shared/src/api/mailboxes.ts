@@ -31,6 +31,7 @@ export const MailboxSchema = z.object({
   createdAt: z.number(),
   expiresAt: z.number().optional(),
   locked: z.boolean(),
+  public: z.boolean(),
 });
 
 export type Mailbox = z.infer<typeof MailboxSchema>;
@@ -137,6 +138,12 @@ export const SetMailboxLockedSchema = z
   .strict();
 
 export type SetMailboxLockedInput = z.infer<typeof SetMailboxLockedSchema>;
+
+export const SetMailboxPublicSchema = z
+  .object({ public: z.boolean() })
+  .strict();
+
+export type SetMailboxPublicInput = z.infer<typeof SetMailboxPublicSchema>;
 
 export const ExtendMailboxSchema = z
   .object({

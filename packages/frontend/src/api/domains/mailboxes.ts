@@ -67,6 +67,15 @@ export const mailboxesApi = {
       "lock mailbox",
     ),
 
+  setPublic: async (id: string, isPublic: boolean): Promise<Mailbox> =>
+    parseResponse(
+      MailboxSchema,
+      await apiClient.post<unknown>(apiPaths.mailboxPublic(id), {
+        public: isPublic,
+      }),
+      "set mailbox visibility",
+    ),
+
   delete: async (id: string): Promise<void> => {
     await apiClient.delete<void>(apiPaths.mailbox(id));
   },

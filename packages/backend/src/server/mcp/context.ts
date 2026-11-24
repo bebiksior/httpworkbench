@@ -52,7 +52,13 @@ export const requireOwnedInstance = (
   return result.value;
 };
 
-export const publicInstancePageUrl = `${(Bun.env.FRONTEND_URL ?? "https://httpworkbench.com").replace(/\/+$/, "")}/instances/:id`;
+const frontendBaseUrl = (
+  Bun.env.FRONTEND_URL ?? "https://httpworkbench.com"
+).replace(/\/+$/, "");
+
+export const publicInstancePageUrl = `${frontendBaseUrl}/instances/:id`;
+
+export const publicMailboxPageUrl = `${frontendBaseUrl}/mail/:id`;
 
 const instanceUrl = (id: string) => `${id}.${dnsConfig.instancesDomain}`;
 

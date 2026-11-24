@@ -13,7 +13,9 @@ import {
   useMailboxes,
   usePrefetchMailMessage,
   useSetMailboxLocked,
+  useSetMailboxPublic,
 } from "@/queries/domains/useMailboxes";
+import { useAuthStore } from "@/stores/auth";
 import { ComposeDialog } from "./components/ComposeDialog";
 import { EditDialog } from "./components/EditDialog";
 import { MessageList } from "./components/MessageList";
@@ -26,12 +28,14 @@ const route = useRoute();
 const router = useRouter();
 const notify = useNotify();
 const confirm = useConfirm();
+const authStore = useAuthStore();
 const mailboxId = computed(() => route.params.id as string);
 
 const {
   folder,
   selectedId,
   mailbox,
+  isOwner,
   mailboxError,
   messages,
   isLoadingMessages,
@@ -42,7 +46,7 @@ const {
   setFolder,
 } = useMailboxPage(mailboxId);
 
-const { data: mailboxes } = useMailboxes();
+const { data: mailboxes } = useMailboxes(isOwner);
 const prefetchMessage = usePrefetchMailMessage(mailboxId);
 const unreadCount = computed(
   () =>
@@ -57,7 +61,7 @@ const goBack = () => {
     selectMessage(undefined);
     return;
   }
-  void router.push("/mail");
+  void router.push(authStore.isAuthenticated ? "/mail" : "/");
 };
 
 const isNotFound = computed(() => mailboxError.value instanceof NotFoundError);
@@ -73,6 +77,7 @@ const openCompose = (draft: ComposeDraft = emptyDraft()) => {
 
 const extendMutation = useExtendMailbox();
 const lockMutation = useSetMailboxLocked();
+const publicMutation = useSetMailboxPublic();
 const deleteMutation = useDeleteMailbox();
 const clearMutation = useClearMessages(mailboxId);
 
@@ -102,6 +107,20 @@ const toggleLock = () => {
       onSuccess: () =>
         notify.success(locked ? "Mailbox locked" : "Mailbox unlocked"),
       onError: (err) => notify.error("Failed to update lock", err),
+    },
+  );
+};
+
+const togglePublic = () => {
+  const isPublic = !(mailbox.value?.public ?? false);
+  publicMutation.mutate(
+    { id: mailboxId.value, isPublic },
+    {
+      onSuccess: () =>
+        notify.success(
+          isPublic ? "Mailbox is now public" : "Mailbox is now private",
+        ),
+      onError: (err) => notify.error("Failed to update visibility", err),
     },
   );
 };
@@ -146,6 +165,7 @@ const deleteMailbox = () =>
     </p>
     <p class="text-sm text-surface-500">It may have expired or been deleted.</p>
     <Button
+      v-if="authStore.isAuthenticated"
       label="All mailboxes"
       severity="secondary"
       outlined
@@ -161,12 +181,14 @@ const deleteMailbox = () =>
     <Toolbar
       :mailbox="mailbox"
       :folder="folder"
+      :is-owner="isOwner"
       @back="goBack"
       @compose="openCompose()"
       @edit="editVisible = true"
       @extend="extend"
       @keep-forever="keepForever"
       @toggle-lock="toggleLock"
+      @toggle-public="togglePublic"
       @clear="clearFolder"
       @delete="deleteMailbox"
     />
@@ -198,6 +220,7 @@ const deleteMailbox = () =>
           v-if="selectedId"
           :mailbox-id="mailboxId"
           :message-id="selectedId"
+          :is-owner="isOwner"
           @back="selectMessage(undefined)"
           @reply="openCompose"
           @deleted="selectMessage(undefined)"
@@ -212,11 +235,16 @@ const deleteMailbox = () =>
     </div>
 
     <ComposeDialog
+      v-if="isOwner"
       v-model:visible="composeVisible"
       :mailbox-id="mailboxId"
       :from="mailbox.address"
       :draft="composeDraft"
     />
-    <EditDialog v-model:visible="editVisible" :mailbox="mailbox" />
+    <EditDialog
+      v-if="isOwner"
+      v-model:visible="editVisible"
+      :mailbox="mailbox"
+    />
   </div>
 </template>
