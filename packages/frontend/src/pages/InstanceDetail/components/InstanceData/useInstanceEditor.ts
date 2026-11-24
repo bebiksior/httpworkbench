@@ -55,6 +55,11 @@ export const useInstanceEditor = (
     isDirty.value = hasUnsavedRawChanges(value);
   };
 
+  const discard = () => {
+    rawContent.value = savedRawContent.value;
+    isDirty.value = false;
+  };
+
   const handleSave = async () => {
     if (!canManageInstance.value || isUpdating.value) return;
     const instanceId = instance.value.id;
@@ -122,6 +127,7 @@ export const useInstanceEditor = (
     fileInputRef,
     selectedWebhookIds,
     handleSave,
+    discard,
     handleEditorChange,
     handleWebhookChange,
     triggerFileUpload,

@@ -1,4 +1,3 @@
-import { useConfirm } from "primevue/useconfirm";
 import type { Instance } from "shared";
 import { computed, ref, type Ref } from "vue";
 import { useRouter } from "vue-router";
@@ -21,14 +20,13 @@ import {
   useSetInstanceLocked,
   useSetInstancePublic,
 } from "@/queries/domains/useInstances";
-import { unsavedResponsesDialog } from "@/pages/InstanceResponses/useUnsavedChanges";
+import { useUnsavedChanges } from "@/pages/InstanceResponses/useUnsavedChanges";
 import { useAuthStore } from "@/stores/auth";
 import { isAbsent, isPresent } from "@/utils/types";
 import { useInstanceEditor } from "./useInstanceEditor";
 
 export const useInstanceDataLogic = (instance: Ref<Instance>) => {
   const notify = useNotify();
-  const confirm = useConfirm();
   const confirmInline = useConfirmInline();
   const router = useRouter();
   const { mutateAsync: deleteInstanceMutation, isPending: isDeleting } =
@@ -97,6 +95,11 @@ export const useInstanceDataLogic = (instance: Ref<Instance>) => {
     isPresent(instance.value.expiresAt),
   );
   const editor = useInstanceEditor(instance, canManageInstance);
+  useUnsavedChanges({
+    isDirty: editor.isDirty,
+    discard: editor.discard,
+    save: () => (editor.isDirty.value ? editor.handleSave() : undefined),
+  });
 
   const { copy, copied: hostCopied } = useClipboard({
     copiedDuring: 1200,
@@ -120,16 +123,10 @@ export const useInstanceDataLogic = (instance: Ref<Instance>) => {
     if (!canOpenResponses.value) {
       return;
     }
-    const open = () =>
-      router.push({
-        name: "instanceResponses",
-        params: { id: instance.value.id },
-      });
-    if (!editor.isDirty.value) {
-      void open();
-      return;
-    }
-    confirm.require(unsavedResponsesDialog(open));
+    void router.push({
+      name: "instanceResponses",
+      params: { id: instance.value.id },
+    });
   };
 
   const handleDelete = (event: Event) => {
@@ -147,6 +144,7 @@ export const useInstanceDataLogic = (instance: Ref<Instance>) => {
       accept: async () => {
         try {
           await deleteInstanceMutation(instance.value.id);
+          editor.discard();
           router.push("/");
         } catch (e) {
           notify.error("Delete failed", e);

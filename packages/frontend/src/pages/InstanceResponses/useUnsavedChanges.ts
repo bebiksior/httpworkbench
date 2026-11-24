@@ -5,9 +5,7 @@ import type { Ref } from "vue";
 import { onBeforeRouteLeave, onBeforeRouteUpdate, useRouter } from "vue-router";
 import { createLeaveGuard } from "@/pages/PoCBuilder/exitBuilder";
 
-export const unsavedResponsesDialog = (
-  accept: () => void,
-): ConfirmationOptions => ({
+const unsavedResponsesDialog = (accept: () => void): ConfirmationOptions => ({
   message: "You have unsaved response changes. Leave without saving?",
   header: "Unsaved Changes",
   icon: "pi pi-exclamation-triangle",
