@@ -37,6 +37,7 @@ const {
   data: apiKeys,
   isLoading,
   error,
+  refetch,
 } = useApiKeys({
   enabled: true,
 });
@@ -274,8 +275,22 @@ const formatScopes = (scopes: ApiKeyScope[]) => {
       />
     </div>
 
-    <Message v-if="error" severity="error" :closable="false" class="mb-6">
-      {{ error?.message ?? "Unable to load API keys" }}
+    <Message
+      v-if="error"
+      severity="error"
+      :closable="false"
+      class="mb-6 flex items-center justify-between gap-4"
+    >
+      <span class="flex-1">{{
+        error?.message ?? "Unable to load API keys"
+      }}</span>
+      <Button
+        label="Retry"
+        size="small"
+        text
+        severity="contrast"
+        @click="refetch()"
+      />
     </Message>
 
     <div v-if="isLoading" class="flex justify-center py-12">
@@ -284,7 +299,7 @@ const formatScopes = (scopes: ApiKeyScope[]) => {
       />
     </div>
     <div
-      v-else-if="activeApiKeys.length === 0"
+      v-else-if="!error && activeApiKeys.length === 0"
       class="border-y border-surface-200 py-12 text-center dark:border-surface-800"
     >
       <p class="mb-1 text-sm text-surface-700 dark:text-surface-200">
@@ -300,7 +315,7 @@ const formatScopes = (scopes: ApiKeyScope[]) => {
         @click="showCreateDialog = true"
       />
     </div>
-    <div v-else class="overflow-x-auto">
+    <div v-else-if="activeApiKeys.length > 0" class="overflow-x-auto">
       <DataTable :value="activeApiKeys" striped-rows class="min-w-[640px]">
         <Column field="name" header="Name" style="width: 22%" />
         <Column field="scopes" header="Scopes" style="width: 40%">

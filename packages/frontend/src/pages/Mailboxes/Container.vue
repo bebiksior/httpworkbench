@@ -131,7 +131,7 @@ const createMailbox = () => {
         />
       </template>
       <EmptyCard
-        v-else
+        v-else-if="!error"
         :title="hasSearchQuery ? 'No mailboxes found' : 'No mailboxes yet'"
         :description="
           hasSearchQuery

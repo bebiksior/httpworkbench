@@ -161,7 +161,7 @@ const { page, pageCount, pageSlice, rangeText, showPager, goTo } =
         />
       </template>
       <EmptyCard
-        v-else
+        v-else-if="!error"
         :title="hasSearchQuery ? 'No instances found' : 'No instances yet'"
         :description="
           hasSearchQuery

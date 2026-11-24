@@ -64,6 +64,7 @@ const {
   data: webhooks,
   isLoading,
   error,
+  refetch,
 } = useWebhooks({
   enabled: computed(() => !isGuest.value && activeSection.value === "webhooks"),
 });
@@ -249,8 +250,22 @@ useEventListener(window, "keydown", (event) => {
             />
           </div>
 
-          <Message v-if="error" severity="error" :closable="false" class="mb-6">
-            {{ error?.message ?? "Unable to load webhooks" }}
+          <Message
+            v-if="error"
+            severity="error"
+            :closable="false"
+            class="mb-6 flex items-center justify-between gap-4"
+          >
+            <span class="flex-1">{{
+              error?.message ?? "Unable to load webhooks"
+            }}</span>
+            <Button
+              label="Retry"
+              size="small"
+              text
+              severity="contrast"
+              @click="refetch()"
+            />
           </Message>
 
           <div v-if="isLoading" class="flex justify-center py-12">
@@ -276,8 +291,8 @@ useEventListener(window, "keydown", (event) => {
             />
           </div>
           <WebhookList
-            v-else
-            :webhooks="webhooks ?? []"
+            v-else-if="webhooks"
+            :webhooks="webhooks"
             :is-loading="isLoading"
             @edit="handleEdit"
           />
