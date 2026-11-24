@@ -2,16 +2,11 @@
 import Button from "primevue/button";
 import InputText from "primevue/inputtext";
 import Tag from "primevue/tag";
-import { useConfirm } from "primevue/useconfirm";
 import type { InstanceSummary } from "shared";
 import { computed, toRefs } from "vue";
-import { useRouter } from "vue-router";
 import { useConfirmInline, useNotify } from "@/composables";
 import { config } from "@/config";
-import {
-  useCloneInstance,
-  useDeleteInstance,
-} from "@/queries/domains/useInstances";
+import { useDeleteInstance } from "@/queries/domains/useInstances";
 import { usePrefetchInstanceDetail } from "@/queries/domains/useInstanceDetail";
 import { loadInstanceDetailPage } from "@/pages/InstanceDetail/load";
 import { isPresent } from "@/utils/types";
@@ -22,12 +17,9 @@ const props = defineProps<{
 
 const { instance } = toRefs(props);
 
-const router = useRouter();
 const notify = useNotify();
-const confirm = useConfirm();
 const confirmInline = useConfirmInline();
 const deleteMutation = useDeleteInstance();
-const cloneMutation = useCloneInstance();
 const prefetchInstanceDetail = usePrefetchInstanceDetail();
 
 const instanceHost = computed(() => config.getInstanceHost(instance.value.id));
@@ -80,36 +72,6 @@ const handleDeleteClick = (event: Event) => {
           notify.error("Failed to delete instance", err);
         },
       }),
-  });
-};
-
-const handleCloneClick = () => {
-  confirm.require({
-    message: `Create a duplicate of "${displayName.value}"?`,
-    header: "Duplicate Instance",
-    icon: "pi pi-copy",
-    rejectProps: {
-      label: "Cancel",
-      severity: "secondary",
-      outlined: true,
-    },
-    acceptProps: {
-      label: "Duplicate",
-    },
-    accept: () => {
-      cloneMutation.mutate(instance.value, {
-        onSuccess: async (clonedInstance) => {
-          notify.success(
-            "Instance cloned",
-            "A copy of your instance has been created successfully",
-          );
-          await router.push(`/instances/${clonedInstance.id}`);
-        },
-        onError: (err: Error) => {
-          notify.error("Failed to clone instance", err);
-        },
-      });
-    },
   });
 };
 </script>
@@ -190,22 +152,6 @@ const handleCloneClick = () => {
           aria-label="Copy instance host"
           v-tooltip.top="'Copy host'"
           @click="handleCopyClick"
-        />
-        <Button
-          :icon="
-            cloneMutation.isPending.value
-              ? 'pi pi-spin pi-spinner'
-              : 'pi pi-clone'
-          "
-          severity="secondary"
-          outlined
-          size="small"
-          class="shrink-0"
-          aria-label="Duplicate instance"
-          v-tooltip.top="'Duplicate instance'"
-          :disabled="cloneMutation.isPending.value"
-          :loading="cloneMutation.isPending.value"
-          @click="handleCloneClick"
         />
         <span
           class="shrink-0 inline-flex"
