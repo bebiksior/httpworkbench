@@ -423,7 +423,7 @@ const isWebhooksDialogVisible = ref(false);
         <Button
           v-if="showVisibility"
           :label="isPublic ? 'Make Private' : 'Make Public'"
-          :icon="isPublic ? 'pi pi-lock' : 'pi pi-globe'"
+          :icon="isPublic ? 'pi pi-eye-slash' : 'pi pi-globe'"
           severity="secondary"
           outlined
           size="small"
