@@ -10,11 +10,7 @@ import { storeToRefs } from "pinia";
 import { CardSkeleton } from "@/components/CardSkeleton";
 import { EmptyCard } from "@/components/EmptyCard";
 import { PageHeader } from "@/components/PageHeader";
-import {
-  PagerFooter,
-  PagerSteps,
-  usePagination,
-} from "@/components/Pagination";
+import { PagerFooter, usePagination } from "@/components/Pagination";
 import { config } from "@/config";
 import { useAuthStore } from "@/stores/auth";
 import { InstanceItem } from "./InstanceItem";
@@ -101,13 +97,6 @@ const { page, pageCount, pageSlice, rangeText, showPager, goTo } =
           />
         </IconField>
         <div class="flex flex-wrap items-center gap-2">
-          <PagerSteps
-            v-if="showPager"
-            :page="page"
-            :page-count="pageCount"
-            :range-text="rangeText"
-            @update:page="goTo"
-          />
           <Button
             label="Delete All"
             icon="pi pi-trash"

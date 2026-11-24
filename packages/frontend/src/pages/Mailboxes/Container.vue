@@ -9,11 +9,7 @@ import { useRouter } from "vue-router";
 import { CardSkeleton } from "@/components/CardSkeleton";
 import { EmptyCard } from "@/components/EmptyCard";
 import { PageHeader } from "@/components/PageHeader";
-import {
-  PagerFooter,
-  PagerSteps,
-  usePagination,
-} from "@/components/Pagination";
+import { PagerFooter, usePagination } from "@/components/Pagination";
 import { useNotify } from "@/composables";
 import { useCreateMailbox, useMailboxes } from "@/queries/domains/useMailboxes";
 import { MailboxItem } from "./MailboxItem";
@@ -84,13 +80,6 @@ const createMailbox = () => {
           />
         </IconField>
         <div class="flex flex-wrap items-center gap-2">
-          <PagerSteps
-            v-if="showPager"
-            :page="page"
-            :page-count="pageCount"
-            :range-text="rangeText"
-            @update:page="goTo"
-          />
           <Button
             label="Create Mailbox"
             icon="pi pi-plus"
