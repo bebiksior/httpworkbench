@@ -6,7 +6,7 @@ import { useConfirm } from "primevue/useconfirm";
 import type { InstanceSummary } from "shared";
 import { computed, toRefs } from "vue";
 import { useRouter } from "vue-router";
-import { useNotify } from "@/composables";
+import { useConfirmInline, useNotify } from "@/composables";
 import { config } from "@/config";
 import {
   useCloneInstance,
@@ -25,6 +25,7 @@ const { instance } = toRefs(props);
 const router = useRouter();
 const notify = useNotify();
 const confirm = useConfirm();
+const confirmInline = useConfirmInline();
 const deleteMutation = useDeleteInstance();
 const cloneMutation = useCloneInstance();
 const prefetchInstanceDetail = usePrefetchInstanceDetail();
@@ -61,21 +62,24 @@ const handlePrefetch = () => {
   ]);
 };
 
-const handleDeleteClick = () => {
+const handleDeleteClick = (event: Event) => {
   if (instance.value.locked) {
     notify.error("Instance is locked");
     return;
   }
-  deleteMutation.mutate(instance.value.id, {
-    onSuccess: () => {
-      notify.success(
-        "Instance deleted",
-        "Your instance has been deleted successfully",
-      );
-    },
-    onError: (err: Error) => {
-      notify.error("Failed to delete instance", err);
-    },
+  const logs = instance.value.logCount;
+  confirmInline(event, {
+    message:
+      logs === 0
+        ? `Delete ${displayName.value}?`
+        : `Delete ${displayName.value} and its ${logs.toLocaleString()} ${logs === 1 ? "log" : "logs"}?`,
+    acceptLabel: "Delete",
+    accept: () =>
+      deleteMutation.mutate(instance.value.id, {
+        onError: (err: Error) => {
+          notify.error("Failed to delete instance", err);
+        },
+      }),
   });
 };
 
@@ -206,7 +210,7 @@ const handleCloneClick = () => {
         <span
           class="shrink-0 inline-flex"
           v-tooltip.top="
-            instance.locked ? 'Unlock instance to delete' : 'Delete instance'
+            instance.locked ? 'Unlock instance to delete' : undefined
           "
         >
           <Button

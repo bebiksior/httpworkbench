@@ -3,12 +3,13 @@ import Button from "primevue/button";
 import InputText from "primevue/inputtext";
 import type { MailboxSummary } from "shared";
 import { computed } from "vue";
-import { useNotify } from "@/composables";
+import { useConfirmInline, useNotify } from "@/composables";
 import { useDeleteMailbox } from "@/queries/domains/useMailboxes";
 
 const props = defineProps<{ mailbox: MailboxSummary }>();
 
 const notify = useNotify();
+const confirmInline = useConfirmInline();
 const deleteMutation = useDeleteMailbox();
 
 const displayName = computed(
@@ -30,14 +31,22 @@ const copyAddress = async () => {
   notify.copied();
 };
 
-const deleteMailbox = () => {
+const deleteMailbox = (event: Event) => {
   if (props.mailbox.locked) {
     notify.error("Mailbox is locked");
     return;
   }
-  deleteMutation.mutate(props.mailbox.id, {
-    onSuccess: () => notify.success("Mailbox deleted"),
-    onError: (err) => notify.error("Failed to delete mailbox", err),
+  const count = props.mailbox.messageCount;
+  confirmInline(event, {
+    message:
+      count === 0
+        ? `Delete ${displayName.value}?`
+        : `Delete ${displayName.value} and its ${count} ${count === 1 ? "message" : "messages"}?`,
+    acceptLabel: "Delete",
+    accept: () =>
+      deleteMutation.mutate(props.mailbox.id, {
+        onError: (err) => notify.error("Failed to delete mailbox", err),
+      }),
   });
 };
 </script>
@@ -116,23 +125,27 @@ const deleteMailbox = () => {
           v-tooltip.top="'Copy address'"
           @click="copyAddress"
         />
-        <Button
-          :icon="
-            deleteMutation.isPending.value
-              ? 'pi pi-spin pi-spinner'
-              : 'pi pi-trash'
-          "
-          severity="danger"
-          outlined
-          size="small"
-          class="shrink-0"
-          aria-label="Delete mailbox"
+        <span
+          class="inline-flex shrink-0"
           v-tooltip.top="
-            mailbox.locked ? 'Unlock mailbox to delete' : 'Delete mailbox'
+            mailbox.locked ? 'Unlock mailbox to delete' : undefined
           "
-          :disabled="mailbox.locked || deleteMutation.isPending.value"
-          @click="deleteMailbox"
-        />
+        >
+          <Button
+            :icon="
+              deleteMutation.isPending.value
+                ? 'pi pi-spin pi-spinner'
+                : 'pi pi-trash'
+            "
+            severity="danger"
+            outlined
+            size="small"
+            class="shrink-0"
+            aria-label="Delete mailbox"
+            :disabled="mailbox.locked || deleteMutation.isPending.value"
+            @click="deleteMailbox"
+          />
+        </span>
       </div>
     </div>
   </article>
