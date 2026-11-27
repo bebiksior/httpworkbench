@@ -14,6 +14,7 @@ import {
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { setTimeout as delay } from "node:timers/promises";
 import { Elysia } from "elysia";
 
 process.env.JWT_SECRET = "phones-test-secret";
@@ -33,6 +34,7 @@ type FakeAccount = {
   username: string;
   rentals: { id: string; number: string; alwaysOn: boolean; notes: string }[];
   sms: Record<string, FakeSms[]>;
+  beforeReadNotes?: (signal: AbortSignal) => Promise<void>;
 };
 
 const accounts = new Map<string, FakeAccount>();
@@ -97,6 +99,7 @@ const fakeTextverified = async (request: Request): Promise<Response> => {
       ).userNotes;
       return new Response("");
     }
+    await account.beforeReadNotes?.(request.signal);
     return Response.json({ reservationId: rental.id, userNotes: rental.notes });
   }
   return new Response("", { status: 404 });
@@ -120,12 +123,14 @@ const [
   { issueAuthToken },
   { createApiKeyForUser },
   { phonesRoutes },
+  { watchPhoneSms },
   { closeMcpHandler, handleMcpRequest },
 ] = await Promise.all([
   import("../../storage"),
   import("../auth"),
   import("../apiKeyAuth"),
   import("../api/phones"),
+  import("./service"),
   import("../mcp"),
 ]);
 
@@ -268,6 +273,25 @@ describe("phones", () => {
       "POST",
     );
     expect(await tested.json()).toEqual({ phoneCount: 1 });
+
+    alice.username = "new-login@example.com";
+    const revoked = await call(
+      "alice",
+      "/api/phone-providers/textverified/test",
+      "POST",
+    );
+    expect(revoked.status).toBe(400);
+  });
+
+  test("fully masks credentials shorter than the displayed suffix", async () => {
+    accounts.set("abcd", bob);
+    const saved = await saveTextverified("bob", bob.username, "abcd");
+    expect(await saved.json()).toMatchObject({
+      credentials: { apiKey: "••••" },
+    });
+    expect(
+      await (await call("bob", "/api/phone-providers")).json(),
+    ).toMatchObject([{ credentials: { apiKey: "••••" } }]);
   });
 
   test("rejects credentials the provider refuses", async () => {
@@ -345,6 +369,39 @@ describe("phones", () => {
     expect(phones.status).toBe(409);
   });
 
+  test("an in-flight inventory request cannot repopulate a removed provider", async () => {
+    await saveTextverified("bob", bob.username, "bob-key-0002");
+    const started = Promise.withResolvers<void>();
+    const release = Promise.withResolvers<void>();
+    bob.beforeReadNotes = () => {
+      started.resolve();
+      return release.promise;
+    };
+
+    const inFlight = call("bob", "/api/phones");
+    await started.promise;
+    try {
+      expect(
+        (await call("bob", "/api/phone-providers/textverified", "DELETE"))
+          .status,
+      ).toBe(200);
+    } finally {
+      release.resolve();
+      await inFlight;
+    }
+    expect((await call("bob", "/api/phones")).status).toBe(409);
+  });
+
+  test("bounds a cold watch while the provider is fetching the phone inventory", async () => {
+    await saveTextverified("bob", bob.username, "bob-key-0002");
+    bob.beforeReadNotes = (signal) => delay(500, undefined, { signal });
+    const watch = await watchPhoneSms("bob", "lr_bob", {
+      timeoutMs: 30,
+      signal: new AbortController().signal,
+    });
+    expect(watch).toMatchObject({ ok: false, error: { status: 504 } });
+  });
+
   test("tells agents when no provider is configured", async () => {
     const mcp = await connectMcp("alice");
     try {
@@ -405,6 +462,8 @@ describe("phones", () => {
     async () => {
       await saveTextverified("alice", "alice@example.com", "alice-key-0001");
       addSms(alice, "lr_alice", "Old code 000000");
+      await call("alice", "/api/phones/lr_alice/sms?limit=20");
+      addSms(alice, "lr_alice", "Already received 000001");
       const mcp = await connectMcp("alice");
       try {
         const watching = mcp.call("watch_phone", { phoneId: "lr_alice" });
@@ -418,7 +477,9 @@ describe("phones", () => {
         expect(messages.map((sms) => sms.parsedCode)).toEqual(["123456"]);
         expect(watched.structuredContent?.pollAfterMs).toBe(1000);
 
-        addSms(alice, "lr_alice", "Next code 654321");
+        const burst = Array.from({ length: 25 }, (_, i) => String(100000 + i));
+        for (const code of burst)
+          addSms(alice, "lr_alice", `Next code ${code}`);
         const resumed = await mcp.call("watch_phone", {
           phoneId: "lr_alice",
           cursor: watched.structuredContent?.resumeCursor,
@@ -427,7 +488,16 @@ describe("phones", () => {
           (
             resumed.structuredContent?.messages as { parsedCode?: string }[]
           ).map((sms) => sms.parsedCode),
-        ).toEqual(["654321"]);
+        ).toEqual(burst.slice(0, 20));
+        const remaining = await mcp.call("watch_phone", {
+          phoneId: "lr_alice",
+          cursor: resumed.structuredContent?.resumeCursor,
+        });
+        expect(
+          (
+            remaining.structuredContent?.messages as { parsedCode?: string }[]
+          ).map((sms) => sms.parsedCode),
+        ).toEqual(burst.slice(20));
       } finally {
         await mcp.client.close();
       }

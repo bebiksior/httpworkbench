@@ -1,3 +1,4 @@
+import { setTimeout as delay } from "node:timers/promises";
 import {
   phoneProviders,
   type Phone,
@@ -17,7 +18,7 @@ import { openSecret, sealSecret } from "../secretBox";
 import {
   PhoneProviderError,
   type PhoneProvider,
-  type ProviderPhone,
+  type SmsCursor,
 } from "./provider";
 import { createTextverifiedProvider } from "./textverified";
 
@@ -48,7 +49,6 @@ const noPhoneProviderMessage =
   "No phone provider configured. Add one in Settings → Phones.";
 
 const phonesTtlMs = 30_000;
-const smsTtlMs = 2_000;
 const smsPollIntervalMs = 3_000;
 const maxCachedUsers = 1_000;
 
@@ -75,12 +75,15 @@ const boundedSet = <V>(map: Map<string, V>, key: string, value: V) => {
   }
 };
 
-const providerInstances = new Map<
-  string,
-  { sealed: string; provider: PhoneProvider }
->();
-const phonesCache = new Map<string, { at: number; phones: Phone[] }>();
-const smsCache = new Map<string, { at: number; messages: Promise<Sms[]> }>();
+type PhoneCache = { at: number; values?: Phone[] };
+
+type ProviderInstance = {
+  sealed: string;
+  provider: PhoneProvider;
+  phones?: PhoneCache;
+};
+
+const providerInstances = new Map<string, ProviderInstance>();
 
 const readCredentials = (record: PhoneProviderRecord) => {
   const plaintext = openSecret(
@@ -92,11 +95,11 @@ const readCredentials = (record: PhoneProviderRecord) => {
     : (JSON.parse(plaintext) as Record<string, string>);
 };
 
-const instanceFor = (record: PhoneProviderRecord): PhoneProvider => {
+const instanceFor = (record: PhoneProviderRecord): ProviderInstance => {
   const key = `${record.userId}:${record.provider}`;
   const cached = providerInstances.get(key);
   if (cached?.sealed === record.credentialsCiphertext) {
-    return cached.provider;
+    return cached;
   }
   const credentials = readCredentials(record);
   if (credentials === undefined) {
@@ -105,25 +108,16 @@ const instanceFor = (record: PhoneProviderRecord): PhoneProvider => {
       409,
     );
   }
-  const provider = factories[record.provider](credentials);
-  boundedSet(providerInstances, key, {
+  const instance = {
     sealed: record.credentialsCiphertext,
-    provider,
-  });
-  return provider;
+    provider: factories[record.provider](credentials),
+  };
+  boundedSet(providerInstances, key, instance);
+  return instance;
 };
 
-const forgetUser = (userId: string) => {
-  phonesCache.delete(userId);
-  for (const key of [...providerInstances.keys(), ...smsCache.keys()]) {
-    if (key.startsWith(`${userId}:`)) {
-      providerInstances.delete(key);
-      smsCache.delete(key);
-    }
-  }
-};
-
-const maskValue = (value: string) => `••••${value.slice(-4)}`;
+const maskValue = (value: string) =>
+  value.length > 4 ? `••••${value.slice(-4)}` : "••••";
 
 const toConfig = (record: PhoneProviderRecord): PhoneProviderConfig => {
   const credentials = readCredentials(record) ?? {};
@@ -183,7 +177,6 @@ export const savePhoneProvider = async (
     return verified;
   }
   setPhoneProvider(record);
-  forgetUser(userId);
   boundedSet(providerInstances, `${userId}:${input.provider}`, {
     sealed: record.credentialsCiphertext,
     provider,
@@ -199,9 +192,9 @@ export const testPhoneProvider = async (
   if (record === undefined) {
     return fail("Phone provider not configured", 404);
   }
-  phonesCache.delete(userId);
+  providerInstances.delete(`${userId}:${providerId}`);
   return attempt(async () => ({
-    phoneCount: (await instanceFor(record).listPhones()).length,
+    phoneCount: (await fetchPhones(record, instanceFor(record))).length,
   }));
 };
 
@@ -210,55 +203,67 @@ export const removePhoneProvider = (
   providerId: PhoneProviderId,
 ): boolean => {
   const deleted = deletePhoneProvider(userId, providerId);
-  forgetUser(userId);
+  providerInstances.delete(`${userId}:${providerId}`);
   return deleted;
 };
 
-const loadPhones = async (userId: string, fresh: boolean) => {
-  const cached = phonesCache.get(userId);
-  if (!fresh && cached !== undefined && Date.now() - cached.at < phonesTtlMs) {
-    return cached.phones;
-  }
+const configuredRecords = (userId: string) => {
   const records = getPhoneProvidersByUser(userId);
   if (records.length === 0) {
     throw new PhoneProviderError(noPhoneProviderMessage, 409);
   }
-  const phones = (
-    await Promise.all(
-      records.map(async (record) =>
-        (await instanceFor(record).listPhones()).map((phone): Phone => ({
-          ...phone,
-          provider: record.provider,
-        })),
-      ),
-    )
-  ).flat();
-  boundedSet(phonesCache, userId, { at: Date.now(), phones });
-  return phones;
+  return records;
+};
+
+const cachedPhones = (instance: ProviderInstance) => {
+  const cached = instance.phones;
+  return cached !== undefined && Date.now() - cached.at < phonesTtlMs
+    ? cached.values
+    : undefined;
+};
+
+const fetchPhones = async (
+  record: PhoneProviderRecord,
+  instance: ProviderInstance,
+  signal?: AbortSignal,
+) => {
+  const cache: PhoneCache = { at: Date.now() };
+  instance.phones = cache;
+  const phones = await instance.provider.listPhones(signal);
+  cache.values = phones.map((phone) => ({
+    ...phone,
+    provider: record.provider,
+  }));
+  return cache.values;
 };
 
 export const listUserPhones = (
   userId: string,
 ): Promise<PhoneServiceResult<Phone[]>> =>
-  attempt(() => loadPhones(userId, false));
+  attempt(async () => {
+    const lists = await Promise.all(
+      configuredRecords(userId).map((record) => {
+        const instance = instanceFor(record);
+        return cachedPhones(instance) ?? fetchPhones(record, instance);
+      }),
+    );
+    return lists.flat();
+  });
 
-const resolvePhone = async (userId: string, phoneId: string) => {
-  const find = (phones: Phone[]) =>
-    phones.find((phone) => phone.id === phoneId);
-  const phone =
-    find(await loadPhones(userId, false)) ??
-    find(await loadPhones(userId, true));
-  const record =
-    phone === undefined ? undefined : findRecord(userId, phone.provider);
-  if (phone === undefined || record === undefined) {
-    throw new PhoneProviderError("Phone not found", 404);
+const resolvePhone = async (
+  userId: string,
+  phoneId: string,
+  signal?: AbortSignal,
+) => {
+  for (const record of configuredRecords(userId)) {
+    const instance = instanceFor(record);
+    const match = (phone: Phone) => phone.id === phoneId;
+    const phone =
+      cachedPhones(instance)?.find(match) ??
+      (await fetchPhones(record, instance, signal)).find(match);
+    if (phone !== undefined) return { phone, instance };
   }
-  const { provider: _provider, ...providerPhone } = phone;
-  return {
-    phone,
-    providerPhone: providerPhone satisfies ProviderPhone,
-    provider: instanceFor(record),
-  };
+  throw new PhoneProviderError("Phone not found", 404);
 };
 
 export const getUserPhone = (
@@ -271,17 +276,11 @@ const readSms = async (
   userId: string,
   phoneId: string,
   limit: number,
+  after?: SmsCursor,
+  signal?: AbortSignal,
 ): Promise<Sms[]> => {
-  const { provider, providerPhone } = await resolvePhone(userId, phoneId);
-  const key = `${userId}:${phoneId}:${limit}`;
-  const cached = smsCache.get(key);
-  if (cached !== undefined && Date.now() - cached.at < smsTtlMs) {
-    return cached.messages;
-  }
-  const messages = provider.listSms(providerPhone, limit);
-  boundedSet(smsCache, key, { at: Date.now(), messages });
-  messages.catch(() => smsCache.delete(key));
-  return messages;
+  const { phone, instance } = await resolvePhone(userId, phoneId, signal);
+  return instance.provider.listSms(phone, limit, after, signal);
 };
 
 export const listPhoneSms = (
@@ -297,18 +296,15 @@ export const updatePhoneNotes = (
   notes: string,
 ): Promise<PhoneServiceResult<Phone>> =>
   attempt(async () => {
-    const { phone, provider, providerPhone } = await resolvePhone(
-      userId,
-      phoneId,
-    );
-    if (!provider.capabilities.notes) {
+    const { phone, instance } = await resolvePhone(userId, phoneId);
+    if (!instance.provider.capabilities.notes) {
       throw new PhoneProviderError(
         `${phoneProviders[phone.provider].name} does not support notes`,
         400,
       );
     }
-    await provider.setNotes(providerPhone, notes);
-    phonesCache.delete(userId);
+    await instance.provider.setNotes(phone, notes);
+    instance.phones = undefined;
     return { ...phone, notes: notes === "" ? undefined : notes };
   });
 
@@ -317,35 +313,23 @@ export const wakeUserPhone = (
   phoneId: string,
 ): Promise<PhoneServiceResult<PhoneWake>> =>
   attempt(async () => {
-    const { phone, provider, providerPhone } = await resolvePhone(
-      userId,
-      phoneId,
-    );
+    const { phone, instance } = await resolvePhone(userId, phoneId);
     if (phone.alwaysOn) {
       throw new PhoneProviderError(
         "This line is always on and needs no wake",
         400,
       );
     }
-    if (!provider.capabilities.wake) {
+    if (!instance.provider.capabilities.wake) {
       throw new PhoneProviderError(
         `${phoneProviders[phone.provider].name} cannot wake lines`,
         400,
       );
     }
-    return provider.wake(providerPhone);
+    return instance.provider.wake(phone);
   });
 
-export type SmsCursor = { at: number; id: string };
-
-const newerThan = (messages: Sms[], cursor: SmsCursor) => {
-  const index = messages.findIndex((message) => message.id === cursor.id);
-  return (
-    index === -1
-      ? messages.filter((message) => message.timestamp > cursor.at)
-      : messages.slice(0, index)
-  ).reverse();
-};
+export type { SmsCursor } from "./provider";
 
 const latestCursor = (messages: Sms[]): SmsCursor => {
   const [latest] = messages;
@@ -354,39 +338,41 @@ const latestCursor = (messages: Sms[]): SmsCursor => {
     : { at: latest.timestamp, id: latest.id };
 };
 
-const pause = (ms: number, signal: AbortSignal) =>
-  new Promise<void>((resolve) => {
-    const timeout = setTimeout(done, ms);
-    signal.addEventListener("abort", done, { once: true });
-    function done() {
-      clearTimeout(timeout);
-      signal.removeEventListener("abort", done);
-      resolve();
-    }
-  });
-
 export const watchPhoneSms = (
   userId: string,
   phoneId: string,
   options: { cursor?: SmsCursor; timeoutMs: number; signal: AbortSignal },
 ): Promise<PhoneServiceResult<{ messages: Sms[]; cursor: SmsCursor }>> =>
   attempt(async () => {
-    const deadline = Date.now() + options.timeoutMs;
-    const first = await readSms(userId, phoneId, 20);
-    const cursor = options.cursor ?? latestCursor(first);
-    let fresh = newerThan(first, cursor);
-    while (
-      fresh.length === 0 &&
-      !options.signal.aborted &&
-      Date.now() + smsPollIntervalMs < deadline
-    ) {
-      await pause(smsPollIntervalMs, options.signal);
-      if (options.signal.aborted) break;
-      fresh = newerThan(await readSms(userId, phoneId, 20), cursor);
+    const signal = AbortSignal.any([
+      options.signal,
+      AbortSignal.timeout(options.timeoutMs),
+    ]);
+    let cursor = options.cursor;
+    let fresh: Sms[] = [];
+    try {
+      if (cursor === undefined) {
+        cursor = latestCursor(
+          await readSms(userId, phoneId, 1, undefined, signal),
+        );
+      } else {
+        fresh = await readSms(userId, phoneId, 20, cursor, signal);
+      }
+      while (fresh.length === 0) {
+        await delay(smsPollIntervalMs, undefined, { signal });
+        fresh = await readSms(userId, phoneId, 20, cursor, signal);
+      }
+    } catch (error) {
+      if (!signal.aborted) throw error;
+      if (cursor === undefined)
+        throw new PhoneProviderError(
+          "Could not start the SMS watch in time",
+          504,
+        );
     }
-    const newest = fresh.at(-1);
+    const newest = fresh[0];
     return {
-      messages: fresh,
+      messages: fresh.reverse(),
       cursor:
         newest === undefined ? cursor : { at: newest.timestamp, id: newest.id },
     };
