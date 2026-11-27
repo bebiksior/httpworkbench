@@ -4,7 +4,7 @@ import { createTextverifiedProvider } from "./textverified";
 
 const base = "https://www.textverified.com";
 
-type Handler = (request: Request) => Response | undefined;
+type Handler = (request: Request) => Response | undefined | Promise<Response>;
 
 const json = (body: unknown, status = 200) => Response.json(body, { status });
 
@@ -28,16 +28,16 @@ const stubFetch = (...handlers: Handler[]) => {
   ) => {
     const request = new Request(input.toString(), init);
     requests.push(request);
+    for (const handler of handlers) {
+      const response = await handler(request);
+      if (response !== undefined) return response;
+    }
     if (new URL(request.url).pathname === "/api/pub/v2/auth") {
       return json({
         token: "eyJtest",
         expiresIn: 900,
         expiresAt: new Date(Date.now() + 900_000).toISOString(),
       });
-    }
-    for (const handler of handlers) {
-      const response = handler(request);
-      if (response !== undefined) return response;
     }
     return json({ error: "unexpected" }, 500);
   }) as typeof fetch;
@@ -124,6 +124,7 @@ describe("Textverified provider", () => {
     expect(auths[0]?.headers.get("x-api-key")).toBe("key-123");
     expect(auths[0]?.headers.get("content-length")).toBe("0");
     for (const request of requests) {
+      expect(request.redirect).toBe("manual");
       expect(request.headers.get("user-agent")).toMatch(/^httpworkbench\//);
     }
     expect(
@@ -240,6 +241,173 @@ describe("Textverified provider", () => {
     );
     expect(requests.some((request) => request.url.includes("evil"))).toBe(
       false,
+    );
+  });
+
+  test.each([401, 429, 503])(
+    "does not replay a wake POST on HTTP %i",
+    async (status) => {
+      const { fetchStub, requests } = stubFetch(
+        route("POST", "/api/pub/v2/wake-requests", () => json({}, status)),
+      );
+      await expect(
+        provider(fetchStub).wake(rental("lr_sleepy", "3305550100")),
+      ).rejects.toThrow(`HTTP ${status}`);
+      expect(
+        requests.filter((request) => request.url.endsWith("/wake-requests")),
+      ).toHaveLength(1);
+    },
+  );
+
+  test("refreshes an expired session once despite a delayed unauthorized response", async () => {
+    const renewed = Promise.withResolvers<void>();
+    let auths = 0;
+    const { fetchStub } = stubFetch((request) => {
+      if (request.url.endsWith("/auth")) {
+        return json({ token: `token-${++auths}`, expiresIn: 900 });
+      }
+      if (request.headers.get("authorization") === "Bearer token-1") {
+        if (request.url.endsWith("/nonrenewable")) {
+          return renewed.promise.then(() => json({}, 401));
+        }
+        return json({}, 401);
+      }
+      renewed.resolve();
+      return json(page([]));
+    });
+    await expect(provider(fetchStub).listPhones()).resolves.toEqual([]);
+    expect(auths).toBe(2);
+  });
+
+  test("uses a replacement token after its refresh margin", async () => {
+    let auths = 0;
+    let now = 0;
+    const { fetchStub } = stubFetch((request) =>
+      request.url.endsWith("/auth")
+        ? json({ token: `token-${++auths}`, expiresIn: 900 })
+        : json(page([])),
+    );
+    const client = createTextverifiedProvider(
+      { username: "user", apiKey: "key" },
+      { fetch: fetchStub, now: () => now },
+    );
+    await client.listPhones();
+    now += 800_000;
+    await client.listPhones();
+    expect(auths).toBe(1);
+    now += 100_000;
+    await client.listPhones();
+    expect(auths).toBe(2);
+  });
+
+  test("paginates through archived rentals beyond twenty pages", async () => {
+    const { fetchStub } = stubFetch((request) => {
+      const url = new URL(request.url);
+      if (url.pathname.endsWith("/renewable")) {
+        const current = Number(url.searchParams.get("page") ?? "1");
+        return current < 21
+          ? json(
+              page(
+                [rental("expired", "3305550100", "renewableExpired")],
+                `?page=${current + 1}`,
+              ),
+            )
+          : json(page([rental("active", "3305550100")]));
+      }
+      if (url.pathname.endsWith("/user-notes")) return json({ userNotes: "" });
+      if (url.pathname.endsWith("/nonrenewable")) return json(page([]));
+    });
+    const phones = await provider(fetchStub).listPhones();
+    expect(phones.map((phone) => phone.id)).toEqual(["active"]);
+  });
+
+  test("reads the oldest unseen SMS batch across pages with equal timestamps", async () => {
+    const when = new Date(1700000000000);
+    const sms = (id: string) => ({
+      id,
+      to: "3305550100",
+      createdAt: when.toISOString(),
+    });
+    const { fetchStub, requests } = stubFetch(
+      route("GET", "/api/pub/v2/sms?reservationId=lr_one", () =>
+        json(page(["6", "5", "4"].map(sms), "?reservationId=lr_one&page=2")),
+      ),
+      route("GET", "/api/pub/v2/sms?reservationId=lr_one&page=2", () =>
+        json(page(["3", "2", "1"].map(sms), "?reservationId=lr_one&page=3")),
+      ),
+    );
+    const client = provider(fetchStub);
+    const phone = rental("lr_one", "3305550100");
+    const first = await client.listSms(phone, 2, {
+      id: "2",
+      at: when.getTime(),
+    });
+    expect(first.map((message) => message.id)).toEqual(["4", "3"]);
+    const rest = await client.listSms(phone, 2, {
+      id: "4",
+      at: when.getTime(),
+    });
+    expect(rest.map((message) => message.id)).toEqual(["6", "5"]);
+    expect(requests.some((request) => request.url.includes("page=3"))).toBe(
+      false,
+    );
+  });
+
+  test("aborts in-flight cursor pagination without retrying", async () => {
+    const controller = new AbortController();
+    const inFlight = Promise.withResolvers<void>();
+    const { fetchStub, requests } = stubFetch((request) => {
+      if (request.url.endsWith("/auth")) return undefined;
+      if (request.url.endsWith("page=2")) {
+        inFlight.resolve();
+        return new Promise<Response>((_, reject) =>
+          request.signal.addEventListener(
+            "abort",
+            () => reject(request.signal.reason),
+            { once: true },
+          ),
+        );
+      }
+      return json(page([], "?reservationId=lr_one&page=2"));
+    });
+    const read = provider(fetchStub).listSms(
+      rental("lr_one", "3305550100"),
+      20,
+      { id: "old", at: 0 },
+      controller.signal,
+    );
+    await inFlight.promise;
+    controller.abort(new Error("watch ended"));
+    await expect(read).rejects.toThrow("watch ended");
+    expect(
+      requests.filter((request) => request.url.endsWith("page=2")),
+    ).toHaveLength(1);
+  });
+
+  test("updates nonrenewable notes on a fresh client using the listed phone", async () => {
+    const { fetchStub } = stubFetch(
+      route(
+        "POST",
+        "/api/pub/v2/reservations/rental/nonrenewable/lr_one",
+        () => new Response(null, { status: 204 }),
+      ),
+    );
+    await provider(fetchStub).setNotes(
+      rental("lr_one", "3305550100", "nonrenewableActive"),
+      "note",
+    );
+  });
+
+  test("keeps malformed sign-in response content out of provider errors", async () => {
+    const { fetchStub } = stubFetch(
+      route(
+        "POST",
+        "/api/pub/v2/auth",
+        () => new Response("private credential value"),
+      ),
+    );
+    await expect(provider(fetchStub).listPhones()).rejects.toThrow(
+      "Textverified returned an invalid response",
     );
   });
 

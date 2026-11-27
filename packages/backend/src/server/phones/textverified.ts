@@ -1,4 +1,6 @@
+import { setTimeout as delay } from "node:timers/promises";
 import type { PhoneWake, Sms } from "shared";
+import { z } from "zod";
 import { version } from "../../version";
 import {
   PhoneProviderError,
@@ -12,32 +14,52 @@ const baseUrl = "https://www.textverified.com";
 const userAgent = `httpworkbench/${version}`;
 const tokenRefreshMarginMs = 60_000;
 const maxAttempts = 4;
-const maxPages = 20;
+const linkSchema = z.object({ href: z.string().nullish() });
+const rentalSchema = z.object({
+  id: z.string(),
+  number: z.string(),
+  state: z.string(),
+  alwaysOn: z.boolean(),
+});
+const smsSchema = z.object({
+  id: z.string(),
+  from: z.string().nullish(),
+  to: z.string(),
+  createdAt: z.string(),
+  smsContent: z.string().nullish(),
+  parsedCode: z.string().nullish(),
+});
+const tokenSchema = z.object({
+  token: z.string().min(1),
+  expiresAt: z.string().nullish(),
+  expiresIn: z.number().nullish(),
+});
+const notesSchema = z.object({ userNotes: z.string().nullish() });
+const wakeSchema = z.object({
+  isScheduled: z.boolean(),
+  usageWindowStart: z.string().nullish(),
+  usageWindowEnd: z.string().nullish(),
+});
 
-type Link = { href?: string | null; method?: string | null };
-
-type Page<T> = { data: T[]; links?: { next?: Link | null } };
-
-type Rental = {
-  id: string;
-  number: string;
-  state: string;
-  alwaysOn: boolean;
+const readJson = async <T>(
+  response: Response,
+  schema: z.ZodType<T>,
+  signal?: AbortSignal,
+) => {
+  try {
+    return schema.parse(await response.json());
+  } catch {
+    signal?.throwIfAborted();
+    throw new PhoneProviderError("Textverified returned an invalid response");
+  }
 };
 
-type TextverifiedSms = {
-  id: string;
-  from?: string | null;
-  to: string;
-  createdAt: string;
-  smsContent?: string | null;
-  parsedCode?: string | null;
-};
-
-type WakeResponse = {
-  isScheduled: boolean;
-  usageWindowStart?: string | null;
-  usageWindowEnd?: string | null;
+const providerUrl = (link: string, relativeTo = baseUrl) => {
+  const url = URL.parse(link, relativeTo);
+  if (url?.origin !== baseUrl || url.username || url.password) {
+    throw new PhoneProviderError("Textverified returned an unexpected link");
+  }
+  return url.href;
 };
 
 type RentalKind = "renewable" | "nonrenewable";
@@ -50,7 +72,7 @@ const usableStates = new Set([
 
 export type TextverifiedOptions = {
   fetch?: typeof fetch;
-  sleep?: (ms: number) => Promise<void>;
+  sleep?: (ms: number, signal?: AbortSignal) => Promise<void>;
   now?: () => number;
 };
 
@@ -69,8 +91,14 @@ const toTimestamp = (value: string | null | undefined) => {
 const backoffMs = (attempt: number) =>
   500 * 2 ** attempt + Math.floor(Math.random() * 250);
 
-const defaultSleep = (ms: number) =>
-  new Promise<void>((resolve) => setTimeout(resolve, ms));
+const defaultSleep = async (ms: number, signal?: AbortSignal) => {
+  try {
+    await delay(ms, undefined, { signal });
+  } catch (error) {
+    signal?.throwIfAborted();
+    throw error;
+  }
+};
 
 export const createTextverifiedProvider = (
   credentials: { username: string; apiKey: string },
@@ -79,7 +107,6 @@ export const createTextverifiedProvider = (
   const fetchImpl = options.fetch ?? fetch;
   const sleep = options.sleep ?? defaultSleep;
   const now = options.now ?? Date.now;
-  const kinds = new Map<string, RentalKind>();
   let token: { value: string; expiresAt: number } | undefined;
   let pendingToken: Promise<string> | undefined;
 
@@ -88,9 +115,11 @@ export const createTextverifiedProvider = (
     url: string,
     headers: Record<string, string>,
     body?: unknown,
+    signal?: AbortSignal,
   ) => {
     for (let attempt = 0; ; attempt += 1) {
-      let response: Response | undefined;
+      signal?.throwIfAborted();
+      let response: Response;
       try {
         response = await fetchImpl(url, {
           method,
@@ -105,21 +134,24 @@ export const createTextverifiedProvider = (
             ...headers,
           },
           body: body === undefined ? undefined : JSON.stringify(body),
-          signal: AbortSignal.timeout(15_000),
+          signal: signal
+            ? AbortSignal.any([signal, AbortSignal.timeout(15_000)])
+            : AbortSignal.timeout(15_000),
+          redirect: "manual",
         });
-      } catch (error) {
+      } catch {
+        signal?.throwIfAborted();
         if (method === "GET" && attempt + 1 < maxAttempts) {
-          await sleep(backoffMs(attempt));
+          await sleep(backoffMs(attempt), signal);
           continue;
         }
-        throw new PhoneProviderError(
-          `Textverified is unreachable: ${error instanceof Error ? error.message : String(error)}`,
-        );
+        throw new PhoneProviderError("Textverified is unreachable");
       }
       const retryable =
-        response.status === 429 || (method === "GET" && response.status >= 500);
+        method === "GET" && (response.status === 429 || response.status >= 500);
       if (retryable && attempt + 1 < maxAttempts) {
-        await sleep(backoffMs(attempt));
+        await response.body?.cancel();
+        await sleep(backoffMs(attempt), signal);
         continue;
       }
       return response;
@@ -142,14 +174,7 @@ export const createTextverifiedProvider = (
         `Textverified sign-in failed with HTTP ${response.status}`,
       );
     }
-    const body = (await response.json()) as {
-      token?: string;
-      expiresAt?: string;
-      expiresIn?: number;
-    };
-    if (typeof body.token !== "string") {
-      throw new PhoneProviderError("Textverified returned no token");
-    }
+    const body = await readJson(response, tokenSchema);
     token = {
       value: body.token,
       expiresAt:
@@ -158,37 +183,47 @@ export const createTextverifiedProvider = (
     return token.value;
   };
 
-  const bearer = async () => {
+  const bearer = async (signal?: AbortSignal) => {
     if (token !== undefined && token.expiresAt - now() > tokenRefreshMarginMs) {
       return token.value;
     }
     pendingToken ??= authenticate().finally(() => {
       pendingToken = undefined;
     });
-    return pendingToken;
+    if (signal === undefined) return pendingToken;
+    const aborted = Promise.withResolvers<never>();
+    const onAbort = () => aborted.reject(signal.reason);
+    signal.addEventListener("abort", onAbort, { once: true });
+    try {
+      return await Promise.race([pendingToken, aborted.promise]);
+    } finally {
+      signal.removeEventListener("abort", onAbort);
+    }
   };
 
-  const call = async <T>(
+  const call = async (
     method: "GET" | "POST",
     pathOrUrl: string,
     body?: unknown,
-  ): Promise<T> => {
-    const url = new URL(pathOrUrl, baseUrl);
-    // Pagination and wake links come from the API; never send the token to
-    // another host.
-    if (url.origin !== baseUrl) {
-      throw new PhoneProviderError("Textverified returned an unexpected link");
-    }
-    for (let attempt = 0; attempt < 2; attempt += 1) {
+    signal?: AbortSignal,
+  ) => {
+    const url = providerUrl(pathOrUrl);
+    for (let attempt = 0; ; attempt += 1) {
+      signal?.throwIfAborted();
+      const session = await bearer(signal);
       const response = await send(
         method,
-        url.toString(),
-        { Authorization: `Bearer ${await bearer()}` },
+        url,
+        { Authorization: `Bearer ${session}` },
         body,
+        signal,
       );
-      if (response.status === 401 && attempt === 0) {
-        token = undefined;
-        continue;
+      if (response.status === 401) {
+        if (token?.value === session) token = undefined;
+        if (method === "GET" && attempt === 0) {
+          await response.body?.cancel();
+          continue;
+        }
       }
       if (response.status === 404) {
         throw new PhoneProviderError(
@@ -201,43 +236,75 @@ export const createTextverifiedProvider = (
           `Textverified request failed with HTTP ${response.status}`,
         );
       }
-      const text = await response.text();
-      try {
-        return (text === "" ? undefined : JSON.parse(text)) as T;
-      } catch {
-        throw new PhoneProviderError("Textverified returned invalid JSON");
-      }
+      return response;
     }
-    throw new PhoneProviderError("Textverified rejected the session");
   };
 
-  const listPages = async <T>(path: string, limit = Infinity) => {
-    const items: T[] = [];
-    let next: string | undefined = path;
-    for (let page = 0; next !== undefined && page < maxPages; page += 1) {
-      const body: Page<T> | undefined = await call<Page<T>>("GET", next);
-      if (!Array.isArray(body?.data)) {
-        throw new PhoneProviderError(
-          "Textverified returned an unexpected page",
-        );
+  async function* pages<T>(
+    path: string,
+    itemSchema: z.ZodType<T>,
+    signal?: AbortSignal,
+  ) {
+    const schema = z.object({
+      data: z.array(itemSchema),
+      hasNext: z.boolean().optional(),
+      links: z.object({ next: linkSchema.nullish() }).optional(),
+    });
+    const visited = new Set<string>();
+    let url = providerUrl(path);
+    for (;;) {
+      if (visited.has(url)) {
+        throw new PhoneProviderError("Textverified returned a repeated page");
       }
-      items.push(...body.data);
-      if (items.length >= limit) break;
-      next = body.links?.next?.href ?? undefined;
+      visited.add(url);
+      const page = await readJson(
+        await call("GET", url, undefined, signal),
+        schema,
+        signal,
+      );
+      yield page.data;
+      const next = page.links?.next?.href;
+      if (page.hasNext === false) return;
+      if (next == null || next === "") {
+        if (page.hasNext)
+          throw new PhoneProviderError("Textverified returned no next page");
+        return;
+      }
+      url = providerUrl(next, url);
     }
-    return items;
+  }
+
+  const listRentals = async (kind: RentalKind, signal?: AbortSignal) => {
+    const phones: ProviderPhone[] = [];
+    for await (const rentals of pages(
+      `/api/pub/v2/reservations/rental/${kind}`,
+      rentalSchema,
+      signal,
+    )) {
+      const active = rentals.filter((rental) => usableStates.has(rental.state));
+      phones.push(
+        ...(await Promise.all(
+          active.map(async (rental) => ({
+            id: rental.id,
+            number: toE164(rental.number),
+            notes: await readNotes(rental.id, signal),
+            state: rental.state,
+            alwaysOn: rental.alwaysOn,
+          })),
+        )),
+      );
+    }
+    return phones;
   };
 
-  const listRentals = async (kind: RentalKind) =>
-    (await listPages<Rental>(`/api/pub/v2/reservations/rental/${kind}`)).map(
-      (rental) => ({ ...rental, kind }),
-    );
-
-  const readNotes = async (id: string) => {
-    const body = await call<{ userNotes?: string | null }>(
+  const readNotes = async (id: string, signal?: AbortSignal) => {
+    const response = await call(
       "GET",
       `/api/pub/v2/reservations/rental/${encodeURIComponent(id)}/user-notes`,
+      undefined,
+      signal,
     );
+    const body = await readJson(response, notesSchema, signal);
     const notes = body.userNotes?.trim();
     return notes === undefined || notes === "" ? undefined : notes;
   };
@@ -245,62 +312,71 @@ export const createTextverifiedProvider = (
   return {
     capabilities: { wake: true, notes: true },
 
-    listPhones: async () => {
-      const rentals = (
+    listPhones: async (signal) =>
+      (
         await Promise.all([
-          listRentals("renewable"),
-          listRentals("nonrenewable"),
+          listRentals("renewable", signal),
+          listRentals("nonrenewable", signal),
         ])
-      )
-        .flat()
-        .filter((rental) => usableStates.has(rental.state));
-      return Promise.all(
-        rentals.map(async (rental): Promise<ProviderPhone> => {
-          kinds.set(rental.id, rental.kind);
-          return {
-            id: rental.id,
-            number: toE164(rental.number),
-            notes: await readNotes(rental.id),
-            state: rental.state,
-            alwaysOn: rental.alwaysOn,
-          };
-        }),
-      );
-    },
+      ).flat(),
 
-    listSms: async (phone, limit) => {
+    listSms: async (phone, limit, after, signal) => {
       const query = new URLSearchParams({ reservationId: phone.id });
-      const messages = await listPages<TextverifiedSms>(
-        `/api/pub/v2/sms?${query.toString()}`,
-        limit,
-      );
-      return messages.slice(0, limit).map((sms): Sms => ({
-        id: sms.id,
-        from: sms.from ?? undefined,
-        to: toE164(sms.to),
-        timestamp: toTimestamp(sms.createdAt) ?? 0,
-        text: sms.smsContent ?? "",
-        parsedCode: sms.parsedCode ?? undefined,
-      }));
+      const messages: Sms[] = [];
+      for await (const page of pages(
+        `/api/pub/v2/sms?${query}`,
+        smsSchema,
+        signal,
+      )) {
+        for (const sms of page) {
+          const timestamp = toTimestamp(sms.createdAt);
+          if (timestamp === undefined) {
+            throw new PhoneProviderError(
+              "Textverified returned an invalid SMS timestamp",
+            );
+          }
+          if (
+            after !== undefined &&
+            (sms.id === after.id || timestamp < after.at)
+          ) {
+            return messages.slice(-limit);
+          }
+          messages.push({
+            id: sms.id,
+            from: sms.from ?? undefined,
+            to: toE164(sms.to),
+            timestamp,
+            text: sms.smsContent ?? "",
+            parsedCode: sms.parsedCode ?? undefined,
+          });
+          if (after === undefined && messages.length === limit) return messages;
+        }
+        if (messages.length > limit)
+          messages.splice(0, messages.length - limit);
+      }
+      return messages.slice(-limit);
     },
 
     setNotes: async (phone, notes) => {
-      const kind = kinds.get(phone.id) ?? "renewable";
-      await call(
+      const kind =
+        phone.state === "nonrenewableActive" ? "nonrenewable" : "renewable";
+      const response = await call(
         "POST",
         `/api/pub/v2/reservations/rental/${kind}/${encodeURIComponent(phone.id)}`,
         { userNotes: notes },
       );
+      await response.body?.cancel();
     },
 
     wake: async (phone): Promise<PhoneWake> => {
-      const link = await call<Link>("POST", "/api/pub/v2/wake-requests", {
+      const response = await call("POST", "/api/pub/v2/wake-requests", {
         reservationId: phone.id,
       });
-      if (typeof link?.href !== "string") {
+      const link = await readJson(response, linkSchema);
+      if (link.href == null || link.href === "") {
         throw new PhoneProviderError("Textverified returned no wake request");
       }
-      const wake = await call<WakeResponse>("GET", link.href);
+      const wake = await readJson(await call("GET", link.href), wakeSchema);
       return {
         scheduled: wake.isScheduled,
         usageWindowStart: toTimestamp(wake.usageWindowStart),
