@@ -16,6 +16,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { Elysia } from "elysia";
+import type { ApiKeyScope } from "shared";
 
 process.env.JWT_SECRET = "phones-test-secret";
 process.env.DOMAIN = "test.local";
@@ -165,11 +166,11 @@ type ToolResult = {
   structuredContent?: Record<string, unknown>;
 };
 
-const connectMcp = async (userId: string, scopes?: string[]) => {
+const connectMcp = async (userId: string, scopes?: ApiKeyScope[]) => {
   const apiKey = createApiKeyForUser({
     userId,
     name: "MCP phones",
-    scopes: scopes as Parameters<typeof createApiKeyForUser>[0]["scopes"],
+    scopes,
   }).secret;
   const transport = new StreamableHTTPClientTransport(
     new URL("http://test.local/mcp"),
@@ -190,6 +191,7 @@ const connectMcp = async (userId: string, scopes?: string[]) => {
   );
   await client.connect(transport);
   return {
+    apiKey,
     client,
     call: async (name: string, args: Record<string, unknown> = {}) =>
       (await client.callTool({ name, arguments: args })) as ToolResult,
@@ -292,6 +294,21 @@ describe("phones", () => {
     expect(
       await (await call("bob", "/api/phone-providers")).json(),
     ).toMatchObject([{ credentials: { apiKey: "••••" } }]);
+  });
+
+  test("rejects an encrypted configuration copied from another user", async () => {
+    await saveTextverified("alice", alice.username, "alice-key-0001");
+    await saveTextverified("bob", bob.username, "bob-key-0002");
+    getDb().$client.run(`
+      UPDATE phoneProviders SET credentialsCiphertext = (
+        SELECT credentialsCiphertext FROM phoneProviders WHERE userId = 'alice'
+      ) WHERE userId = 'bob'
+    `);
+    const response = await call("bob", "/api/phones");
+    expect(response.status).toBe(409);
+    expect(await response.json()).toMatchObject({
+      error: expect.stringContaining("can no longer be decrypted"),
+    });
   });
 
   test("rejects credentials the provider refuses", async () => {
@@ -476,6 +493,31 @@ describe("phones", () => {
     try {
       const phones = await mcp.call("list_phones");
       expect(phones.isError).toBe(true);
+    } finally {
+      await mcp.client.close();
+    }
+  });
+
+  test("a phone read key can list SMS but cannot wake, edit or configure a phone", async () => {
+    await saveTextverified("bob", bob.username, "bob-key-0002");
+    const mcp = await connectMcp("bob", ["phones:read"]);
+    try {
+      const headers = { authorization: `Bearer ${mcp.apiKey}` };
+      const request = (path: string, method = "GET") =>
+        app.handle(
+          new Request(`http://localhost/api/${path}`, { method, headers }),
+        );
+      expect((await request("phones/lr_bob/sms")).status).toBe(200);
+      expect((await request("phones/lr_bob/wake", "POST")).status).toBe(403);
+      expect(
+        (await request("phone-providers/textverified", "DELETE")).status,
+      ).toBe(401);
+      const result = await mcp.call("update_phone", {
+        phoneId: "lr_bob",
+        notes: "changed",
+      });
+      expect(result.content?.[0]?.text).toContain("phones:write");
+      expect(bob.rentals[0]?.notes).toBe("");
     } finally {
       await mcp.client.close();
     }
