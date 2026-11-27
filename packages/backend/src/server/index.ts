@@ -15,6 +15,7 @@ import {
   instancesRoutes,
   mailboxesRoutes,
   oauthRoutes,
+  phonesRoutes,
   userRoutes,
   webhooksRoutes,
 } from "./api";
@@ -94,6 +95,7 @@ export const buildApiServer = (port: number) => {
     .use(webhooksRoutes)
     .use(apiKeysRoutes)
     .use(mailboxesRoutes)
+    .use(phonesRoutes)
     .ws("/api/instances/:id/stream", {
       async beforeHandle({ params, request, set, cookie }) {
         if (!isAllowedBrowserOrigin(request)) {

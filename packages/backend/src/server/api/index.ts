@@ -4,5 +4,6 @@ export * from "./guestInstances";
 export * from "./instances";
 export * from "./mailboxes";
 export * from "./oauth";
+export * from "./phones";
 export * from "./user";
 export * from "./webhooks";

@@ -23,6 +23,8 @@ export const API_KEY_SCOPES = [
   "mailboxes:read",
   "mailboxes:write",
   "mailboxes:send",
+  "phones:read",
+  "phones:write",
 ] as const satisfies ApiKeyScope[];
 
 export type ApiKeyAuthContext = {

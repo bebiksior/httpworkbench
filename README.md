@@ -70,6 +70,8 @@ curl https://httpworkbench.com/api/instances \
 | `mailboxes:read`   | List mailboxes and read their messages                         |
 | `mailboxes:write`  | Create, update, lock, extend and delete mailboxes and messages |
 | `mailboxes:send`   | Send email from a mailbox                                      |
+| `phones:read`      | List phone numbers and read their SMS                          |
+| `phones:write`     | Update phone notes and wake lines                              |
 
 ### Reference
 
@@ -246,6 +248,12 @@ Without a relay, mail is delivered straight to each recipient's MX server over p
 
 Mail to other mailboxes and instances on the same server is delivered locally. Each user can send 30 messages per hour.
 
+### Phones
+
+The **Phones** view shows the numbers rented in your own SMS provider account and the SMS they receive, with the verification code parsed out. Connect an account under **Settings → Phones**; [Textverified](https://www.textverified.com) is supported. Each user connects their own account, and its numbers and SMS are only visible to that user. Phones are also available over the API and MCP (`list_phones`, `list_sms`, `watch_phone`, `wake_phone`, `update_phone`). HTTP Workbench never rents, renews or cancels numbers.
+
+Provider credentials are encrypted at rest with a key derived from `JWT_SECRET`. Changing `JWT_SECRET` makes stored credentials unreadable, so they have to be saved again.
+
 ### Database migration backups
 
 Before applying new migrations to an existing database, the backend creates a
@@ -294,7 +302,7 @@ docker compose up -d --build
 
 ## Your Data
 
-HTTP Workbench stores just the basics in a local SQLite database: your Google ID (not the email) or username and password hash for login, when you created your account, your PoC pages, webhooks, API keys, and the HTTP/DNS interaction logs (including IPs, headers, DNS questions, and request details). This is all needed for the app to work properly.
+HTTP Workbench stores just the basics in a local SQLite database: your Google ID (not the email) or username and password hash for login, when you created your account, your PoC pages, webhooks, API keys, encrypted phone provider credentials if you add any, and the HTTP/DNS interaction logs (including IPs, headers, DNS questions, and request details). This is all needed for the app to work properly.
 
 Full transparency: I never tried to access any data of users on ssrf.cvssadvisor.com, the old version didn't even have a proper database, it was all stored in the memory :D. However, it technically is possible that I can access this data. I'm happy to hear some suggestions to make this more secure for you guys, to be 100% sure that I can't access your data you can self-host this tool - that's why it's open-source.
 

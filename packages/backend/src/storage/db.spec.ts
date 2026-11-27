@@ -92,6 +92,7 @@ describe("storage db migrations", () => {
       { name: "logs" },
       { name: "mailMessages" },
       { name: "mailboxes" },
+      { name: "phoneProviders" },
       { name: "sqlite_sequence" },
       { name: "userNotices" },
       { name: "users" },
@@ -161,6 +162,69 @@ describe("storage db migrations", () => {
       usersLength: 1,
       instancesLength: 1,
     });
+  });
+
+  test("phone migration grants phone scopes only to full-access keys", () => {
+    const sqlite = new Database(resolveSqliteDbPath(dataDir));
+    const migrations = readMigrationFiles({
+      migrationsFolder: path.join(import.meta.dir, "../../drizzle"),
+    });
+    const phoneMigration = migrations.findIndex((migration) =>
+      migration.sql.some((statement) =>
+        statement.includes("CREATE TABLE `phoneProviders`"),
+      ),
+    );
+    const before = migrations.slice(0, phoneMigration);
+    for (const migration of before) {
+      for (const statement of migration.sql) {
+        sqlite.exec(statement);
+      }
+    }
+    const fullScopes = JSON.stringify([
+      "instances:read",
+      "instances:write",
+      "instances:delete",
+      "logs:read",
+      "logs:stream",
+      "mailboxes:read",
+      "mailboxes:write",
+      "mailboxes:send",
+    ]);
+    sqlite.exec(`
+      CREATE TABLE __drizzle_migrations (
+        id SERIAL PRIMARY KEY,
+        hash TEXT NOT NULL,
+        created_at NUMERIC
+      );
+      INSERT INTO users VALUES ('user-1', 'google-1', 1);
+      INSERT INTO apiKeys (id, userId, name, prefix, secretHash, scopesJson, createdAt)
+        VALUES ('full', 'user-1', 'Full', 'hwb_a', 'x', '${fullScopes}', 1),
+               ('scoped', 'user-1', 'Scoped', 'hwb_b', 'x', '["mailboxes:read"]', 1);
+    `);
+    for (const migration of before) {
+      sqlite
+        .query(
+          "INSERT INTO __drizzle_migrations (hash, created_at) VALUES (?1, ?2)",
+        )
+        .run(migration.hash, migration.folderMillis);
+    }
+    sqlite.close();
+
+    expect(initDb({ dataDir }).kind).toBe("ok");
+    const scopes = Object.fromEntries(
+      getDb()
+        .$client.query<{ id: string; scopesJson: string }, []>(
+          "SELECT id, scopesJson FROM apiKeys",
+        )
+        .all()
+        .map((row) => [row.id, JSON.parse(row.scopesJson) as string[]]),
+    );
+    expect(scopes.full).toEqual([
+      ...(JSON.parse(fullScopes) as string[]),
+      "phones:read",
+      "phones:write",
+    ]);
+    expect(scopes.scoped).toEqual(["mailboxes:read"]);
   });
 
   test("initDb reset recreates an empty migrated database", () => {

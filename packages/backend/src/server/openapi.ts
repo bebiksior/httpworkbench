@@ -11,7 +11,7 @@ const resolveServerUrl = (): string => {
 };
 
 const description = [
-  "Programmatic access to HTTP Workbench instances, their recorded HTTP/DNS/SMTP interaction logs, and temporary mailboxes.",
+  "Programmatic access to HTTP Workbench instances, their recorded HTTP/DNS/SMTP interaction logs, temporary mailboxes, and SMS phone numbers.",
   "",
   "## Authentication",
   "",
@@ -35,8 +35,10 @@ const description = [
   "| `mailboxes:read` | List mailboxes and read their messages |",
   "| `mailboxes:write` | Create, update, extend and delete mailboxes and messages |",
   "| `mailboxes:send` | Send email from a mailbox |",
+  "| `phones:read` | List phone numbers and read their SMS |",
+  "| `phones:write` | Update phone notes and wake lines |",
   "",
-  "A key only acts on instances and mailboxes owned by its user; others return `404`.",
+  "A key only acts on instances, mailboxes and phones owned by its user; others return `404`.",
 ].join("\n");
 
 export const openApiPlugin = () =>
@@ -66,6 +68,11 @@ export const openApiPlugin = () =>
         {
           name: "Mailboxes",
           description: "Temporary mailboxes that receive and send email.",
+        },
+        {
+          name: "Phones",
+          description:
+            "Phone numbers from the user's SMS provider, configured in Settings.",
         },
       ],
       components: {

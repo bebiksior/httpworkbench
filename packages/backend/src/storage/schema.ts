@@ -3,6 +3,7 @@ import type {
   InstanceRoute,
   LogType,
   MailDirection,
+  PhoneProviderId,
   UserNoticeKind,
 } from "shared";
 import {
@@ -247,6 +248,19 @@ export const mailMessages = sqliteTable(
   ],
 );
 
+export const phoneProviders = sqliteTable(
+  "phoneProviders",
+  {
+    userId: text("userId")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    provider: text("provider").$type<PhoneProviderId>().notNull(),
+    credentialsCiphertext: text("credentialsCiphertext").notNull(),
+    createdAt: integer("createdAt", { mode: "number" }).notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.userId, table.provider] })],
+);
+
 export const schema = {
   users,
   localCredentials,
@@ -259,4 +273,5 @@ export const schema = {
   userNotices,
   mailboxes,
   mailMessages,
+  phoneProviders,
 };

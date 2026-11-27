@@ -4,6 +4,7 @@ import { authenticateApiKeyRequest } from "./apiKeyAuth";
 import { registerInstanceTools } from "./mcp/instanceTools";
 import { registerLogTools } from "./mcp/logTools";
 import { registerMailboxTools } from "./mcp/mailboxTools";
+import { registerPhoneTools } from "./mcp/phoneTools";
 import { createFixedWindowRateLimiter } from "./rateLimit";
 
 const mcpRateLimitWindowMs = 60_000;
@@ -38,7 +39,9 @@ Instances created here expire after 72 hours unless extended with extend_instanc
 Raw responses need a status line, headers, a blank line and a body. Line endings are normalized and Content-Length is set automatically.
 
 When the user is waiting for interactions, call watch_instance_logs again with resumeCursor after pollAfterMs.
-${mailboxInstructions}`.trim();
+${mailboxInstructions}
+
+Phones are real numbers from the user's SMS provider, configured in Settings, for SMS verification. Give each account on the same site a different number, record the site and account in its notes with update_phone, and reuse that number for later logins. Wait for codes with watch_phone; list_sms shows the parsedCode of each message. Lines with alwaysOn false receive SMS only inside the usage window that wake_phone returns.`.trim();
 
 const frontendUrl = Bun.env.FRONTEND_URL;
 const configuredDomain = Bun.env.DOMAIN;
@@ -81,6 +84,7 @@ const createMcpServer = () => {
   registerInstanceTools(server);
   registerLogTools(server);
   registerMailboxTools(server);
+  registerPhoneTools(server);
   return server;
 };
 

@@ -7,3 +7,4 @@ export * from "./users";
 export * from "./webhooks";
 export * from "./localCredentials";
 export * from "./mailboxes";
+export * from "./phoneProviders";

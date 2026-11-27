@@ -81,6 +81,8 @@ export const ApiKeyScopeSchema = z.union([
   z.literal("mailboxes:read"),
   z.literal("mailboxes:write"),
   z.literal("mailboxes:send"),
+  z.literal("phones:read"),
+  z.literal("phones:write"),
 ]);
 
 export type ApiKeyScope = z.infer<typeof ApiKeyScopeSchema>;
