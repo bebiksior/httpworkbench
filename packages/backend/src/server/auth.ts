@@ -9,7 +9,11 @@ import {
 } from "../storage";
 import { authMode } from "../config";
 import type { ApiKeyAuthContext } from "./apiKeyAuth";
-import { authenticateApiKeyValue, hasApiKeyScope } from "./apiKeyAuth";
+import {
+  authenticateApiKeyValue,
+  hasAllApiKeyScopes,
+  hasApiKeyScope,
+} from "./apiKeyAuth";
 import { jwtSecret } from "./jwtSecret";
 import { createFixedWindowRateLimiter } from "./rateLimit";
 
@@ -92,7 +96,7 @@ const authenticateSession = async (
     return { user: toPublicUser(userRecord) };
   }
   const apiKey = getActiveApiKeyById(apiKeyId, Date.now());
-  if (apiKey?.userId !== sub) {
+  if (apiKey?.userId !== sub || !hasAllApiKeyScopes(apiKey)) {
     return undefined;
   }
   return { user: toPublicUser(userRecord), apiKey };

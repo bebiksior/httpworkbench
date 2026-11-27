@@ -179,3 +179,6 @@ export const authenticateApiKeyRequest = (
 export const hasApiKeyScope = (apiKey: ApiKey, scope: ApiKeyScope): boolean => {
   return apiKey.scopes.includes(scope);
 };
+
+export const hasAllApiKeyScopes = (apiKey: ApiKey) =>
+  API_KEY_SCOPES.every((scope) => hasApiKeyScope(apiKey, scope));

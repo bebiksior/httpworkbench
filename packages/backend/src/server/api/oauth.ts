@@ -10,11 +10,7 @@ import {
   getUserById,
   toPublicUser,
 } from "../../storage";
-import {
-  API_KEY_SCOPES,
-  authenticateApiKeyValue,
-  hasApiKeyScope,
-} from "../apiKeyAuth";
+import { authenticateApiKeyValue, hasAllApiKeyScopes } from "../apiKeyAuth";
 import { authPlugin, issueAuthToken } from "../auth";
 import { createBoundedProtocolRateLimiter } from "../protocolRateLimit";
 
@@ -84,10 +80,7 @@ export const oauthRoutes = new Elysia({ name: "routes/oauth" })
       if (auth === undefined) {
         return status(401, { error: "Invalid API key" });
       }
-      const hasAllScopes = API_KEY_SCOPES.every((scope) =>
-        hasApiKeyScope(auth.apiKey, scope),
-      );
-      if (!hasAllScopes) {
+      if (!hasAllApiKeyScopes(auth.apiKey)) {
         return status(403, {
           error:
             "This API key is scoped; dashboard sign-in requires a key with all scopes",

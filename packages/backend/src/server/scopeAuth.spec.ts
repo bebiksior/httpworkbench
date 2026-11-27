@@ -238,6 +238,12 @@ describe("auth macro enforcement (e2e)", () => {
     const active = await app.handle(authedRequest("/session", sessionToken));
     expect(active.status).toBe(200);
 
+    const stored = state.apiKeys.get(key.apiKey.prefix);
+    if (stored === undefined) throw new Error("Missing test key");
+    stored.scopes = stored.scopes.filter((scope) => scope !== "phones:write");
+    const scoped = await app.handle(authedRequest("/session", sessionToken));
+    expect(scoped.status).toBe(401);
+
     state.apiKeys.delete(key.apiKey.prefix);
     const revoked = await app.handle(authedRequest("/session", sessionToken));
     expect(revoked.status).toBe(401);
