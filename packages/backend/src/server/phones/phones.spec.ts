@@ -358,6 +358,22 @@ describe("phones", () => {
     }
   });
 
+  test("checks the browser origin before mutating a phone provider", async () => {
+    const cookie = `auth_token=${await issueAuthToken("alice")}`;
+    const testProvider = (origin: string) =>
+      app.handle(
+        new Request(
+          "https://workbench.example/api/phone-providers/textverified/test",
+          { method: "POST", headers: { cookie, origin } },
+        ),
+      );
+
+    expect(
+      (await testProvider("https://instance.workbench.example")).status,
+    ).toBe(403);
+    expect((await testProvider("https://workbench.example")).status).toBe(404);
+  });
+
   test("requires phone scopes", async () => {
     await saveTextverified("alice", "alice@example.com", "alice-key-0001");
     const mcp = await connectMcp("alice", ["mailboxes:read"]);

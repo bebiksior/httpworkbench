@@ -7,6 +7,7 @@ import {
 } from "shared";
 import { authPlugin } from "../auth";
 import { createFixedWindowRateLimiter } from "../rateLimit";
+import { isAllowedBrowserOrigin } from "../webSocketOrigin";
 import {
   getUserPhone,
   listPhoneProviderConfigs,
@@ -45,6 +46,11 @@ const respond = <T>(result: PhoneServiceResult<T>, created = false) => {
 
 export const phonesRoutes = new Elysia({ name: "routes/phones" })
   .use(authPlugin)
+  .onBeforeHandle(({ request }) => {
+    if (request.method !== "GET" && !isAllowedBrowserOrigin(request)) {
+      return status(403, { error: "Invalid origin" });
+    }
+  })
   .group("/api/phone-providers", { detail: { hide: true } }, (app) =>
     app
       .get("", ({ user }) => listPhoneProviderConfigs(user.id), {
