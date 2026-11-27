@@ -22,15 +22,22 @@ const sections = [
     to: "/",
     match: (path: string) => path === "/" || path.startsWith("/instances"),
   },
+  ...(config.smtpEnabled
+    ? [
+        {
+          label: "Mail",
+          to: "/mail",
+          match: (path: string) => path.startsWith("/mail"),
+        },
+      ]
+    : []),
   {
-    label: "Mail",
-    to: "/mail",
-    match: (path: string) => path.startsWith("/mail"),
+    label: "Phones",
+    to: "/phones",
+    match: (path: string) => path.startsWith("/phones"),
   },
 ];
-const showSections = computed(
-  () => config.smtpEnabled && authStore.isAuthenticated,
-);
+const showSections = computed(() => authStore.isAuthenticated);
 const shortcutsVisible = ref(false);
 
 const goSettings = async () => {

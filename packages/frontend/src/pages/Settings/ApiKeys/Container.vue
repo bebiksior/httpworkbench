@@ -31,6 +31,8 @@ const scopeOptions: Array<{ value: ApiKeyScope; label: string }> = [
   ...(config.smtpSendingEnabled
     ? ([{ value: "mailboxes:send", label: "Send mail" }] as const)
     : []),
+  { value: "phones:read", label: "Read phones and SMS" },
+  { value: "phones:write", label: "Manage phones" },
 ];
 
 const {

@@ -24,6 +24,7 @@ const Mailboxes = () =>
   import("@/pages/Mailboxes").then((module) => module.Mailboxes);
 const Mailbox = () =>
   import("@/pages/Mailbox").then((module) => module.Mailbox);
+const Phones = () => import("@/pages/Phones").then((module) => module.Phones);
 
 const router = createRouter({
   history: createWebHistory(),
@@ -72,6 +73,12 @@ const router = createRouter({
           name: "mailbox",
           component: Mailbox,
           meta: { requiresMail: true },
+        },
+        {
+          path: "phones",
+          name: "phones",
+          component: Phones,
+          meta: { requiresUser: true },
         },
         {
           path: "instances/:id/responses",

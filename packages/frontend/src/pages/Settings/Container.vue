@@ -28,6 +28,9 @@ const ApiKeys = defineAsyncComponent(() =>
 const Mcp = defineAsyncComponent(() =>
   import("./Mcp").then((module) => module.Mcp),
 );
+const Phones = defineAsyncComponent(() =>
+  import("./Phones").then((module) => module.Phones),
+);
 
 const router = useRouter();
 const authStore = useAuthStore();
@@ -40,6 +43,7 @@ const sections = [
   { id: "ai", label: "AI", icon: "pi pi-sparkles" },
   { id: "api-keys", label: "API Keys", icon: "pi pi-key" },
   { id: "mcp", label: "MCP", icon: "pi pi-bolt" },
+  { id: "phones", label: "Phones", icon: "pi pi-phone" },
   { id: "webhooks", label: "Webhooks", icon: "pi pi-send" },
   { id: "version", label: "Version", icon: "pi pi-refresh" },
 ] as const;
@@ -145,8 +149,8 @@ useEventListener(window, "keydown", (event) => {
 
   <div v-if="isGuest" class="h-full flex items-center justify-center px-6">
     <Message severity="info" :closable="false" class="max-w-xl text-center">
-      API keys, MCP, and webhooks are available for authenticated users. Sign in
-      to manage integrations.
+      API keys, MCP, phones, and webhooks are available for authenticated users.
+      Sign in to manage integrations.
     </Message>
   </div>
   <div
@@ -164,8 +168,8 @@ useEventListener(window, "keydown", (event) => {
           <p
             class="max-w-3xl text-sm text-surface-600 dark:text-surface-300 sm:text-base"
           >
-            Manage AI providers, API keys, MCP clients, webhooks, and version
-            checks.
+            Manage AI providers, API keys, MCP clients, phone providers,
+            webhooks, and version checks.
           </p>
         </div>
         <Button
@@ -223,6 +227,10 @@ useEventListener(window, "keydown", (event) => {
 
         <section v-else-if="activeSection === 'mcp'">
           <Mcp @navigate-to-api-keys="activeSection = 'api-keys'" />
+        </section>
+
+        <section v-else-if="activeSection === 'phones'">
+          <Phones />
         </section>
 
         <section v-else>

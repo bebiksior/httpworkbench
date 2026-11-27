@@ -23,6 +23,11 @@ export const queryKeys = {
     message: (id: string, messageId: string) =>
       ["mailboxes", id, "message", messageId] as const,
   },
+  phones: {
+    all: ["phones"] as const,
+    sms: (id: string) => ["phones", id, "sms"] as const,
+    providers: ["phone-providers"] as const,
+  },
 } as const;
 
 export const instanceListQueryKey = (isGuest: boolean, guestKey?: string) =>

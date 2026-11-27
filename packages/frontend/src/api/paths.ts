@@ -43,6 +43,15 @@ export const apiPaths = {
   mailboxMessages: (id: string) => path("/api/mailboxes/:id/messages", { id }),
   mailboxSend: (id: string) => path("/api/mailboxes/:id/send", { id }),
   mailboxes: "/api/mailboxes",
+  phone: (id: string) => path("/api/phones/:id", { id }),
+  phoneProvider: (provider: string) =>
+    path("/api/phone-providers/:provider", { provider }),
+  phoneProviderTest: (provider: string) =>
+    path("/api/phone-providers/:provider/test", { provider }),
+  phoneProviders: "/api/phone-providers",
+  phoneSms: (id: string) => path("/api/phones/:id/sms", { id }),
+  phoneWake: (id: string) => path("/api/phones/:id/wake", { id }),
+  phones: "/api/phones",
   userNotices: "/api/user/notices",
   userNoticesAck: "/api/user/notices/ack",
   webhook: (id: string) => path("/api/webhooks/:id", { id }),
