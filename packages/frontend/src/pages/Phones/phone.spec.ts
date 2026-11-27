@@ -9,11 +9,19 @@ describe("formatPhoneNumber", () => {
 });
 
 describe("formatWakeWindow", () => {
-  it("shows the start only while it is still ahead", () => {
+  it("shows a scheduled window before and during its active time", () => {
+    const start = new Date(2026, 10, 27, 10, 0).getTime();
     const end = new Date(2026, 10, 27, 10, 30).getTime();
-    expect(formatWakeWindow(undefined, end)).toBe("Awake until 10:30");
-    expect(formatWakeWindow(Date.now() + 3_600_000, end)).toMatch(
-      /^Awake \d\d:\d\d–10:30$/,
-    );
+    const wake = {
+      scheduled: true,
+      usageWindowStart: start,
+      usageWindowEnd: end,
+    };
+    expect(formatWakeWindow(wake, start - 1)).toBe("Awake 10:00–10:30");
+    expect(formatWakeWindow(wake, start)).toBe("Awake until 10:30");
+    expect(formatWakeWindow(wake, end)).toBeUndefined();
+    expect(
+      formatWakeWindow({ ...wake, scheduled: false }, start),
+    ).toBeUndefined();
   });
 });

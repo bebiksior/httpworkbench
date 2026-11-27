@@ -50,7 +50,7 @@ const useInvalidatePhoneProviders = () => {
   return () =>
     Promise.all([
       queryClient.invalidateQueries({ queryKey: queryKeys.phones.providers }),
-      queryClient.invalidateQueries({ queryKey: queryKeys.phones.all }),
+      queryClient.resetQueries({ queryKey: queryKeys.phones.all }),
     ]);
 };
 

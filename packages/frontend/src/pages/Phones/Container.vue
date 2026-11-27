@@ -2,7 +2,7 @@
 import Button from "primevue/button";
 import Message from "primevue/message";
 import { useMediaQuery } from "@vueuse/core";
-import type { PhoneWake } from "shared";
+import type { Phone, PhoneWake } from "shared";
 import { computed, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useNotify } from "@/composables";
@@ -52,10 +52,8 @@ const wake = () => {
   wakeMutation.mutate(phone.id, {
     onSuccess: (result) => {
       wakes.value = { ...wakes.value, [phone.id]: result };
-      if (result.scheduled && result.usageWindowEnd !== undefined) {
-        notify.success(
-          formatWakeWindow(result.usageWindowStart, result.usageWindowEnd),
-        );
+      if (result.scheduled) {
+        notify.success(formatWakeWindow(result) ?? "Wake scheduled");
       } else {
         notify.warn("Wake was not scheduled", "Try again in a moment.");
       }
@@ -64,7 +62,7 @@ const wake = () => {
   });
 };
 
-const notesVisible = ref(false);
+const editingPhone = ref<Phone>();
 </script>
 
 <template>
@@ -99,7 +97,7 @@ const notesVisible = ref(false);
       :is-waking="wakeMutation.isPending.value"
       @back="selectPhone(undefined)"
       @wake="wake"
-      @edit-notes="notesVisible = true"
+      @edit-notes="editingPhone = selected"
     />
     <Message
       v-if="error || providersQuery.error.value"
@@ -118,7 +116,10 @@ const notesVisible = ref(false);
         @click="error ? refetch() : providersQuery.refetch()"
       />
     </Message>
-    <div class="flex min-h-0 flex-1">
+    <div
+      v-if="phoneList.length > 0 || (!error && !providersQuery.error.value)"
+      class="flex min-h-0 flex-1"
+    >
       <aside
         class="w-full min-w-0 flex-col border-r border-surface-200 bg-white lg:flex lg:w-[22rem] lg:shrink-0 xl:w-[26rem] dark:border-surface-700 dark:bg-surface-800"
         :class="selected ? 'hidden' : 'flex'"
@@ -145,9 +146,10 @@ const notesVisible = ref(false);
     </div>
 
     <NotesDialog
-      v-if="selected"
-      v-model:visible="notesVisible"
-      :phone="selected"
+      v-if="editingPhone"
+      :visible="true"
+      :phone="editingPhone"
+      @update:visible="editingPhone = undefined"
     />
   </div>
 </template>

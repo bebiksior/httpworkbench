@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { useClipboard } from "@vueuse/core";
+import { useClipboard, useTimestamp } from "@vueuse/core";
 import Button from "primevue/button";
 import type { Phone, PhoneWake } from "shared";
+import { computed } from "vue";
 import { formatPhoneNumber, formatWakeWindow } from "../../phone";
 
 const props = defineProps<{
@@ -18,6 +19,10 @@ const emit = defineEmits<{
 }>();
 
 const { copy, copied } = useClipboard({ copiedDuring: 1200, legacy: true });
+const now = useTimestamp({ interval: 1_000 });
+const wakeWindow = computed(() =>
+  props.wake ? formatWakeWindow(props.wake, now.value) : undefined,
+);
 const copyNumber = () => {
   if (props.phone !== undefined) {
     void copy(props.phone.number);
@@ -70,10 +75,10 @@ const copyNumber = () => {
       </p>
     </div>
     <span
-      v-if="phone && wake?.usageWindowEnd !== undefined"
+      v-if="phone && wakeWindow"
       class="hidden shrink-0 text-xs text-surface-400 tabular-nums md:inline"
     >
-      {{ formatWakeWindow(wake.usageWindowStart, wake.usageWindowEnd) }}
+      {{ wakeWindow }}
     </span>
     <Button
       v-if="phone && !phone.alwaysOn"

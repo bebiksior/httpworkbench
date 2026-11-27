@@ -3,7 +3,7 @@ import Button from "primevue/button";
 import Dialog from "primevue/dialog";
 import InputText from "primevue/inputtext";
 import { PHONE_NOTES_MAX_LENGTH, type Phone } from "shared";
-import { ref, watch } from "vue";
+import { ref } from "vue";
 import { useNotify } from "@/composables";
 import { useUpdatePhoneNotes } from "@/queries/domains/usePhones";
 import { formatPhoneNumber } from "../../phone";
@@ -14,13 +14,7 @@ const visible = defineModel<boolean>("visible", { required: true });
 
 const notify = useNotify();
 const updateMutation = useUpdatePhoneNotes();
-const notes = ref("");
-
-watch(visible, (isVisible) => {
-  if (isVisible) {
-    notes.value = props.phone.notes ?? "";
-  }
-});
+const notes = ref(props.phone.notes ?? "");
 
 const save = () =>
   updateMutation.mutate(
