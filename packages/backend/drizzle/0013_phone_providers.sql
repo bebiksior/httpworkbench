@@ -8,4 +8,9 @@ CREATE TABLE `phoneProviders` (
 );
 --> statement-breakpoint
 -- Keys that held every scope keep full access, which dashboard sign-in requires.
-UPDATE `apiKeys` SET `scopesJson` = json_insert(`scopesJson`, '$[#]', 'phones:read', '$[#]', 'phones:write') WHERE (SELECT count(DISTINCT `value`) FROM json_each(`apiKeys`.`scopesJson`) WHERE `value` IN ('instances:read', 'instances:write', 'instances:delete', 'logs:read', 'logs:stream', 'mailboxes:read', 'mailboxes:write', 'mailboxes:send')) = 8;
+UPDATE `apiKeys`
+SET `scopesJson` = json_insert(`scopesJson`, '$[#]', 'phones:read', '$[#]', 'phones:write')
+WHERE json_valid(`scopesJson`) AND (
+	SELECT count(DISTINCT `value`) FROM json_each(`apiKeys`.`scopesJson`)
+	WHERE `value` IN ('instances:read', 'instances:write', 'instances:delete', 'logs:read', 'logs:stream', 'mailboxes:read', 'mailboxes:write', 'mailboxes:send')
+) = 8;

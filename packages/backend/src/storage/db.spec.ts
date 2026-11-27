@@ -180,7 +180,7 @@ describe("storage db migrations", () => {
         sqlite.exec(statement);
       }
     }
-    const fullScopes = JSON.stringify([
+    const fullScopes = [
       "instances:read",
       "instances:write",
       "instances:delete",
@@ -189,7 +189,7 @@ describe("storage db migrations", () => {
       "mailboxes:read",
       "mailboxes:write",
       "mailboxes:send",
-    ]);
+    ];
     sqlite.exec(`
       CREATE TABLE __drizzle_migrations (
         id SERIAL PRIMARY KEY,
@@ -198,8 +198,9 @@ describe("storage db migrations", () => {
       );
       INSERT INTO users VALUES ('user-1', 'google-1', 1);
       INSERT INTO apiKeys (id, userId, name, prefix, secretHash, scopesJson, createdAt)
-        VALUES ('full', 'user-1', 'Full', 'hwb_a', 'x', '${fullScopes}', 1),
-               ('scoped', 'user-1', 'Scoped', 'hwb_b', 'x', '["mailboxes:read"]', 1);
+        VALUES ('full', 'user-1', 'Full', 'hwb_a', 'x', '${JSON.stringify(fullScopes)}', 1),
+               ('scoped', 'user-1', 'Scoped', 'hwb_b', 'x', '["mailboxes:read"]', 1),
+               ('invalid', 'user-1', 'Invalid', 'hwb_c', 'x', 'invalid json', 1);
     `);
     for (const migration of before) {
       sqlite
@@ -217,14 +218,13 @@ describe("storage db migrations", () => {
           "SELECT id, scopesJson FROM apiKeys",
         )
         .all()
-        .map((row) => [row.id, JSON.parse(row.scopesJson) as string[]]),
+        .map((row) => [row.id, row.scopesJson]),
     );
-    expect(scopes.full).toEqual([
-      ...(JSON.parse(fullScopes) as string[]),
-      "phones:read",
-      "phones:write",
-    ]);
-    expect(scopes.scoped).toEqual(["mailboxes:read"]);
+    expect(scopes.full).toBe(
+      JSON.stringify([...fullScopes, "phones:read", "phones:write"]),
+    );
+    expect(scopes.scoped).toBe('["mailboxes:read"]');
+    expect(scopes.invalid).toBe("invalid json");
   });
 
   test("initDb reset recreates an empty migrated database", () => {
