@@ -15,19 +15,37 @@ export const getPhoneProvidersByUser = (
     .orderBy(asc(phoneProviders.createdAt))
     .all();
 
-export const setPhoneProvider = (record: PhoneProviderRecord) => {
-  getDb()
-    .insert(phoneProviders)
-    .values(record)
-    .onConflictDoUpdate({
-      target: [phoneProviders.userId, phoneProviders.provider],
-      set: {
+export const setPhoneProvider = (
+  record: PhoneProviderRecord,
+  previousCiphertext: string | undefined,
+): boolean => {
+  if (previousCiphertext === undefined) {
+    return (
+      getDb()
+        .insert(phoneProviders)
+        .values(record)
+        .onConflictDoNothing()
+        .returning({ provider: phoneProviders.provider })
+        .get() !== undefined
+    );
+  }
+  return (
+    getDb()
+      .update(phoneProviders)
+      .set({
         credentialsCiphertext: record.credentialsCiphertext,
         createdAt: record.createdAt,
-      },
-    })
-    .run();
-  return record;
+      })
+      .where(
+        and(
+          eq(phoneProviders.userId, record.userId),
+          eq(phoneProviders.provider, record.provider),
+          eq(phoneProviders.credentialsCiphertext, previousCiphertext),
+        ),
+      )
+      .returning({ provider: phoneProviders.provider })
+      .get() !== undefined
+  );
 };
 
 export const deletePhoneProvider = (

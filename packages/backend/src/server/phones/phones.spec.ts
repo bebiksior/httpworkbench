@@ -392,6 +392,30 @@ describe("phones", () => {
     expect((await call("bob", "/api/phones")).status).toBe(409);
   });
 
+  test("an update awaiting verification cannot restore deleted credentials", async () => {
+    await saveTextverified("bob", bob.username, "bob-key-0002");
+    const started = Promise.withResolvers<void>();
+    const release = Promise.withResolvers<void>();
+    alice.beforeReadNotes = () => {
+      started.resolve();
+      return release.promise;
+    };
+    const updating = saveTextverified("bob", alice.username, "alice-key-0001");
+    await started.promise;
+    try {
+      expect(
+        (await call("bob", "/api/phone-providers/textverified", "DELETE"))
+          .status,
+      ).toBe(200);
+    } finally {
+      release.resolve();
+    }
+    expect((await updating).status).toBe(409);
+    expect(await (await call("bob", "/api/phone-providers")).json()).toEqual(
+      [],
+    );
+  });
+
   test("bounds a cold watch while the provider is fetching the phone inventory", async () => {
     await saveTextverified("bob", bob.username, "bob-key-0002");
     bob.beforeReadNotes = (signal) => delay(500, undefined, { signal });

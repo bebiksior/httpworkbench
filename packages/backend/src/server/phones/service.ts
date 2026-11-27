@@ -162,6 +162,7 @@ export const savePhoneProvider = async (
   if (invalid !== undefined) {
     return fail(invalid, 400);
   }
+  const previous = findRecord(userId, input.provider);
   const record: PhoneProviderRecord = {
     userId,
     provider: input.provider,
@@ -176,7 +177,12 @@ export const savePhoneProvider = async (
   if (!verified.ok) {
     return verified;
   }
-  setPhoneProvider(record);
+  if (!setPhoneProvider(record, previous?.credentialsCiphertext)) {
+    return fail(
+      "Phone provider configuration changed while verifying credentials. Try again.",
+      409,
+    );
+  }
   boundedSet(providerInstances, `${userId}:${input.provider}`, {
     sealed: record.credentialsCiphertext,
     provider,
