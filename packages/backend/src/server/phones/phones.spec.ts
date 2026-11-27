@@ -374,6 +374,21 @@ describe("phones", () => {
     expect((await testProvider("https://workbench.example")).status).toBe(404);
   });
 
+  test("trims phone notes before applying the length limit in MCP", async () => {
+    await saveTextverified("alice", alice.username, "alice-key-0001");
+    const mcp = await connectMcp("alice");
+    try {
+      const notes = "x".repeat(200);
+      const updated = await mcp.call("update_phone", {
+        phoneId: "lr_alice",
+        notes: ` ${notes} `,
+      });
+      expect(updated.structuredContent?.phone).toMatchObject({ notes });
+    } finally {
+      await mcp.client.close();
+    }
+  });
+
   test("requires phone scopes", async () => {
     await saveTextverified("alice", "alice@example.com", "alice-key-0001");
     const mcp = await connectMcp("alice", ["mailboxes:read"]);

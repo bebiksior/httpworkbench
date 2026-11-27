@@ -1,5 +1,5 @@
 import type { McpServer } from "@modelcontextprotocol/server";
-import { PHONE_NOTES_MAX_LENGTH } from "shared";
+import { UpdatePhoneSchema } from "shared";
 import * as z from "zod/v4";
 import {
   listPhoneSms,
@@ -168,9 +168,8 @@ export const registerPhoneTools = (server: McpServer) => {
       title: "Update Phone",
       description:
         "Set a phone's notes, e.g. the site and account that use the number. An empty string clears them.",
-      inputSchema: z.object({
+      inputSchema: UpdatePhoneSchema.extend({
         phoneId: phoneIdInput,
-        notes: z.string().max(PHONE_NOTES_MAX_LENGTH),
       }),
       annotations: {
         readOnlyHint: false,
@@ -183,7 +182,7 @@ export const registerPhoneTools = (server: McpServer) => {
       const auth = getAuthContext(extra);
       requireScope(auth, "phones:write");
       return toolResult(
-        await updatePhoneNotes(auth.user.id, phoneId, notes.trim()),
+        await updatePhoneNotes(auth.user.id, phoneId, notes),
         (phone) => ({ phone }),
       );
     },
